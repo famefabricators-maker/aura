@@ -1,0 +1,78 @@
+/* Szuflada czatu transmisji — ten sam język co wyspa (island/island.css): ciemna powierzchnia, Manrope, akcent. */
+:root {
+  --bg: 11, 11, 12; --alpha: .92; --fg: #f5f5f7; --dim: rgba(245,245,247,.55); --line: rgba(255,255,255,.08);
+  --accent: #c0a4f8; --size: 14px; --radius: 22px;
+  --font: "Manrope Variable", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono Variable", "Cascadia Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+body { font-family: var(--font); color: var(--fg); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.drawer {
+  position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden;
+  border-radius: var(--radius); background: rgba(var(--bg), var(--alpha));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255, calc(var(--alpha) * .09));
+}
+/* bardzo przezroczyste tło: same wiadomości z obrysem, czytelne nad grą */
+.drawer.clear { box-shadow: none; }
+.drawer.clear .msg, .drawer.clear .head { -webkit-text-stroke: .22em rgba(0,0,0,.82); paint-order: stroke fill; text-shadow: 0 1px 4px rgba(0,0,0,.55); }
+.drawer.clear .msg .name::after { color: var(--fg); }
+.drawer.clear .head { opacity: 0; transition: opacity .2s; }
+.drawer.clear:hover .head { opacity: 1; }
+
+/* ---------- nagłówek (przeciąganie okna) ---------- */
+.head {
+  -webkit-app-region: drag; flex: none; display: flex; align-items: center; gap: 10px;
+  height: 46px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--line);
+}
+.drawer.clear .head { border-bottom-color: transparent; }
+.live { width: 8px; height: 8px; border-radius: 50%; flex: none; background: rgba(255,255,255,.25); }
+.live.on { background: #ff453a; box-shadow: 0 0 0 0 rgba(255,69,58,.5); animation: pulse 2.4s ease-out infinite; }
+.live.err { background: #ff9f0a; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,69,58,.45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(255,69,58,0); } }
+.who { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.who b { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who small { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btn { -webkit-app-region: no-drag; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: var(--dim); transition: background .15s, color .15s; }
+.btn svg { width: 16px; height: 16px; }
+.btn:hover { background: rgba(255,255,255,.08); color: var(--fg); }
+.btn.on { color: var(--accent); }
+
+/* ---------- wiadomości ---------- */
+.list {
+  flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 14px 14px; scroll-behavior: auto;
+  font-size: var(--size); line-height: 1.42; user-select: text;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+}
+.list::-webkit-scrollbar { width: 6px; }
+.list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 3px; }
+.list::-webkit-scrollbar-track { background: transparent; }
+.msg { padding: 3px 0; overflow-wrap: anywhere; animation: in .18s cubic-bezier(.2,.8,.2,1); }
+@keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.msg .name { font-weight: 700; }
+.msg .name::after { content: ': '; color: var(--dim); font-weight: 500; }
+.msg.action .name::after { content: ' '; }
+.msg.action .txt { font-style: italic; }
+.msg .badge { display: inline-grid; place-items: center; width: 1.05em; height: 1.05em; margin-right: 4px; vertical-align: -0.12em; color: var(--accent); }
+.msg .emote { height: 1.75em; vertical-align: middle; margin: -0.35em 1px; }
+.msg.hl { background: rgba(192,164,248,.12); border-radius: 8px; padding: 4px 8px; margin: 2px -8px; }
+.msg.gone .txt { color: var(--dim); font-style: italic; }
+
+.empty { position: absolute; inset: 46px 0 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--dim); text-align: center; padding: 24px; pointer-events: none; }
+.empty svg { width: 28px; height: 28px; opacity: .6; }
+.empty p { font-size: 12.5px; max-width: 230px; line-height: 1.4; }
+.empty.hide { display: none; }
+
+.more {
+  position: absolute; left: 50%; bottom: 12px; transform: translate(-50%, 8px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 14px; border-radius: 999px;
+  background: var(--fg); color: #000; font-size: 12px; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  transition: opacity .18s, transform .18s cubic-bezier(.2,.8,.2,1);
+}
+.more svg { width: 14px; height: 14px; stroke-width: 2.2; }
+.more.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) { .msg { animation: none; } .live.on { animation: none; } .more { transition: opacity .1s; } }

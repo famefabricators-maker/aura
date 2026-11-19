@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https://static-cdn.jtvnw.net; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <title>Czat transmisji</title>
+  <link rel="stylesheet" href="../island/fonts.css">
+  <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+  <div class="drawer" id="drawer">
+    <header class="head" id="head">
+      <span class="live" id="live" title="Stan połączenia"></span>
+      <div class="who">
+        <b id="chan">Czat</b>
+        <small id="state">łączę…</small>
+      </div>
+      <button class="btn" id="top" title="Przypnij nad wszystkim">
+        <svg viewBox="0 0 24 24"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>
+      </button>
+      <button class="btn" id="close" title="Zamknij czat">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <main class="list" id="list" aria-live="polite"></main>
+    <div class="empty" id="empty">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/></svg>
+      <p id="emptyText">Czekam na pierwsze wiadomości</p>
+    </div>
+    <button class="more" id="more">Nowe wiadomości <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+  </div>
+  <script src="chat.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Aura Deck</title>
+  <link rel="stylesheet" href="deck.css">
+</head>
+<body>
+  <!-- parowanie -->
+  <section class="screen pair on" id="pair">
+    <div class="pair-box">
+      <div class="logo"><span></span></div>
+      <h1>Aura Deck</h1>
+      <p class="lead">Telefon jako gładzik i pilot do tego komputera.</p>
+      <div id="pairForm">
+        <label for="devName">Nazwa telefonu</label>
+        <input id="devName" maxlength="40" autocomplete="off">
+        <button class="primary" id="pairBtn">Połącz z komputerem</button>
+      </div>
+      <div id="pairWait" class="wait">
+        <p>Na komputerze zatwierdź ten telefon. Sprawdź, czy kod się zgadza:</p>
+        <div class="code" id="pairCode">····</div>
+        <button class="ghost" id="pairCancel">Anuluj</button>
+      </div>
+      <p class="msg" id="pairMsg"></p>
+    </div>
+  </section>
+
+  <!-- sterowanie -->
+  <section class="screen main" id="main">
+    <header class="top">
+      <span class="dot" id="dot"></span>
+      <b id="pcName">Komputer</b>
+      <small id="conn">łączę…</small>
+    </header>
+
+    <div class="panel on" data-panel="pad">
+      <div class="pad" id="pad"><span class="hint">Przesuń, aby poruszać kursorem<br>stuknij = klik · dwa palce = przewijanie / prawy klik</span></div>
+      <div class="buttons">
+        <button class="mbtn" data-btn="l">Lewy</button>
+        <button class="mbtn" data-btn="r">Prawy</button>
+      </div>
+      <div class="sens"><span>Czułość</span><input type="range" id="sens" min="0.5" max="3" step="0.1"></div>
+    </div>
+
+    <div class="panel" data-panel="media">
+      <div class="now"><small>Teraz gra</small><b id="nowTitle">—</b><span id="nowArtist"></span></div>
+      <div class="transport">
+        <button class="round" data-k="prev" aria-label="Poprzedni"><svg viewBox="0 0 24 24"><path d="M6 5v14M19 5L9 12l10 7z"/></svg></button>
+        <button class="round big" data-k="play" aria-label="Odtwórz / pauza"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></button>
+        <button class="round" data-k="next" aria-label="Następny"><svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"/></svg></button>
+      </div>
+      <div class="vol">
+        <button class="tile" data-k="voldown">Ciszej</button>
+        <button class="tile" data-k="mute">Wycisz</button>
+        <button class="tile" data-k="volup">Głośniej</button>
+      </div>
+      <div class="vol">
+        <button class="tile" data-k="j">−10 s</button>
+        <button class="tile" data-k="f">Pełny ekran</button>
+        <button class="tile" data-k="l">+10 s</button>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="apps">
+      <div class="apps" id="apps"></div>
+      <p class="empty" id="appsEmpty">Dodaj aplikacje w Aurze: Ustawienia → Karty → Launcher.</p>
+      <div class="vol">
+        <button class="tile" data-x="alt+tab">Alt+Tab</button>
+        <button class="tile" data-x="win+d">Pulpit</button>
+        <button class="tile" data-x="alt+f4">Zamknij okno</button>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="slides">
+      <div class="slides">
+        <button class="slide" data-k="left" aria-label="Poprzedni slajd"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <button class="slide" data-k="right" aria-label="Następny slajd"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
+      <div class="vol">
+        <button class="tile" data-k="f5">Od początku</button>
+        <button class="tile" data-x="shift+f5">Od tego slajdu</button>
+      </div>
+      <div class="vol">
+        <button class="tile" data-k="b">Czarny ekran</button>
+        <button class="tile" data-k="esc">Zakończ</button>
+      </div>
+    </div>
+
+    <div class="panel" data-panel="keys">
+      <textarea id="text" rows="3" placeholder="Wpisz tekst, wyślij na komputer"></textarea>
+      <button class="primary" id="sendText">Wpisz na komputerze</button>
+      <div class="keys">
+        <button class="key" data-k="esc">Esc</button><button class="key" data-k="tab">Tab</button><button class="key" data-k="back">⌫</button><button class="key" data-k="enter">Enter</button>
+        <button class="key" data-x="ctrl+c">Kopiuj</button><button class="key" data-x="ctrl+v">Wklej</button><button class="key" data-x="ctrl+z">Cofnij</button><button class="key" data-k="space">Spacja</button>
+        <button class="key" data-k="left">←</button><button class="key" data-k="up">↑</button><button class="key" data-k="down">↓</button><button class="key" data-k="right">→</button>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="on" data-tab="pad"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M4 15h16M12 15v6"/></svg><span>Gładzik</span></button>
+      <button data-tab="media"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Muzyka</span></button>
+      <button data-tab="apps"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg><span>Aplikacje</span></button>
+      <button data-tab="slides"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg><span>Slajdy</span></button>
+      <button data-tab="keys"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg><span>Klawiatura</span></button>
+    </nav>
+  </section>
+  <script src="deck.js"></script>
+</body>
+</html>

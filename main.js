@@ -1,0 +1,944 @@
+// Aura — proces główny: okna, ustawienia, skróty, schowek, półka, przypomnienia, serwery.
+const {
+  app, BrowserWindow, ipcMain, screen, clipboard, ClipboardItem, nativeImage, Tray, Menu,
+  globalShortcut, shell, dialog, desktopCapturer, session, powerMonitor, net, systemPreferences, WebContentsView,
+} = require('electron');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
+const { execFile } = require('child_process');
+const QRCode = require('qrcode');
+const { Store } = require('./lib/store');
+const { Helper } = require('./lib/helper');
+const { LocalEndpoint, PhoneShare } = require('./lib/servers');
+
+app.setAppUserModelId('pl.aura.app');
+if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+
+const WIN_W = 780, WIN_H = 500;
+migrateFromWyspa();
+const store = new Store();
+
+// Zmiana nazwy Wyspa -> Aura: jednorazowo przenosi ustawienia i dane ze starego folderu
+// (razem z „Local State”, bo nim jest zaszyfrowana historia schowka) i usuwa stary wpis autostartu.
+function migrateFromWyspa() {
+  try {
+    const dst = app.getPath('userData');
+    const src = path.join(app.getPath('appData'), 'Wyspa');
+    if (path.resolve(src).toLowerCase() === path.resolve(dst).toLowerCase()) return;
+    if (fs.existsSync(path.join(dst, 'ustawienia.json')) || !fs.existsSync(path.join(src, 'ustawienia.json'))) return;
+    fs.mkdirSync(dst, { recursive: true });
+    for (const f of ['ustawienia.json', 'dane2.json', 'dane.json', 'schowek.bin', 'deck.json', 'Local State']) {
+      try { if (fs.existsSync(path.join(src, f))) fs.copyFileSync(path.join(src, f), path.join(dst, f)); } catch {}
+    }
+    execFile('reg', ['delete', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', 'pl.wyspa.app', '/f'], { windowsHide: true }, () => {});
+  } catch {}
+}
+const S = () => store.settings;
+const helper = new Helper();
+const endpoint = new LocalEndpoint();
+const downloadsDir = () => path.join(app.getPath('downloads'), 'Aura');
+const phone = new PhoneShare(() => store.data.files, downloadsDir());
+
+let island = null, settingsWin = null, tray = null, quitting = false;
+let rects = { c: { x: 300, y: 0, w: 180, h: 36 }, o: { x: 180, y: 0, w: 420, h: 240 } };
+let interactive = false, open = false, insideSince = 0, lastInside = 0, hold = false, pin = false, pinEntered = false;
+let userHidden = false, fsHidden = false, alertActive = false;
+
+// ---------- pomocnicze ----------
+const send = (ch, payload, win = island) => { if (!quitting && win && !win.isDestroyed()) win.webContents.send(ch, payload); };
+const both = (ch, payload) => { send(ch, payload, island); send(ch, payload, settingsWin); };
+const newId = () => crypto.randomBytes(6).toString('hex');
+
+// ---------- okno wyspy ----------
+function place() {
+  if (!island) return;
+  const d = screen.getPrimaryDisplay().bounds;
+  const m = Number(S().edgeMargin) || 24, pad = 34; // pad = odstęp wyspy od krawędzi okna (renderer)
+  let x = d.x + (d.width - WIN_W) / 2;
+  if (S().position === 'left') x = d.x + m - pad;
+  if (S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
+  island.setBounds({ x: Math.round(x), y: d.y, width: WIN_W, height: WIN_H });
+  send('screen', screenInfo());
+}
+function screenInfo() {
+  const d = screen.getPrimaryDisplay();
+  const b = island ? island.getBounds() : { x: 0, y: 0 };
+  return { w: d.bounds.width, h: d.bounds.height, x: d.bounds.x, y: d.bounds.y, winX: b.x - d.bounds.x, winY: b.y - d.bounds.y, scale: d.scaleFactor };
+}
+
+function createIsland() {
+  island = new BrowserWindow({
+    width: WIN_W, height: WIN_H, frame: false, transparent: true, resizable: false, movable: false,
+    minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, hasShadow: false,
+    alwaysOnTop: true, show: false, backgroundColor: '#00000000', title: 'Aura',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+  });
+  place();
+  island.setAlwaysOnTop(true, 'screen-saver');
+  island.setIgnoreMouseEvents(true, { forward: true });
+  applyGlassProtection();
+  island.loadFile(path.join('island', 'index.html'));
+  island.once('ready-to-show', applyVisibility);
+  island.on('blur', () => { hold = false; });
+}
+function applyGlassProtection() {
+  // Szkło czyta obraz ekranu, więc samo okno musi być niewidoczne dla przechwytywania (inaczej odbija samo siebie).
+  if (island) island.setContentProtection(S().surface === 'glass' || S().hideFromCaptures);
+}
+function applyVisibility() {
+  if (quitting || !island || island.isDestroyed()) return;
+  const show = !userHidden && (!fsHidden || alertActive);
+  if (show && !island.isVisible()) { island.showInactive(); island.setAlwaysOnTop(true, 'screen-saver'); }
+  if (!show && island.isVisible()) island.hide();
+  updateTray();
+}
+
+// Pozycja kursora dla szkła: przechwytywanie ekranu zawiera kursor, więc szkło go zamalowuje.
+let lastCur = '', curNear = { island: false, settings: false };
+function sendCursor(p, ib) {
+  if (S().surface !== 'glass') return;
+  const d = screen.getPrimaryDisplay().bounds;
+  const rel = { x: p.x - d.x, y: p.y - d.y };
+  const key = rel.x + ',' + rel.y;
+  const near = (b, m) => b && p.x > b.x - m && p.x < b.x + b.width + m && p.y > b.y - m && p.y < b.y + b.height + m;
+  for (const [name, win, b] of [['island', island, ib], ['settings', settingsWin, settingsWin && !settingsWin.isDestroyed() && settingsWin.isVisible() ? settingsWin.getContentBounds() : null]]) {
+    const n = near(b, 140);
+    if (n && key !== lastCur) send('cursor', rel, win);
+    else if (!n && curNear[name]) send('cursor', null, win);
+    curNear[name] = n;
+  }
+  lastCur = key;
+}
+
+// Kursor: okno przepuszcza kliknięcia wszędzie poza samą wyspą.
+const cursorLoop = setInterval(() => {
+  if (quitting || !island || island.isDestroyed() || !island.isVisible()) return;
+  const p = screen.getCursorScreenPoint();
+  const b = island.getBounds();
+  const rx = p.x - b.x, ry = p.y - b.y;
+  sendCursor(p, b);
+  const r = open ? rects.o : rects.c;
+  const pad = open ? 10 : 2;
+  const inside = rx >= r.x - pad && rx <= r.x + r.w + pad && ry >= -2 && ry <= r.y + r.h + pad;
+  const now = Date.now();
+  if (inside) { lastInside = now; if (!insideSince) insideSince = now; } else insideSince = 0;
+  if (inside !== interactive) { interactive = inside; island.setIgnoreMouseEvents(!inside, { forward: true }); }
+  if (pin && inside) pinEntered = true;
+  if (pin && pinEntered && !inside && now - lastInside > 400) { pin = false; pinEntered = false; }
+  const delay = S().hoverDelay;
+  const hover = !process.env.WYSPA_SHOT && inside; // w trybie testowym kursor nie otwiera wyspy
+  const want = pin || hold || (hover && now - insideSince >= delay) || (open && hover) || (open && !process.env.WYSPA_SHOT && now - lastInside < 260);
+  if (want !== open) { open = want; send('open', open); }
+}, 30);
+
+// ---------- ustawienia ----------
+function applySettings(patch) {
+  store.set(patch);
+  const k = Object.keys(patch);
+  if (k.includes('surface') || k.includes('hideFromCaptures')) applyGlassProtection();
+  if (k.includes('hotkeys')) registerHotkeys();
+  if (k.includes('autostart')) setAutostart();
+  if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
+  if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
+  if (k.includes('position') || k.includes('edgeMargin')) place();
+  if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
+  if (k.includes('calendarIcs')) refreshCalendar();
+  if (k.some(x => x.startsWith('obs'))) configureObs();
+  if (k.includes('chatTwitch')) configureChat();
+  if (k.includes('liveWallpaper') || k.includes('liveWallpaperFile')) configureWallpaper();
+  else if (k.some(x => /^wp[A-Z]/.test(x))) wp.setFilters(wpFilters());
+  send('settings', S(), chatWin);
+  if (k.includes('clipboardSize') || k.includes('clipboardKeepHours')) pruneClips();
+  both('settings', S());
+}
+ipcMain.handle('settings-get', () => S());
+ipcMain.handle('settings-set', (_, patch) => { applySettings(patch || {}); return S(); });
+ipcMain.on('open-settings', (_, page) => openSettings(page));
+
+function openSettings(page) {
+  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); if (page) send('goto', page, settingsWin); return; }
+  const glass = S().surface === 'glass';
+  settingsWin = new BrowserWindow({
+    width: 860, height: 760, minWidth: 720, minHeight: 520, show: false, title: 'Aura — ustawienia',
+    // Szkło: tło rysuje strona (rozmyty obraz pulpitu pod oknem, jak na wyspie)
+    backgroundColor: '#0b0b0e',
+    titleBarStyle: 'hidden', titleBarOverlay: { color: glass ? '#00000000' : '#0b0b0c', symbolColor: '#f5f5f7', height: 40 },
+    icon: path.join(__dirname, 'icon.ico'),
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  settingsWin.setMenu(null);
+  settingsWin.loadFile(path.join('settings', 'index.html'), { query: { page: page || '' } });
+  settingsWin.once('ready-to-show', () => settingsWin.show());
+  settingsWin.on('closed', () => { settingsWin = null; });
+  for (const ev of ['move', 'moved', 'resize', 'show', 'maximize', 'unmaximize', 'restore', 'will-move']) settingsWin.on(ev, sendSettingsPos);
+  // podczas przeciągania okna Windows nie zawsze wysyła „move” na bieżąco — dopytujemy o pozycję co klatkę
+  let lastPos = '';
+  const posTimer = setInterval(() => {
+    if (!settingsWin || settingsWin.isDestroyed()) return clearInterval(posTimer);
+    const b = settingsWin.getContentBounds(), k = b.x + ',' + b.y;
+    if (k !== lastPos) { lastPos = k; sendSettingsPos(); }
+  }, 16);
+  settingsWin.on('focus', () => send('settings-focus', true, settingsWin));
+  settingsWin.on('blur', () => send('settings-focus', false, settingsWin));
+  if (glass) settingsWin.setContentProtection(true);
+}
+ipcMain.on('settings-titlebar', (_, c) => {
+  if (!settingsWin || settingsWin.isDestroyed()) return;
+  try {
+    settingsWin.setBackgroundColor(c.glass ? '#0b0b0e' : c.bg);
+    settingsWin.setTitleBarOverlay({ color: c.glass ? '#00000000' : c.bg, symbolColor: c.fg, height: 40 });
+    // okno ze szkłem czyta obraz ekranu, więc nie może widzieć samego siebie
+    settingsWin.setContentProtection(!!c.glass);
+    sendSettingsPos();
+  } catch {}
+});
+function sendSettingsPos() {
+  if (!settingsWin || settingsWin.isDestroyed()) return;
+  const b = settingsWin.getContentBounds(), pd = screen.getPrimaryDisplay();
+  const onPrimary = screen.getDisplayMatching(b).id === pd.id;
+  send('settings-pos', { x: b.x - pd.bounds.x, y: b.y - pd.bounds.y, sw: pd.bounds.width, sh: pd.bounds.height, ok: onPrimary }, settingsWin);
+}
+ipcMain.handle('settings-pos', () => { sendSettingsPos(); return true; });
+
+// ---------- skróty klawiszowe ----------
+const HOTKEY_ACTIONS = {
+  open: () => { pin = !open; pinEntered = false; if (!pin) { open = false; send('open', false); } },
+  hide: () => { userHidden = !userHidden; applyVisibility(); },
+  playPause: () => helper.send({ c: 'media', a: 'toggle' }),
+  next: () => helper.send({ c: 'media', a: 'next' }),
+  prev: () => helper.send({ c: 'media', a: 'prev' }),
+  focus: () => send('focus-toggle'),
+  micMute: () => toggleMic(),
+  colorPick: () => helper.send({ c: 'pick' }),
+  screenshot: () => takeScreenshot(),
+  snip: () => shell.openExternal('ms-screenclip:'),
+  record: () => send('record-toggle'),
+  chat: () => toggleChatWindow(),
+  obsRecord: () => obs.toggleRecord(),
+  obsStream: () => obs.toggleStream(),
+};
+let hotkeyErrors = [];
+function registerHotkeys() {
+  globalShortcut.unregisterAll();
+  hotkeyErrors = [];
+  for (const [action, accel] of Object.entries(S().hotkeys)) {
+    if (!accel || !HOTKEY_ACTIONS[action]) continue;
+    try { if (!globalShortcut.register(accel, HOTKEY_ACTIONS[action])) hotkeyErrors.push(action); } catch { hotkeyErrors.push(action); }
+  }
+  both('hotkey-errors', hotkeyErrors);
+}
+ipcMain.handle('hotkey-errors', () => hotkeyErrors);
+ipcMain.on('hotkeys-pause', (_, on) => { if (on) globalShortcut.unregisterAll(); else registerHotkeys(); });
+
+// ---------- pomocnik systemowy ----------
+const sys = { vol: null, mic: null, inuse: { mic: [], cam: [] }, bright: { v: -1, src: null }, power: '', radios: [] };
+// Ikona aplikacji, która gra (Spotify, Opera, Chrome…): ścieżka procesu → ikona pliku .exe.
+const appIcons = new Map();
+const APP_PROC = [[/spotify/i, 'Spotify'], [/opera/i, 'opera'], [/chrome/i, 'chrome'], [/msedge|edge/i, 'msedge'], [/firefox/i, 'firefox'], [/brave/i, 'brave'],
+  [/vlc/i, 'vlc'], [/zunemusic|mediaplayer/i, 'Microsoft.Media.Player'], [/tidal/i, 'TIDAL'], [/deezer/i, 'Deezer'], [/foobar/i, 'foobar2000'], [/aimp/i, 'AIMP']];
+async function resolveAppIcon(id) {
+  if (!id || appIcons.has(id)) return appIcons.get(id) || null;
+  appIcons.set(id, null);
+  const known = APP_PROC.find(([re]) => re.test(id));
+  const name = (known ? known[1] : id.split('!').pop().replace(/\.exe$/i, '').split('.').pop()).replace(/[^\w.\- ]/g, '');
+  if (!name) return null;
+  const exe = await new Promise(r => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    `(Get-Process -Name '${name}' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1).Path`],
+    { windowsHide: true, timeout: 6000 }, (e, out) => r(e ? '' : String(out).trim())));
+  if (!exe) return null;
+  try { const ic = await app.getFileIcon(exe, { size: 'large' }); if (ic.isEmpty()) return null; const url = ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
+}
+helper.on('media', m => {
+  sys.media = m; send('media', m); onTrack(m);
+  try { if (deckState && deckState.running && m.has) deck.pushMedia({ title: m.title, artist: m.artist, playing: m.playing }); } catch {}
+  if (m.app && !appIcons.has(m.app)) resolveAppIcon(m.app).then(url => { if (url) send('app-icon', { id: m.app, icon: url }); });
+});
+ipcMain.handle('app-icon', (_, id) => appIcons.get(id) || null);
+helper.on('thumb', m => { sys.thumb = m.data; send('thumb', m.data); });
+let gameOn = false;
+helper.on('fs', m => {
+  const on = !!m.on;
+  // pasek dla graczy: zamiast chować wyspę, pokazuje wąski pasek CPU/GPU/RAM nad grą
+  gameOn = on && S().gamerOverlay;
+  fsHidden = on && S().hideInFullscreen && !gameOn;
+  send('game', gameOn);
+  applyVisibility();
+  try { if (wpState && wpState.running) { if (on) wp.pause(); else wp.resume(); } } catch {} // tapeta pauzuje pod grą
+});
+helper.on('clip', m => { clearTimeout(clipTimer); clipTimer = setTimeout(() => onClipboardChange(0, !!m.private), 120); });
+helper.on('vol', m => {
+  const prev = sys.vol; sys.vol = m; send('vol', m);
+  if (prev && prev.id !== m.id && S().hudDevice) send('hud', { kind: 'device', text: m.name });
+  else if (prev && (Math.abs(prev.level - m.level) > 0.004 || prev.mute !== m.mute) && S().hudVolume) send('hud', { kind: 'volume', level: m.level, mute: m.mute });
+});
+helper.on('mic', m => {
+  const prev = sys.mic; sys.mic = m; send('mic', m);
+  if (prev && prev.mute !== m.mute && S().hudMic) send('hud', { kind: 'mic', mute: m.mute });
+});
+helper.on('keys', m => { if (S().hudLockKeys) send('hud', { kind: 'keys', caps: m.caps, num: m.num }); });
+helper.on('inuse', m => { sys.inuse = m; send('inuse', m); });
+helper.on('bright', m => {
+  const prev = sys.bright; sys.bright = m; send('bright', m);
+  if (!m.initial && prev && prev.v >= 0 && m.v !== prev.v && S().hudBrightness) send('hud', { kind: 'bright', level: m.v / 100 });
+});
+helper.on('covered', m => { sys.covered = !!m.on; send('covered', sys.covered); });
+helper.on('power', m => { sys.power = m.g; send('power', m.g); });
+helper.on('radios', m => { sys.radios = m.list || []; send('radios', sys.radios); });
+helper.on('net', m => { sys.net = m; });
+helper.on('color', m => {
+  clipboard.writeText(m.hex);
+  send('hud', { kind: 'color', hex: m.hex });
+  addNotice({ kind: 'tool', title: `Kolor ${m.hex}`, body: 'Skopiowano kod koloru' });
+});
+function toggleMic() { const mute = !(sys.mic && sys.mic.mute); helper.send({ c: 'micmute', on: mute }); }
+
+ipcMain.on('media', (_, a) => helper.send({ c: 'media', a }));
+ipcMain.on('seek', (_, s) => helper.send({ c: 'seek', s }));
+ipcMain.on('volume', (_, v) => helper.send({ c: 'vol', v }));
+ipcMain.on('mute', (_, on) => helper.send({ c: 'mute', on }));
+ipcMain.on('mic-toggle', toggleMic);
+ipcMain.on('brightness', (_, v) => helper.send({ c: 'bright', v }));
+ipcMain.on('power-mode', (_, g) => helper.send({ c: 'power', g }));
+ipcMain.on('radio', (_, r) => helper.send({ c: 'radio', kind: r.kind, on: r.on }));
+ipcMain.on('controls-refresh', () => { helper.send({ c: 'brightget' }); helper.send({ c: 'power' }); helper.send({ c: 'radios' }); });
+ipcMain.on('open-uri', (_, uri) => { if (/^ms-settings:|^ms-screenclip:/.test(uri)) shell.openExternal(uri); });
+// strona autora (tylko ten adres)
+const AUTHOR_URL = 'https://famefabricators.pl';
+ipcMain.on('open-author', () => shell.openExternal(AUTHOR_URL));
+ipcMain.handle('sys', () => ({ ...sys, net: undefined }));
+
+// ---------- schowek ----------
+const images = new Map();
+let suppress = false, clipTimer = null, clipBusy = false;
+const clipsOut = () => store.clips.map(c => ({ id: c.id, type: c.type, text: c.type === 'text' ? c.text.slice(0, 2000) : c.text, len: c.type === 'text' ? c.text.length : 0, img: c.thumb, ts: c.ts, pinned: !!c.pinned }));
+async function readClipboard() {
+  let text = '';
+  try { text = (await clipboard.readText()) || ''; } catch {}
+  if (text.trim()) return { text };
+  try {
+    for (const item of await clipboard.read()) {
+      const type = item.types.find(t => t === 'image/png') || item.types.find(t => t.startsWith('image/'));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      if (blob && typeof blob.arrayBuffer === 'function') return { image: Buffer.from(await blob.arrayBuffer()) };
+    }
+  } catch {}
+  return null;
+}
+function pruneClips() {
+  const s = S();
+  const now = Date.now();
+  let kept = 0;
+  store.clips = store.clips.filter(c => {
+    if (c.pinned) return true;
+    if (s.clipboardKeepHours > 0 && now - c.ts > s.clipboardKeepHours * 3600e3) return false;
+    kept++; return kept <= s.clipboardSize;
+  });
+  for (const id of images.keys()) if (!store.clips.some(c => c.id === id)) images.delete(id);
+  store.saveClips();
+  send('clips', clipsOut());
+}
+async function onClipboardChange(attempt, isPrivate) {
+  if (!S().clipboardEnabled) return;
+  if (isPrivate) { suppress = false; return; } // menedżer haseł
+  if (clipBusy) { clipTimer = setTimeout(() => onClipboardChange(attempt, isPrivate), 150); return; }
+  clipBusy = true;
+  try {
+    const got = await readClipboard();
+    if (!got) { if (attempt < 4) clipTimer = setTimeout(() => onClipboardChange(attempt + 1, isPrivate), 200); return; }
+    const own = suppress; suppress = false;
+    if (own) return;
+    if (got.text) {
+      const text = got.text.slice(0, 20000);
+      const ex = store.clips.findIndex(c => c.type === 'text' && c.text === text);
+      if (ex === 0) return;
+      const pinned = ex > 0 && store.clips[ex].pinned;
+      if (ex > 0) store.clips.splice(ex, 1);
+      store.clips.unshift({ id: newId(), type: 'text', text, ts: Date.now(), pinned });
+    } else {
+      const img = nativeImage.createFromBuffer(got.image);
+      if (img.isEmpty()) return;
+      const hash = crypto.createHash('md5').update(got.image).digest('hex');
+      const ex = store.clips.findIndex(c => c.hash === hash);
+      if (ex === 0) return;
+      if (ex > 0) store.clips.splice(ex, 1);
+      const id = newId(), s = img.getSize();
+      images.set(id, got.image);
+      store.clips.unshift({ id, type: 'image', hash, thumb: (s.width > 360 ? img.resize({ width: 360 }) : img).toDataURL(), text: `${s.width} × ${s.height}`, ts: Date.now() });
+      store.clips.filter(c => c.type === 'image').slice(10).forEach(c => { images.delete(c.id); store.clips.splice(store.clips.indexOf(c), 1); });
+    }
+    pruneClips();
+  } catch {} finally { clipBusy = false; }
+}
+ipcMain.on('clip-copy', async (_, id) => {
+  const c = store.clips.find(x => x.id === id); if (!c) return;
+  suppress = true;
+  try {
+    if (c.type === 'text') await clipboard.writeText(c.text);
+    else if (images.has(id)) await clipboard.write([new ClipboardItem({ 'image/png': new Blob([images.get(id)], { type: 'image/png' }) })]);
+  } catch { suppress = false; }
+});
+ipcMain.on('clip-pin', (_, id) => { const c = store.clips.find(x => x.id === id); if (c) { c.pinned = !c.pinned; pruneClips(); } });
+ipcMain.on('clip-remove', (_, id) => { store.clips = store.clips.filter(c => c.id !== id); pruneClips(); });
+ipcMain.on('clips-clear', () => { store.clips = store.clips.filter(c => c.pinned); pruneClips(); });
+setInterval(pruneClips, 10 * 60 * 1000);
+
+// ---------- półka ----------
+const thumbs = new Map();
+async function thumbFor(p) {
+  if (thumbs.has(p)) return thumbs.get(p);
+  let img = null;
+  try { img = await nativeImage.createThumbnailFromPath(p, { width: 96, height: 96 }); } catch {}
+  if (!img || img.isEmpty()) { try { img = await app.getFileIcon(p, { size: 'large' }); } catch {} }
+  thumbs.set(p, img);
+  return img;
+}
+function mediaInfo(p) {
+  try {
+    const st = fs.statSync(p);
+    if (st.isDirectory()) return 'Folder';
+    const mb = st.size / 1048576;
+    let info = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(st.size / 1024))} KB`;
+    if (/\.(png|jpe?g|gif|bmp|webp)$/i.test(p)) { const s = nativeImage.createFromPath(p).getSize(); if (s.width) info = `${s.width} × ${s.height} · ${info}`; }
+    return info;
+  } catch { return ''; }
+}
+async function filesOut() {
+  store.data.files = store.data.files.filter(p => fs.existsSync(p));
+  const out = [];
+  for (const p of store.data.files) {
+    const t = await thumbFor(p);
+    out.push({ path: p, name: path.basename(p) || p, thumb: t && !t.isEmpty() ? t.toDataURL() : null, info: mediaInfo(p) });
+  }
+  return out;
+}
+async function addFiles(paths) {
+  for (const p of paths || []) {
+    if (typeof p !== 'string' || !p || !fs.existsSync(p)) continue;
+    store.data.files = store.data.files.filter(x => x !== p);
+    store.data.files.unshift(p);
+  }
+  store.data.files = store.data.files.slice(0, 40);
+  store.saveData();
+  const list = await filesOut();
+  send('files', list);
+  return list;
+}
+ipcMain.handle('files-add', (_, paths) => addFiles(paths));
+ipcMain.handle('file-remove', async (_, p) => { store.data.files = store.data.files.filter(x => x !== p); store.saveData(); return filesOut(); });
+ipcMain.handle('files-clear', async () => { store.data.files = []; store.saveData(); return filesOut(); });
+ipcMain.on('file-open', (_, p) => { if (store.data.files.includes(p)) shell.openPath(p); });
+ipcMain.on('file-show', (_, p) => { if (store.data.files.includes(p) || p.startsWith(app.getPath('pictures')) || p.startsWith(app.getPath('videos'))) shell.showItemInFolder(p); });
+ipcMain.on('file-drag', (e, p) => {
+  if (!store.data.files.includes(p)) return;
+  const t = thumbs.get(p);
+  const icon = t && !t.isEmpty() ? t.resize({ width: 48 }) : nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 32 });
+  e.sender.startDrag({ file: p, icon });
+});
+
+// ---------- telefon ----------
+phone.on('received', async p => { await addFiles([p]); addNotice({ kind: 'phone', title: 'Z telefonu', body: path.basename(p), path: p }); });
+phone.on('text', async t => { suppress = false; await clipboard.writeText(t); addNotice({ kind: 'phone', title: 'Tekst z telefonu', body: t.slice(0, 80) }); });
+phone.on('sent', p => addNotice({ kind: 'phone', title: 'Wysłano na telefon', body: path.basename(p) }));
+phone.on('stopped', () => send('phone', null));
+ipcMain.handle('phone-start', async () => {
+  if (!S().phoneShare) return { error: 'Wysyłanie na telefon jest wyłączone w ustawieniach.' };
+  try { const info = await phone.start(); return { ...info, qr: await QRCode.toDataURL(info.url, { margin: 1, width: 220, color: { dark: '#000000', light: '#ffffff' } }) }; }
+  catch (e) { return { error: e.message || 'Nie udało się uruchomić.' }; }
+});
+ipcMain.on('phone-stop', () => phone.stop());
+
+// ---------- powiadomienia na wyspie ----------
+function addNotice(n) {
+  const notice = { id: newId(), ts: Date.now(), kind: n.kind || 'script', title: String(n.title || 'Aura').slice(0, 120), body: String(n.body || '').slice(0, 240), path: n.path };
+  store.data.notices = [notice, ...(store.data.notices || [])].slice(0, 24);
+  store.saveData();
+  send('notices', store.data.notices);
+  if (n.banner !== false) send('banner', notice);
+}
+ipcMain.handle('notices', () => store.data.notices || []);
+ipcMain.on('notice-remove', (_, id) => { store.data.notices = (store.data.notices || []).filter(n => n.id !== id); store.saveData(); send('notices', store.data.notices); });
+ipcMain.on('notices-clear', () => { store.data.notices = []; store.saveData(); send('notices', []); });
+ipcMain.on('notice-open', (_, id) => { const n = (store.data.notices || []).find(x => x.id === id); if (n && n.path && fs.existsSync(n.path)) shell.openPath(n.path); });
+
+// ---------- skrypty i agenci AI (127.0.0.1) ----------
+const agents = new Map();
+function agentsOut() { return [...agents.values()].sort((a, b) => b.since - a.since); }
+endpoint.on('notify', d => addNotice({ kind: 'script', title: d.title, body: d.body }));
+endpoint.on('agent', d => {
+  if (!S().agentsEnabled) return;
+  const id = String(d.session || 'agent');
+  if (d.state === 'end') { agents.delete(id); send('agents', agentsOut()); return; }
+  const prev = agents.get(id) || {};
+  const a = { id, harness: d.harness || prev.harness || 'Agent', project: d.project || prev.project || '', title: d.title || prev.title || '', state: d.state || 'working', message: d.message || '', since: prev.state === d.state ? prev.since : Date.now() };
+  agents.set(id, a);
+  send('agents', agentsOut());
+  const where = a.project ? ` · ${a.project}` : '';
+  if (a.state === 'needs' && prev.state !== 'needs') addNotice({ kind: 'agent', title: `${a.harness} czeka na Ciebie${where}`, body: a.message || a.title });
+  if (a.state === 'done' && prev.state === 'working' && S().agentsNotifyDone) addNotice({ kind: 'agent', title: `${a.harness} skończył${where}`, body: a.title });
+});
+setInterval(() => { const now = Date.now(); for (const [id, a] of agents) if (a.state !== 'working' && now - a.since > 30 * 60e3) agents.delete(id); send('agents', agentsOut()); }, 60e3);
+ipcMain.handle('agents', () => agentsOut());
+function startEndpoint() { endpoint.stop(); if (S().notifyEndpoint || S().agentsEnabled) endpoint.start(Number(S().notifyPort) || 47900); }
+endpoint.on('error', e => console.error('endpoint', e.message));
+
+// Claude Code: dopisuje / usuwa hooki Aury w ~/.claude/settings.json (z kopią zapasową).
+const claudeSettings = path.join(os.homedir(), '.claude', 'settings.json');
+const hookScript = path.join(__dirname, 'tools', 'claude-hook.js');
+const HOOK_EVENTS = { UserPromptSubmit: 'working', Notification: 'needs', Stop: 'done', SessionEnd: 'end' };
+function claudeStatus() {
+  try {
+    const j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8'));
+    return JSON.stringify(j.hooks || {}).includes('claude-hook.js') ? 'connected' : 'disconnected';
+  } catch { return fs.existsSync(path.dirname(claudeSettings)) ? 'disconnected' : 'missing'; }
+}
+ipcMain.handle('claude-status', () => claudeStatus());
+ipcMain.handle('claude-connect', async (_, on) => {
+  const r = await dialog.showMessageBox(settingsWin || undefined, {
+    type: 'question', buttons: [on ? 'Połącz' : 'Odłącz', 'Anuluj'], defaultId: 0, cancelId: 1, title: 'Claude Code',
+    message: on ? 'Dodać hooki Aury do ustawień Claude Code?' : 'Usunąć hooki Aury z ustawień Claude Code?',
+    detail: `Plik: ${claudeSettings}\nPrzed zmianą zapiszę kopię .aura-backup. Hooki wysyłają stan sesji tylko na 127.0.0.1.`,
+  });
+  if (r.response !== 0) return claudeStatus();
+  let j = {};
+  try { j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8')); fs.copyFileSync(claudeSettings, claudeSettings + '.aura-backup'); } catch {}
+  j.hooks = j.hooks || {};
+  for (const [ev, state] of Object.entries(HOOK_EVENTS)) {
+    const list = (j.hooks[ev] || []).map(g => ({ ...g, hooks: (g.hooks || []).filter(h => !String(h.command || '').includes('claude-hook.js')) })).filter(g => g.hooks.length);
+    if (on) list.push({ hooks: [{ type: 'command', command: `node "${hookScript}" ${state}`, timeout: 5 }] });
+    if (list.length) j.hooks[ev] = list; else delete j.hooks[ev];
+  }
+  if (!Object.keys(j.hooks).length) delete j.hooks;
+  fs.mkdirSync(path.dirname(claudeSettings), { recursive: true });
+  fs.writeFileSync(claudeSettings, JSON.stringify(j, null, 2));
+  return claudeStatus();
+});
+
+// ---------- przypomnienia ----------
+function remindersOut() { return [...(store.data.reminders || [])].sort((a, b) => a.at - b.at); }
+function nextRepeat(r) {
+  const d = new Date(r.at);
+  const step = () => d.setDate(d.getDate() + (r.repeat === 'weekly' ? 7 : 1));
+  do { step(); } while (d.getTime() <= Date.now() || (r.repeat === 'weekdays' && (d.getDay() === 0 || d.getDay() === 6)));
+  return d.getTime();
+}
+ipcMain.handle('reminders', () => remindersOut());
+ipcMain.handle('reminder-add', (_, r) => {
+  if (!r || !r.text || !r.at) return remindersOut();
+  store.data.reminders = [...(store.data.reminders || []), { id: newId(), text: String(r.text).slice(0, 200), at: Number(r.at), repeat: r.repeat || 'once' }];
+  store.saveData(); send('reminders', remindersOut()); return remindersOut();
+});
+ipcMain.handle('reminder-remove', (_, id) => { store.data.reminders = (store.data.reminders || []).filter(r => r.id !== id); store.saveData(); send('reminders', remindersOut()); return remindersOut(); });
+ipcMain.on('reminder-answer', (_, { id, action }) => {
+  const r = (store.data.reminders || []).find(x => x.id === id);
+  alertActive = false; applyVisibility();
+  if (!r) return;
+  if (action === 'snooze') { r.at = Date.now() + 10 * 60e3; r.fired = false; }
+  else {
+    addNotice({ kind: 'reminder', title: `Przypomnienie · ${r.text}`, body: 'Gotowe', banner: false });
+    if (r.repeat && r.repeat !== 'once') { r.at = nextRepeat(r); r.fired = false; }
+    else store.data.reminders = store.data.reminders.filter(x => x.id !== id);
+  }
+  store.saveData(); send('reminders', remindersOut());
+});
+setInterval(() => {
+  const now = Date.now();
+  for (const r of store.data.reminders || []) {
+    if (!r.fired && r.at <= now) {
+      r.fired = true; store.saveData();
+      alertActive = true; applyVisibility();
+      send('reminder-fire', r);
+    }
+  }
+}, 2000);
+
+// ---------- zrzuty i nagrania ----------
+async function takeScreenshot() {
+  try {
+    const displays = screen.getAllDisplays();
+    const maxW = Math.max(...displays.map(d => Math.round(d.size.width * d.scaleFactor)));
+    const maxH = Math.max(...displays.map(d => Math.round(d.size.height * d.scaleFactor)));
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: maxW, height: maxH } });
+    const dir = path.join(app.getPath('pictures'), 'Screenshots');
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+    const saved = [];
+    sources.forEach((s, i) => {
+      const p = path.join(dir, `Aura ${stamp}${sources.length > 1 ? ' ' + (i + 1) : ''}.png`);
+      fs.writeFileSync(p, s.thumbnail.toPNG()); saved.push(p);
+    });
+    if (saved[0]) {
+      suppress = true;
+      await clipboard.write([new ClipboardItem({ 'image/png': new Blob([fs.readFileSync(saved[0])], { type: 'image/png' }) })]).catch(() => { suppress = false; });
+      if (S().capturesToShelf) await addFiles(saved);
+      addNotice({ kind: 'capture', title: 'Zrzut ekranu zapisany', body: path.basename(saved[0]), path: saved[0] });
+    }
+  } catch (e) { addNotice({ kind: 'capture', title: 'Zrzut się nie udał', body: e.message }); }
+}
+ipcMain.on('screenshot', () => setTimeout(takeScreenshot, 350));
+ipcMain.on('snip', () => shell.openExternal('ms-screenclip:'));
+let recStream = null, recPath = null;
+ipcMain.handle('rec-start', () => {
+  const dir = path.join(app.getPath('videos'), 'Aura');
+  fs.mkdirSync(dir, { recursive: true });
+  recPath = path.join(dir, `Nagranie ${new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19)}.webm`);
+  recStream = fs.createWriteStream(recPath);
+  return recPath;
+});
+ipcMain.on('rec-chunk', (_, buf) => { if (recStream) recStream.write(Buffer.from(buf)); });
+ipcMain.on('rec-stop', async () => {
+  if (!recStream) return;
+  const p = recPath; recStream.end(); recStream = null;
+  if (S().capturesToShelf) await addFiles([p]);
+  addNotice({ kind: 'capture', title: 'Nagranie zapisane', body: path.basename(p), path: p });
+});
+
+// ---------- launcher ----------
+ipcMain.handle('launch-pick', async (_, i) => {
+  const r = await dialog.showOpenDialog(settingsWin || island, {
+    title: 'Wybierz aplikację lub plik', defaultPath: path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    properties: ['openFile'], filters: [{ name: 'Aplikacje i skróty', extensions: ['exe', 'lnk', 'url', 'bat', 'cmd'] }, { name: 'Wszystko', extensions: ['*'] }],
+  });
+  if (r.canceled || !r.filePaths[0]) return S().launchApps;
+  const list = [...S().launchApps]; list[i] = r.filePaths[0];
+  applySettings({ launchApps: list });
+  return list;
+});
+const launchInfo = () => Promise.all(S().launchApps.map(async p => {
+  if (!p || !fs.existsSync(p)) return null;
+  let icon = null; try { icon = (await app.getFileIcon(p, { size: 'large' })).toDataURL(); } catch {}
+  return { path: p, name: path.basename(p).replace(/\.(lnk|exe|url)$/i, ''), icon };
+}));
+ipcMain.handle('launch-info', launchInfo);
+const launchSlot = i => { const p = S().launchApps[i]; if (p && fs.existsSync(p)) shell.openPath(p); };
+ipcMain.on('launch', (_, i) => launchSlot(i));
+
+// ---------- czat transmisji (moduł z drugiej sesji) ----------
+const { Chat, openChatWindow } = require('./lib/chat');
+const chat = new Chat();
+let chatWin = null, chatState = null;
+const sendChat = p => send('chat', p, chatWin);
+chat.on('message', m => sendChat({ kind: 'message', m }));
+chat.on('remove', r => sendChat({ kind: 'remove', ...r }));
+chat.on('state', s => { chatState = s; sendChat({ kind: 'state', s }); send('chat-state', s, settingsWin); });
+ipcMain.handle('chat-recent', () => ({ messages: chat.recent || [], state: chatState }));
+ipcMain.handle('chat-state', () => chatState);
+ipcMain.on('chat-pin', (_, on) => { if (chatWin && !chatWin.isDestroyed()) chatWin.setAlwaysOnTop(!!on, on ? 'screen-saver' : 'floating'); });
+function configureChat() { chat.start({ twitch: S().chatTwitch || '' }); }
+function toggleChatWindow() {
+  if (chatWin && !chatWin.isDestroyed()) { chatWin.close(); return; }
+  chatWin = openChatWindow({ preload: path.join(__dirname, 'preload.js'), bounds: S().chatBounds, onBounds: b => applySettings({ chatBounds: b }) });
+  chatWin.on('closed', () => { chatWin = null; });
+}
+ipcMain.on('chat-toggle', toggleChatWindow);
+
+// ---------- animowana tapeta (moduł z drugiej sesji) ----------
+const { Wallpaper } = require('./lib/wallpaper');
+const wp = new Wallpaper();
+let wpState = null;
+wp.on('state', s => { wpState = s; both('wallpaper', s); });
+const wpFilters = () => ({ hue: S().wpHue, saturation: S().wpSaturation, brightness: S().wpBrightness, contrast: S().wpContrast });
+function configureWallpaper() { wp.start(S().liveWallpaper ? S().liveWallpaperFile : '', wpFilters()).catch(e => both('wallpaper', { running: false, error: e.message })); }
+ipcMain.handle('wallpaper-state', () => wpState);
+ipcMain.handle('wallpaper-pick', async () => {
+  const r = await dialog.showOpenDialog(settingsWin || undefined, { title: 'Wybierz film na tapetę', defaultPath: app.getPath('videos'), properties: ['openFile'], filters: [{ name: 'Filmy', extensions: ['mp4', 'mov', 'mkv', 'webm', 'wmv', 'avi'] }] });
+  if (!r.canceled && r.filePaths[0]) applySettings({ liveWallpaperFile: r.filePaths[0], liveWallpaper: true });
+  return S();
+});
+
+// ---------- PC Deck: telefon jako pilot (moduł z drugiej sesji) ----------
+const { Deck } = require('./lib/deck');
+const deck = new Deck({
+  dataDir: app.getPath('userData'),
+  // zgodnie z API modułu: 6 miejsc (null = puste), indeks = numer miejsca
+  getApps: async () => (await launchInfo()).map(a => a && { name: a.name, icon: a.icon }),
+  launch: i => launchSlot(i),
+  getMedia: () => sys.media && sys.media.has ? { title: sys.media.title, artist: sys.media.artist, playing: sys.media.playing } : null,
+});
+let deckState = null;
+deck.on('state', s => { deckState = s; both('deck', s); });
+deck.on('pair-request', r => { alertActive = true; applyVisibility(); send('deck-pair', r); });
+ipcMain.handle('deck-state', () => deckState);
+ipcMain.handle('deck-start', async () => { try { return await deck.start(); } catch (e) { return { running: false, error: e.message }; } });
+ipcMain.on('deck-stop', () => deck.stop());
+ipcMain.on('deck-forget', (_, id) => deck.forget(id));
+ipcMain.on('deck-reset', () => deck.resetToken());
+ipcMain.on('deck-answer', (_, { id, ok }) => { alertActive = false; applyVisibility(); if (ok) deck.approve(id); else deck.deny(id); });
+
+// ---------- widżety: statystyki, pogoda ----------
+let statsOn = false, prevCpu = null, gpuOk = true;
+const cpuSample = () => os.cpus().reduce((a, c) => { const t = Object.values(c.times).reduce((x, y) => x + y, 0); a.idle += c.times.idle; a.total += t; return a; }, { idle: 0, total: 0 });
+function gpuSample() {
+  return new Promise(resolve => {
+    if (!gpuOk) return resolve(null);
+    execFile('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'], { windowsHide: true, timeout: 1500 }, (err, out) => {
+      if (err) { gpuOk = false; return resolve(null); }
+      const [u, t] = String(out).split('\n')[0].split(',').map(x => parseFloat(x));
+      resolve({ util: u, temp: t });
+    });
+  });
+}
+setInterval(async () => {
+  if (!statsOn && !gameOn) return;
+  helper.send({ c: 'stats' });
+  const s = cpuSample();
+  const cpu = prevCpu ? 100 * (1 - (s.idle - prevCpu.idle) / Math.max(1, s.total - prevCpu.total)) : 0;
+  prevCpu = s;
+  const gpu = await gpuSample();
+  send('stats', { cpu, ram: 100 * (1 - os.freemem() / os.totalmem()), ramUsed: (os.totalmem() - os.freemem()) / 1073741824, gpu, net: sys.net || { rx: 0, tx: 0 } });
+}, 2000);
+ipcMain.on('stats-on', (_, on) => { statsOn = !!on; });
+
+let weather = null, weatherAt = 0;
+const WMO = { 0: 'Bezchmurnie', 1: 'Przeważnie słonecznie', 2: 'Częściowe zachmurzenie', 3: 'Pochmurno', 45: 'Mgła', 48: 'Szadź', 51: 'Mżawka', 53: 'Mżawka', 55: 'Mżawka', 61: 'Deszcz', 63: 'Deszcz', 65: 'Ulewa', 66: 'Marznący deszcz', 67: 'Marznący deszcz', 71: 'Śnieg', 73: 'Śnieg', 75: 'Śnieżyca', 77: 'Krupa', 80: 'Przelotny deszcz', 81: 'Przelotny deszcz', 82: 'Ulewa', 85: 'Przelotny śnieg', 86: 'Przelotny śnieg', 95: 'Burza', 96: 'Burza z gradem', 99: 'Burza z gradem' };
+async function refreshWeather(force) {
+  if (!force && Date.now() - weatherAt < 20 * 60e3 && weather) return send('weather', weather);
+  try {
+    let { weatherLat: lat, weatherLon: lon, weatherCity: city } = S();
+    if (lat == null || lon == null) {
+      const q = city || (Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop() || 'Warsaw').replace(/_/g, ' ');
+      const g = await (await net.fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&language=pl&name=${encodeURIComponent(q)}`)).json();
+      if (!g.results || !g.results[0]) throw new Error('Nie znaleziono miejsca');
+      lat = g.results[0].latitude; lon = g.results[0].longitude;
+      store.set({ weatherLat: lat, weatherLon: lon, weatherName: g.results[0].name });
+    }
+    const unit = S().fahrenheit ? '&temperature_unit=fahrenheit' : '';
+    const w = await (await net.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1${unit}`)).json();
+    weather = { temp: Math.round(w.current.temperature_2m), code: w.current.weather_code, day: !!w.current.is_day, text: WMO[w.current.weather_code] || '', max: Math.round(w.daily.temperature_2m_max[0]), min: Math.round(w.daily.temperature_2m_min[0]), place: S().weatherName };
+    weatherAt = Date.now();
+    send('weather', weather);
+  } catch (e) { send('weather', { error: e.message }); }
+}
+ipcMain.on('weather-refresh', () => refreshWeather(false));
+ipcMain.handle('weather-city', async (_, city) => { store.set({ weatherCity: city, weatherLat: null, weatherLon: null, weatherName: '' }); await refreshWeather(true); both('settings', S()); return weather; });
+
+// ---------- teksty piosenek (LRCLIB, tylko po włączeniu) ----------
+let lyricsKey = '';
+async function onTrack(m) {
+  if (!S().lyrics || !m || !m.has || !m.title) return;
+  const key = `${m.artist}|${m.title}`;
+  if (key === lyricsKey) return;
+  lyricsKey = key;
+  send('lyrics', null);
+  if (!m.artist || !(m.end > 30)) return;
+  try {
+    const q = `track_name=${encodeURIComponent(m.title)}&artist_name=${encodeURIComponent(m.artist)}&album_name=${encodeURIComponent(m.album || '')}&duration=${Math.round(m.end)}`;
+    const r = await net.fetch(`https://lrclib.net/api/get?${q}`, { headers: { 'User-Agent': 'Aura/2.0' } });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (lyricsKey !== key || !j.syncedLyrics) return;
+    const lines = j.syncedLyrics.split('\n').map(l => { const mm = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/); return mm ? { t: +mm[1] * 60 + +mm[2], text: mm[3] } : null; }).filter(Boolean);
+    send('lyrics', lines);
+  } catch {}
+}
+
+// ---------- kalendarz (.ics) ----------
+let calendar = [], calNotified = new Set();
+// moduł z drugiej sesji: strefy czasowe (też Outlooka), powtarzanie, linki Teams/Meet/Zoom
+const { Calendar } = require('./lib/calendar');
+const cal = new Calendar({ fetch: net.fetch });
+cal.on('events', list => { calendar = list || []; both('calendar', calendar); });
+cal.on('error', m => send('calendar', { error: m }));
+function refreshCalendar() { cal.setSource((S().calendarIcs || '').trim()); }
+setInterval(() => {
+  if (!S().meetingNotice) return;
+  const now = Date.now();
+  for (const e of calendar) {
+    const key = e.title + e.start;
+    if (!e.allDay && e.start - now <= 5 * 60e3 && e.start > now && !calNotified.has(key)) {
+      calNotified.add(key);
+      addNotice({ kind: 'reminder', title: e.title, body: `Za ${Math.max(1, Math.round((e.start - now) / 60e3))} min${e.location ? ' · ' + e.location : ''}` });
+    }
+  }
+}, 30e3);
+ipcMain.handle('calendar', () => calendar);
+
+// ---------- OBS Studio (moduł z drugiej sesji) ----------
+const { Obs } = require('./lib/obs');
+const obs = new Obs();
+let obsState = null;
+obs.on('state', s => { obsState = s; both('obs', s); });
+obs.on('recorded', async p => { if (S().capturesToShelf) await addFiles([p]); addNotice({ kind: 'capture', title: 'Nagranie OBS zapisane', body: path.basename(p), path: p }); });
+function configureObs() { obs.configure({ enabled: S().obsEnabled, auto: S().obsAuto, port: Number(S().obsPort) || 4455, password: S().obsPassword || '' }); }
+ipcMain.handle('obs-local', () => Obs.findLocal());
+ipcMain.handle('obs-state', () => obsState);
+
+// ---------- mała przeglądarka pod wyspą (karta Web) ----------
+// Okno ze szklaną ramką (Acrylic) i własnym paskiem; strona siedzi w osobnym widoku z zaokrąglonymi rogami.
+let webWin = null, webView = null;
+const WEB_PAD = 8, WEB_BAR = 44;
+function layoutWeb() {
+  if (!webWin || webWin.isDestroyed() || !webView) return;
+  const [w, h] = webWin.getContentSize();
+  webView.setBounds({ x: WEB_PAD, y: WEB_BAR, width: Math.max(0, w - WEB_PAD * 2), height: Math.max(0, h - WEB_BAR - WEB_PAD) });
+}
+function webInfo() {
+  if (!webView) return;
+  const wc = webView.webContents;
+  send('web-info', { title: wc.getTitle(), url: wc.getURL(), back: wc.navigationHistory.canGoBack(), fwd: wc.navigationHistory.canGoForward(), loading: wc.isLoading() }, webWin);
+}
+function hideWeb() { if (webWin && !webWin.isDestroyed()) webWin.hide(); }
+ipcMain.on('web-open', (_, url) => {
+  if (!/^https?:\/\//i.test(url || '')) return;
+  const d = screen.getPrimaryDisplay().workArea;
+  const w = 480, h = Math.min(760, d.height - 90);
+  const b = island.getBounds();
+  const x = Math.round(Math.min(Math.max(d.x + 8, b.x + WIN_W / 2 - w / 2), d.x + d.width - w - 8));
+  if (!webWin || webWin.isDestroyed()) {
+    webWin = new BrowserWindow({
+      width: w, height: h, x, y: d.y + 70, frame: false, show: false, resizable: true, minWidth: 340, minHeight: 300,
+      backgroundColor: '#00000000', backgroundMaterial: 'acrylic', roundedCorners: true, title: 'Aura — Web',
+      icon: path.join(__dirname, 'icon.ico'),
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+    });
+    webWin.setMenu(null);
+    webWin.loadFile(path.join('web', 'index.html'));
+    webView = new WebContentsView({ webPreferences: { partition: 'persist:wyspa-web', contextIsolation: true, sandbox: true } });
+    webView.setBorderRadius(12);
+    webView.setBackgroundColor('#0b0b0c');
+    webWin.contentView.addChildView(webView);
+    const wc = webView.webContents;
+    wc.setWindowOpenHandler(({ url: u }) => { if (/^https?:/i.test(u)) wc.loadURL(u); return { action: 'deny' }; });
+    for (const ev of ['did-navigate', 'did-navigate-in-page', 'page-title-updated', 'did-start-loading', 'did-stop-loading']) wc.on(ev, webInfo);
+    // Esc zamyka okno (strona dalej gra w tle — np. muzyka)
+    const esc = (e, input) => { if (input.type === 'keyDown' && input.key === 'Escape' && !wc.isFullScreen?.()) { hideWeb(); e.preventDefault(); } };
+    wc.on('before-input-event', esc);
+    webWin.webContents.on('before-input-event', esc);
+    webWin.on('resize', layoutWeb);
+    webWin.on('close', e => { if (!quitting) { e.preventDefault(); hideWeb(); } });
+    webWin.on('closed', () => { webWin = null; webView = null; });
+  }
+  webWin.setBounds({ x, y: d.y + 70, width: w, height: h });
+  layoutWeb();
+  if (webView.webContents.getURL() !== url) webView.webContents.loadURL(url);
+  webWin.show(); webWin.focus();
+  setTimeout(webInfo, 300);
+});
+ipcMain.on('web-cmd', (_, cmd) => {
+  if (!webView) return;
+  const wc = webView.webContents, h = wc.navigationHistory;
+  if (cmd === 'back' && h.canGoBack()) h.goBack();
+  if (cmd === 'fwd' && h.canGoForward()) h.goForward();
+  if (cmd === 'reload') wc.reload();
+  if (cmd === 'external') shell.openExternal(wc.getURL());
+  if (cmd === 'close') hideWeb();
+});
+ipcMain.on('web-pins', (_, pins) => { if (Array.isArray(pins)) applySettings({ webPins: pins.filter(p => p && /^https?:\/\//i.test(p.url)).slice(0, 12) }); });
+
+// ---------- notatki / zadania ----------
+ipcMain.handle('notes', () => ({ notes: store.data.notes, todos: store.data.todos }));
+ipcMain.on('notes-set', (_, d) => { if (typeof d.notes === 'string') store.data.notes = d.notes.slice(0, 5000); if (Array.isArray(d.todos)) store.data.todos = d.todos.slice(0, 50); store.saveData(); });
+
+// ---------- stan początkowy dla okna wyspy ----------
+ipcMain.handle('init', async () => ({
+  settings: S(), screen: screenInfo(), files: await filesOut(), clips: clipsOut(), notices: store.data.notices || [],
+  reminders: remindersOut(), agents: agentsOut(), sys: { vol: sys.vol, mic: sys.mic, inuse: sys.inuse, media: sys.media, thumb: sys.thumb, bright: sys.bright, covered: !!sys.covered },
+  hotkeyErrors, winAccent: winAccent(),
+}));
+function winAccent() { try { const c = systemPreferences.getAccentColor(); return c ? '#' + c.slice(0, 6) : null; } catch { return null; } }
+ipcMain.handle('win-accent', () => winAccent());
+ipcMain.on('rects', (_, r) => { if (r && r.c && r.o) rects = r; });
+ipcMain.on('hold', (_, on) => { hold = !!on; });
+ipcMain.on('close-island', () => { pin = false; hold = false; open = false; send('open', false); });
+ipcMain.on('pin-open', () => { pin = true; pinEntered = false; });
+
+// ---------- przechwytywanie ekranu (szkło, wizualizator, nagrywanie) ----------
+function setupCapture() {
+  session.defaultSession.setDisplayMediaRequestHandler(async (req, cb) => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+      const d = screen.getPrimaryDisplay();
+      const src = sources.find(s => String(s.display_id) === String(d.id)) || sources[0];
+      cb(req.audioRequested === false ? { video: src } : { video: src, audio: 'loopback' });
+    } catch { cb({}); }
+  });
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'display-capture'].includes(perm)));
+  session.defaultSession.setPermissionCheckHandler((wc, perm) => ['media', 'display-capture'].includes(perm));
+}
+
+// ---------- zasobnik / autostart ----------
+function setAutostart() {
+  // wersja zainstalowana: sam Aura.exe; uruchamiana z kodu: electron.exe + folder aplikacji
+  app.setLoginItemSettings(app.isPackaged ? { openAtLogin: !!S().autostart } : { openAtLogin: !!S().autostart, path: process.execPath, args: [app.getAppPath()] });
+}
+function updateTray() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Otwórz wyspę', click: () => HOTKEY_ACTIONS.open() },
+    { label: userHidden ? 'Pokaż wyspę' : 'Ukryj wyspę', click: () => HOTKEY_ACTIONS.hide() },
+    { label: 'Ustawienia…', click: () => openSettings() },
+    { type: 'separator' },
+    { label: 'Zakończ Aurę', click: () => app.quit() },
+  ]));
+}
+
+app.whenReady().then(() => {
+  setupCapture();
+  createIsland();
+  helper.start();
+  startEndpoint();
+  tray = new Tray(path.join(__dirname, 'icon.ico'));
+  tray.setToolTip('Aura');
+  tray.on('click', () => openSettings());
+  updateTray();
+  registerHotkeys();
+  setAutostart();
+  refreshWeather(true);
+  refreshCalendar();
+  configureObs();
+  configureChat();
+  if (S().liveWallpaper) configureWallpaper();
+  pruneClips();
+  screen.on('display-metrics-changed', place);
+  screen.on('display-added', place);
+  screen.on('display-removed', place);
+  powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
+  powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
+  if (process.argv.includes('--settings')) openSettings();
+  if (process.env.WYSPA_SHOT) testShots(process.env.WYSPA_SHOT);
+});
+
+// Tryb testowy (tylko z WYSPA_SHOT): zrzuty okna wyspy w kolejnych stanach, potem zamknięcie.
+async function testShots(dir) {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
+  if (process.env.WYSPA_WPTEST) { // test tapety: start, stan, zrzut pulpitu, stop (zwykła tapeta wraca)
+    const log = s => fs.appendFileSync(path.join(dir, 'wallpaper.txt'), s + '\n');
+    wp.on('state', s => log('state ' + JSON.stringify(s)));
+    await wait(3000);
+    try { await wp.start(process.env.WYSPA_WPTEST, wpFilters()); } catch (e) { log('start error ' + e.message); }
+    await wait(5000);
+    try { const src = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } }); fs.writeFileSync(path.join(dir, 'pulpit.png'), src[0].thumbnail.toPNG()); } catch (e) { log('shot error ' + e.message); }
+    try { await wp.stop(); } catch (e) { log('stop error ' + e.message); }
+    await wait(1500); app.quit(); return;
+  }
+  const shot = async name => fs.writeFileSync(path.join(dir, name + '.png'), (await island.webContents.capturePage()).toPNG());
+  const js = code => island.webContents.executeJavaScript(code);
+  island.webContents.on('console-message', (e) => { const m = e.message || ''; if (/error|warn/i.test(e.level || '') || /Error/.test(m)) fs.appendFileSync(path.join(dir, 'console.txt'), m + '\n'); });
+  await wait(6000);
+  await shot('01-pigulka');
+  send('hud', { kind: 'volume', level: 0.62, mute: false }); await wait(700); await shot('02-hud-glosnosc');
+  send('hud', { kind: 'keys', caps: true, num: true }); await wait(700); await shot('03-hud-caps');
+  await wait(1600);
+  addNotice({ kind: 'script', title: 'Build gotowy', body: '0 błędów · 12,4 s' }); await wait(800); await shot('04-baner');
+  await wait(5500);
+  gameOn = true; send('game', true); await wait(4500); await shot('05-pasek-gracza'); gameOn = false; send('game', false); await wait(600);
+  calendar = [{ title: 'Stand-up z zespołem', start: Date.now() + 2 * 3600e3, end: Date.now() + 3 * 3600e3, allDay: false, location: '' }]; send('calendar', calendar);
+  pin = true; pinEntered = false; open = true; send('open', true); await wait(900);
+  for (const t of (process.env.WYSPA_TABS || 'music,notices,agents,shelf,clips,widgets,reminders,controls,launcher,call').split(',')) {
+    await js(`setTab('${t}')`); await wait(t === 'widgets' ? 2600 : 700); await shot('10-' + t);
+  }
+  pin = false; open = false; send('open', false); await wait(900); await shot('20-po-zamknieciu');
+  openSettings(); await wait(2500);
+  for (const p of (process.env.WYSPA_PAGES || 'look,island,cards,keys').split(',')) {
+    send('goto', p, settingsWin); await wait(500);
+    fs.writeFileSync(path.join(dir, `30-ust-${p}.png`), (await settingsWin.webContents.capturePage()).toPNG());
+  }
+  if (!process.env.WYSPA_KEEP) app.quit();
+}
+app.on('second-instance', (_, argv) => { userHidden = false; applyVisibility(); if (argv.includes('--settings')) openSettings(); });
+app.on('before-quit', () => { quitting = true; clearInterval(cursorLoop); helper.stop(); endpoint.stop(); phone.stop(); try { cal.stop(); obs.stop(); chat.stop(); deck.stop(); wp.stop(); } catch {} });
+app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('window-all-closed', () => { if (quitting) app.quit(); });

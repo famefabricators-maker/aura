@@ -1,0 +1,277 @@
+// Wyspa - natywne funkcje Windows dla pomocnika PowerShell.
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32;
+
+public static class WyspaWin {
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr h, uint f);
+  [DllImport("user32.dll")] static extern IntPtr MonitorFromPoint(POINT p, uint f);
+  [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr m, ref MONITORINFO mi);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern uint RegisterClipboardFormat(string name);
+  [DllImport("user32.dll")] static extern bool IsClipboardFormatAvailable(uint f);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] static extern short GetKeyState(int vk);
+  [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT p);
+  [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr h);
+  [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr h, IntPtr dc);
+  [DllImport("gdi32.dll")] static extern uint GetPixel(IntPtr dc, int x, int y);
+
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+  [StructLayout(LayoutKind.Sequential)] public struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
+
+  static uint fmtExclude, fmtIgnore, fmtHistory;
+
+  public static void Init() {
+    try { SetProcessDPIAware(); } catch { }
+    fmtExclude = RegisterClipboardFormat("ExcludeClipboardContentFromMonitorProcessing");
+    fmtIgnore = RegisterClipboardFormat("Clipboard Viewer Ignore");
+    fmtHistory = RegisterClipboardFormat("CanIncludeInClipboardHistory");
+  }
+
+  // Menedzery hasel oznaczaja kopie, zeby historia schowka ich nie zapisywala.
+  public static bool ClipboardIsPrivate() {
+    try { return IsClipboardFormatAvailable(fmtExclude) || IsClipboardFormatAvailable(fmtIgnore); }
+    catch { return false; }
+  }
+
+  public static int ForegroundPid() {
+    uint pid; GetWindowThreadProcessId(GetForegroundWindow(), out pid); return (int)pid;
+  }
+
+  public static bool IsFullscreen() {
+    IntPtr h = GetForegroundWindow();
+    if (h == IntPtr.Zero) return false;
+    var sb = new StringBuilder(256);
+    GetClassName(h, sb, 256);
+    string c = sb.ToString();
+    if (c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd") return false;
+    RECT r;
+    if (!GetWindowRect(h, out r)) return false;
+    IntPtr m = MonitorFromWindow(h, 2);
+    var mi = new MONITORINFO();
+    mi.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+    if (!GetMonitorInfo(m, ref mi)) return false;
+    if ((mi.dwFlags & 1) == 0) return false;
+    return r.L <= mi.rcMonitor.L && r.T <= mi.rcMonitor.T && r.R >= mi.rcMonitor.R && r.B >= mi.rcMonitor.B;
+  }
+
+  // Czy okno na pierwszym planie zasłania górę głównego ekranu (np. zmaksymalizowana przeglądarka)?
+  // -1 = to okno samej Wyspy (nie zmieniaj stanu), 0 = nie, 1 = tak.
+  public static int TopCovered(int ownPid) {
+    IntPtr h = GetForegroundWindow();
+    if (h == IntPtr.Zero) return 0;
+    uint pid; GetWindowThreadProcessId(h, out pid);
+    if (ownPid > 0 && pid == (uint)ownPid) return -1;
+    var sb = new StringBuilder(256);
+    GetClassName(h, sb, 256);
+    string c = sb.ToString();
+    if (c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd" || c == "Windows.UI.Core.CoreWindow" || c == "XamlExplorerHostIslandWindow") return 0;
+    RECT r;
+    if (!GetWindowRect(h, out r)) return 0;
+    IntPtr m = MonitorFromWindow(h, 2);
+    var mi = new MONITORINFO();
+    mi.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
+    if (!GetMonitorInfo(m, ref mi) || (mi.dwFlags & 1) == 0) return 0;
+    int cx = (mi.rcMonitor.L + mi.rcMonitor.R) / 2;
+    return (r.T <= mi.rcWork.T + 12 && r.L <= cx - 200 && r.R >= cx + 200 && r.B > mi.rcWork.T + 200) ? 1 : 0;
+  }
+
+  public static int LockKeys() {
+    int v = 0;
+    if ((GetKeyState(0x14) & 1) != 0) v |= 1; // Caps Lock
+    if ((GetKeyState(0x90) & 1) != 0) v |= 2; // Num Lock
+    return v;
+  }
+
+  public static string PickColor() {
+    POINT p; GetCursorPos(out p);
+    IntPtr dc = GetDC(IntPtr.Zero);
+    uint c = GetPixel(dc, p.X, p.Y);
+    ReleaseDC(IntPtr.Zero, dc);
+    return string.Format("#{0:X2}{1:X2}{2:X2}", c & 0xFF, (c >> 8) & 0xFF, (c >> 16) & 0xFF);
+  }
+
+  // Ktore aplikacje uzywaja teraz mikrofonu / kamery (ustawienia prywatnosci Windows).
+  public static string InUse(string capability) {
+    var list = new List<string>();
+    try {
+      using (var root = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\" + capability)) {
+        if (root == null) return "";
+        Scan(root, list, false);
+        using (var np = root.OpenSubKey("NonPackaged")) { if (np != null) Scan(np, list, true); }
+      }
+    } catch { }
+    return string.Join("|", list.ToArray());
+  }
+  static void Scan(RegistryKey key, List<string> list, bool nonPackaged) {
+    foreach (var name in key.GetSubKeyNames()) {
+      if (name == "NonPackaged") continue;
+      using (var k = key.OpenSubKey(name)) {
+        if (k == null) continue;
+        object stop = k.GetValue("LastUsedTimeStop");
+        object start = k.GetValue("LastUsedTimeStart");
+        if (start is long && (long)start > 0 && stop is long && (long)stop == 0) {
+          string n = nonPackaged ? name.Substring(name.LastIndexOf('#') + 1) : name.Split('_')[0];
+          if (!list.Contains(n)) list.Add(n);
+        }
+      }
+    }
+  }
+
+  // --- tryb zasilania Windows (Bateria / Zrownowazony / Wydajnosc) ---
+  [DllImport("powrprof.dll")] static extern uint PowerGetEffectiveOverlayScheme(out Guid g);
+  [DllImport("powrprof.dll")] static extern uint PowerSetActiveOverlayScheme(Guid g);
+  public static string PowerMode() { try { Guid g; return PowerGetEffectiveOverlayScheme(out g) == 0 ? g.ToString() : ""; } catch { return ""; } }
+  public static bool SetPowerMode(string guid) { try { return PowerSetActiveOverlayScheme(new Guid(guid)) == 0; } catch { return false; } }
+
+  // --- jasnosc monitorow zewnetrznych (DDC/CI) ---
+  [DllImport("dxva2.dll")] static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr hMon, out uint n);
+  [DllImport("dxva2.dll")] static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr hMon, uint n, [Out] PHYSICAL_MONITOR[] arr);
+  [DllImport("dxva2.dll")] static extern bool GetMonitorBrightness(IntPtr h, out uint min, out uint cur, out uint max);
+  [DllImport("dxva2.dll")] static extern bool SetMonitorBrightness(IntPtr h, uint v);
+  [DllImport("dxva2.dll")] static extern bool DestroyPhysicalMonitors(uint n, PHYSICAL_MONITOR[] arr);
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  public struct PHYSICAL_MONITOR { public IntPtr h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string desc; }
+
+  static PHYSICAL_MONITOR[] Physical() {
+    IntPtr mon = MonitorFromPoint(new POINT(), 1);
+    uint n;
+    if (!GetNumberOfPhysicalMonitorsFromHMONITOR(mon, out n) || n == 0) return null;
+    var arr = new PHYSICAL_MONITOR[n];
+    if (!GetPhysicalMonitorsFromHMONITOR(mon, n, arr)) return null;
+    return arr;
+  }
+  public static int DdcGet() {
+    var arr = Physical(); if (arr == null) return -1;
+    int res = -1;
+    try {
+      uint min, cur, max;
+      if (GetMonitorBrightness(arr[0].h, out min, out cur, out max) && max > min) res = (int)Math.Round(100.0 * (cur - min) / (max - min));
+    } finally { DestroyPhysicalMonitors((uint)arr.Length, arr); }
+    return res;
+  }
+  public static bool DdcSet(int pct) {
+    var arr = Physical(); if (arr == null) return false;
+    bool ok = false;
+    try {
+      foreach (var m in arr) {
+        uint min, cur, max;
+        if (GetMonitorBrightness(m.h, out min, out cur, out max)) ok |= SetMonitorBrightness(m.h, (uint)(min + (max - min) * pct / 100.0));
+      }
+    } finally { DestroyPhysicalMonitors((uint)arr.Length, arr); }
+    return ok;
+  }
+}
+
+// ---------- dzwiek (Core Audio) ----------
+[ComImport, Guid("5CDF2C82-841E-4546-9722-0CF74078229A"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioEndpointVolume {
+  int RegisterControlChangeNotify(IntPtr p);
+  int UnregisterControlChangeNotify(IntPtr p);
+  int GetChannelCount(out uint n);
+  int SetMasterVolumeLevel(float db, ref Guid ctx);
+  int SetMasterVolumeLevelScalar(float level, ref Guid ctx);
+  int GetMasterVolumeLevel(out float db);
+  int GetMasterVolumeLevelScalar(out float level);
+  int SetChannelVolumeLevel(uint ch, float db, ref Guid ctx);
+  int SetChannelVolumeLevelScalar(uint ch, float level, ref Guid ctx);
+  int GetChannelVolumeLevel(uint ch, out float db);
+  int GetChannelVolumeLevelScalar(uint ch, out float level);
+  int SetMute([MarshalAs(UnmanagedType.Bool)] bool mute, ref Guid ctx);
+  int GetMute([MarshalAs(UnmanagedType.Bool)] out bool mute);
+}
+[ComImport, Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IPropertyStore {
+  int GetCount(out uint n);
+  int GetAt(uint i, out PropertyKey key);
+  int GetValue(ref PropertyKey key, out PropVariant pv);
+  int SetValue(ref PropertyKey key, ref PropVariant pv);
+  int Commit();
+}
+[StructLayout(LayoutKind.Sequential)] struct PropertyKey { public Guid fmtid; public int pid; }
+[StructLayout(LayoutKind.Explicit)] struct PropVariant { [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p; [FieldOffset(16)] public IntPtr p2; }
+[ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDevice {
+  int Activate(ref Guid iid, int ctx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object o);
+  int OpenPropertyStore(int access, out IPropertyStore store);
+  int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+  int GetState(out int state);
+}
+[ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceCollection {
+  int GetCount(out uint n);
+  int Item(uint i, out IMMDevice dev);
+}
+[ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IMMDeviceEnumerator {
+  int EnumAudioEndpoints(int flow, int mask, out IMMDeviceCollection devices);
+  int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice dev);
+}
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorCom { }
+
+public static class WyspaAudio {
+  static IMMDeviceEnumerator en;
+  static readonly string[] ids = new string[2];
+  static readonly IAudioEndpointVolume[] vols = new IAudioEndpointVolume[2];
+  static readonly string[] names = new string[2];
+
+  // flow: 0 = glosniki, 1 = mikrofon
+  static IAudioEndpointVolume Vol(int flow) {
+    if (en == null) en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+    IMMDevice dev;
+    if (en.GetDefaultAudioEndpoint(flow, flow == 1 ? 2 : 0, out dev) != 0 || dev == null) { vols[flow] = null; ids[flow] = null; return null; }
+    string id; dev.GetId(out id);
+    if (id != ids[flow] || vols[flow] == null) {
+      ids[flow] = id;
+      Guid iid = typeof(IAudioEndpointVolume).GUID;
+      object o; dev.Activate(ref iid, 23, IntPtr.Zero, out o);
+      vols[flow] = (IAudioEndpointVolume)o;
+      names[flow] = Name(dev);
+    }
+    return vols[flow];
+  }
+  static string Name(IMMDevice dev) {
+    try {
+      IPropertyStore store; dev.OpenPropertyStore(0, out store);
+      var key = new PropertyKey { fmtid = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), pid = 14 };
+      PropVariant pv; store.GetValue(ref key, out pv);
+      return pv.vt == 31 ? Marshal.PtrToStringUni(pv.p) : "";
+    } catch { return ""; }
+  }
+  public static string State(int flow) {
+    try {
+      var v = Vol(flow); if (v == null) return "";
+      float level; bool mute;
+      v.GetMasterVolumeLevelScalar(out level); v.GetMute(out mute);
+      return string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.000}|{1}|{2}|{3}", level, mute ? 1 : 0, names[flow], ids[flow]);
+    } catch { vols[flow] = null; return ""; }
+  }
+  public static void SetLevel(int flow, float level) {
+    try { var v = Vol(flow); Guid g = Guid.Empty; if (v != null) { v.SetMasterVolumeLevelScalar(Math.Max(0f, Math.Min(1f, level)), ref g); if (level > 0) v.SetMute(false, ref g); } } catch { }
+  }
+  public static void SetMute(int flow, bool mute) {
+    try { var v = Vol(flow); Guid g = Guid.Empty; if (v != null) v.SetMute(mute, ref g); } catch { }
+  }
+  // Wycisza / wlacza WSZYSTKIE aktywne mikrofony - dziala we wszystkich aplikacjach naraz.
+  public static void MuteAllMics(bool mute) {
+    try {
+      if (en == null) en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+      IMMDeviceCollection col; en.EnumAudioEndpoints(1, 1, out col);
+      uint n; col.GetCount(out n);
+      Guid iid = typeof(IAudioEndpointVolume).GUID;
+      for (uint i = 0; i < n; i++) {
+        IMMDevice dev; col.Item(i, out dev);
+        object o; dev.Activate(ref iid, 23, IntPtr.Zero, out o);
+        Guid g = Guid.Empty; ((IAudioEndpointVolume)o).SetMute(mute, ref g);
+      }
+    } catch { }
+  }
+}

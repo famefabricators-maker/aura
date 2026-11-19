@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <title>Aura — Web</title>
+  <link rel="stylesheet" href="../island/fonts.css">
+  <style>
+    :root { --fg: #f2f2f2; --dim: #9a9a9a; --row: rgba(255,255,255,.09); }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: rgba(14,14,18,.45); color: var(--fg); font-family: "Manrope Variable", "Segoe UI", sans-serif; font-size: 13.5px; overflow: hidden; }
+    .bar { height: 44px; display: flex; align-items: center; gap: 2px; padding: 0 8px 0 10px; -webkit-app-region: drag; user-select: none; }
+    button { -webkit-app-region: no-drag; width: 30px; height: 30px; border-radius: 9px; border: 0; background: none; color: var(--fg); display: grid; place-items: center; cursor: pointer; }
+    button:hover { background: var(--row); }
+    button:disabled { opacity: .3; pointer-events: none; }
+    button svg { width: 15px; height: 15px; }
+    .title { flex: 1; min-width: 0; padding: 0 8px; display: flex; flex-direction: column; }
+    .title b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .title small { font-size: 10.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .close:hover { background: #e81123; }
+    .load { position: absolute; left: 10px; right: 10px; top: 43px; height: 2px; border-radius: 1px; background: linear-gradient(90deg, transparent, #c0a4f8, transparent); background-size: 50% 100%; animation: l 1s linear infinite; display: none; }
+    .load.on { display: block; }
+    @keyframes l { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <button id="back" title="Wstecz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg></button>
+    <button id="fwd" title="Dalej"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></button>
+    <button id="reload" title="Odśwież"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+    <div class="title"><b id="t">Aura — Web</b><small id="u"></small></div>
+    <button id="ext" title="Otwórz w przeglądarce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+    <button id="close" class="close" title="Zamknij (Esc) — strona gra dalej w tle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+  </div>
+  <div class="load" id="load"></div>
+  <script src="web.js"></script>
+</body>
+</html>

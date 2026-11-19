@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; media-src 'self' blob: mediastream:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <title>Aura</title>
+  <link rel="stylesheet" href="fonts.css">
+  <link rel="stylesheet" href="island.css">
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <div id="isl">
+    <!-- 1. pigułka: spoczynek i aktywności na żywo -->
+    <div class="layer pill" id="pill">
+      <div class="p-left"><img id="pArt" alt=""><span id="pIcon" class="ico"></span></div>
+      <div class="p-mid"><span id="pText"></span><div id="pet" class="pet"></div></div>
+      <div class="p-right"><span id="pTime" class="mono"></span><canvas id="viz" width="44" height="32"></canvas><i id="pDot" class="pdot"></i></div>
+    </div>
+    <!-- 2. HUD -->
+    <div class="layer hud" id="hud">
+      <span id="hIcon" class="ico"></span>
+      <div class="h-mid"><div class="h-bar" id="hBar"><i id="hFill"></i></div><span id="hText"></span></div>
+      <i id="hDot" class="hdot"></i>
+    </div>
+    <!-- 3. baner powiadomienia / przypomnienia -->
+    <div class="layer banner" id="banner">
+      <div class="b-tile" id="bTile"></div>
+      <div class="b-txt"><b id="bTitle"></b><span id="bBody"></span></div>
+      <div class="b-act" id="bAct"></div>
+    </div>
+    <!-- 3b. pasek dla graczy (nad grą pełnoekranową) -->
+    <div class="layer strip" id="strip"><span class="ico" id="gIco"></span><span class="mono" id="gText"></span></div>
+    <!-- 4. karta otwarta -->
+    <div class="layer card" id="card">
+      <header>
+        <nav id="tabs"></nav>
+        <button class="gear" id="gear" title="Ustawienia"></button>
+      </header>
+      <div class="panels">
+        <section data-tab="music" id="music">
+          <div class="m-bg" id="mBg"></div>
+          <div class="m-top">
+            <div class="m-art"><img id="mArt" alt=""><span id="mArtNote" class="ico"></span><span class="m-badge" id="mBadge"></span></div>
+            <div class="m-meta"><div class="m-title"><span id="mTitle"></span></div><div class="m-artist" id="mArtist"></div></div>
+            <div class="m-ctl"><button id="bPrev" class="c"></button><button id="bPlay" class="c big"></button><button id="bNext" class="c"></button></div>
+            <button class="m-pal" id="mPal" title="Tło: kolory albumu / jednolite"></button>
+          </div>
+          <canvas id="mProg" class="m-prog"></canvas>
+          <div class="m-row"><span class="mono" id="mPos">0:00</span><div class="m-vol"><span class="ico" id="mVolIco"></span><input type="range" id="mVol" min="0" max="100"></div><span class="mono" id="mEnd"></span></div>
+          <div class="m-lyric" id="mLyric"></div>
+          <div class="empty" id="mEmpty"><span class="ico big" id="mEmptyIco"></span><b>Nic teraz nie gra</b><small>Włącz muzykę w Spotify, YouTube albo innej aplikacji.</small></div>
+        </section>
+
+        <section data-tab="web" id="web">
+          <div class="webgrid" id="webGrid"></div>
+          <div class="webadd" id="webAdd"><input id="webName" placeholder="Nazwa" maxlength="30"><input id="webUrl" placeholder="https://…" spellcheck="false"><button class="accentbtn" id="webSave">Dodaj</button><button class="link" id="webCancel">Anuluj</button></div>
+          <footer class="foot"><span>Strona otwiera się w małej przeglądarce pod wyspą. Logujesz się raz.</span></footer>
+        </section>
+
+        <section data-tab="notices" id="notices">
+          <div class="list" id="nList"></div>
+          <div class="empty" id="nEmpty"><span class="ico big" id="nEmptyIco"></span><b>Brak powiadomień</b><small>Tu trafiają komunikaty ze skryptów, agentów, telefonu, zrzutów i przypomnień.</small></div>
+          <footer class="foot"><span id="nCount"></span><button class="link" id="nClear">Wyczyść wszystko</button></footer>
+        </section>
+
+        <section data-tab="agents" id="agents">
+          <div class="list" id="aList"></div>
+          <div class="empty" id="aEmpty"><div class="a-logos"><i></i><i></i><i></i></div><b>Brak uruchomionych agentów</b><small>Połącz Claude Code w Ustawieniach → Agenci AI.</small></div>
+          <footer class="foot"><span id="aCount"></span><button class="link" id="aSet">Ustawienia agentów</button></footer>
+        </section>
+
+        <section data-tab="shelf" id="shelf">
+          <div class="sh-head"><b id="shTitle">Półka</b><div class="sh-tools"><button class="pillbtn" id="shPhone"><span class="ico" id="shPhoneIco"></span>Wyślij na telefon</button><button class="iconbtn" id="shClear" title="Wyczyść półkę"></button></div></div>
+          <div class="drop" id="drop"><b>Upuść tu pliki</b><small>Poczekają na półce, aż przeciągniesz je dalej.</small></div>
+          <div class="tiles" id="shTiles"></div>
+          <div class="qr" id="qr"><img id="qrImg" alt="Kod QR"><div><b>Zeskanuj aparatem telefonu</b><small id="qrUrl"></small><small>Telefon i komputer muszą być w tej samej sieci Wi-Fi. Działa w obie strony: z telefonu wyślesz zdjęcia, pliki i tekst.</small><button class="link" id="qrStop">Zakończ udostępnianie</button></div></div>
+        </section>
+
+        <section data-tab="clips" id="clips">
+          <div class="cl-head"><div class="seg" id="clFilter"><button data-f="all" class="on">Wszystko</button><button data-f="text">Tekst</button><button data-f="image">Obrazy</button><button data-f="pinned">Przypięte</button></div><button class="link" id="clClear">Wyczyść</button><button class="iconbtn" id="clLayout" title="Karty / lista"></button></div>
+          <div class="cl-cards" id="clList"></div>
+          <div class="empty" id="clEmpty"><b>Schowek jest pusty</b><small>Skopiuj coś (Ctrl+C), a trafi tutaj. Kliknij wpis, żeby skopiować go ponownie.</small></div>
+        </section>
+
+        <section data-tab="widgets" id="widgets">
+          <div class="wgrid">
+            <div class="w today" id="wToday"></div>
+            <div class="w focus" id="wFocus">
+              <svg viewBox="0 0 64 64" class="ring"><circle cx="32" cy="32" r="27" class="r-bg"/><circle cx="32" cy="32" r="27" class="r-fg" id="fRing"/></svg>
+              <div class="f-mid"><b class="mono" id="fTime">25:00</b><small id="fLabel">25 + 5 min</small></div>
+              <div class="f-btns"><button id="fMinus">−</button><button id="fPlay" class="play"></button><button id="fPlus">+</button></div>
+            </div>
+            <div class="w weather" id="wWeather"></div>
+            <div class="w stats" id="wStats"></div>
+            <button class="w-rem" id="wRem" title="Przypomnienia"><span class="ico" id="wRemIco"></span><small class="mono" id="wRemTime"></small></button>
+          </div>
+        </section>
+
+        <section data-tab="reminders" id="reminders">
+          <div class="r-head"><b>Przypomnienia</b><button class="link" id="rClose">Zamknij</button></div>
+          <div class="list" id="rList"></div>
+          <div class="r-new" id="rNew">
+            <input id="rText" placeholder="Przypomnij mi…" maxlength="200">
+            <div class="chips" id="rWhen"><button data-w="10" class="on">Za 10 min</button><button data-w="30">Za 30 min</button><button data-w="60">Za godzinę</button><button data-w="evening">Dziś wieczorem</button><button data-w="morning">Jutro rano</button><input type="time" id="rTime" title="Wybierz godzinę"></div>
+            <div class="chips" id="rRep"><button data-r="once" class="on">Raz</button><button data-r="daily">Codziennie</button><button data-r="weekdays">Dni robocze</button><button data-r="weekly">Co tydzień</button></div>
+            <div class="r-foot"><span id="rSummary"></span><button class="accentbtn" id="rAdd">Ustaw przypomnienie</button></div>
+          </div>
+        </section>
+
+        <section data-tab="controls" id="controls">
+          <div class="ctl-grid">
+            <div class="vslider" id="vsBright"><div class="vs-fill"></div><span class="ico" id="vsBrightIco"></span><small class="mono" id="vsBrightVal">n/d</small></div>
+            <div class="vslider" id="vsVol"><div class="vs-fill"></div><span class="ico" id="vsVolIco"></span><small class="mono" id="vsVolVal"></small></div>
+            <div class="toggles" id="toggles"></div>
+          </div>
+          <div class="seg power" id="power"><button data-g="961cc777-2547-4f9d-8174-7d86181b8a7a">Bateria</button><button data-g="00000000-0000-0000-0000-000000000000">Zrównoważony</button><button data-g="ded574b5-45a0-4f42-8737-46345c09c238">Wydajność</button></div>
+        </section>
+
+        <section data-tab="launcher" id="launcher">
+          <div class="l-tools"><button class="tool" id="lShot"><span class="ico" id="lShotIco"></span>Zrzut</button><button class="tool" id="lSnip"><span class="ico" id="lSnipIco"></span>Wycinek</button><button class="tool" id="lRec"><i class="recdot"></i><span id="lRecTxt">Nagraj</span></button></div>
+          <div class="l-slots" id="lSlots"></div>
+        </section>
+
+        <section data-tab="deck" id="deck">
+          <div class="dk-off" id="dkOff">
+            <p>Twój telefon jako pilot do tego komputera: gładzik, muzyka, Twoje aplikacje, pilot do slajdów i pisanie. Przez przeglądarkę telefonu, w tej samej sieci Wi-Fi. Każdy telefon zatwierdzasz tutaj.</p>
+            <button class="pillbtn" id="dkStart">Włącz PC Deck</button>
+          </div>
+          <div class="dk-on" id="dkOn">
+            <img id="dkQr" alt="Kod QR">
+            <div class="dk-info"><b>Zeskanuj aparatem telefonu</b><small class="mono" id="dkUrl"></small><div class="dk-dev" id="dkDev"></div>
+              <div class="dk-act"><button class="link" id="dkReset">Nowy adres</button><button class="link" id="dkStop">Wyłącz</button></div></div>
+          </div>
+        </section>
+
+        <section data-tab="call" id="call">
+          <button class="mic-big" id="cMic"><span class="ico" id="cMicIco"></span></button>
+          <div class="c-info">
+            <b id="cState">Mikrofon włączony</b><small id="cHint">Kliknij, by wyciszyć we wszystkich aplikacjach</small>
+            <div class="c-dev"><span class="ico" id="cOutIco"></span><span id="cOut"></span></div>
+            <div class="c-dev"><span class="ico" id="cInIco"></span><span id="cIn"></span></div>
+            <div class="c-row"><button class="pillbtn" id="cCam"><span class="ico" id="cCamIco"></span>Sprawdź kamerę</button><button class="link" id="cSound">Ustawienia dźwięku</button></div>
+          </div>
+          <video id="cVideo" muted playsinline></video>
+        </section>
+      </div>
+    </div>
+  </div>
+  <script src="theme.js"></script>
+  <script src="icons.js"></script>
+  <script src="glass.js"></script>
+  <script src="island.js"></script>
+  <script src="panels.js"></script>
+</body>
+</html>
