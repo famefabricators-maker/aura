@@ -309,6 +309,7 @@ helper.on('bright', m => {
   const prev = sys.bright; sys.bright = m; send('bright', m);
   if (!m.initial && prev && prev.v >= 0 && m.v !== prev.v && S().hudBrightness) send('hud', { kind: 'bright', level: m.v / 100 });
 });
+helper.on('capture', m => { sys.capture = m.apps || []; send('capture', sys.capture); }); // kto naprawdę nagrywa z mikrofonu
 helper.on('covered', m => { sys.covered = !!m.on; send('covered', sys.covered); });
 helper.on('power', m => { sys.power = m.g; send('power', m.g); });
 helper.on('radios', m => { sys.radios = m.list || []; send('radios', sys.radios); });
@@ -862,7 +863,7 @@ ipcMain.on('notes-set', (_, d) => { if (typeof d.notes === 'string') store.data.
 // ---------- stan początkowy dla okna wyspy ----------
 ipcMain.handle('init', async () => ({
   settings: S(), screen: screenInfo(), files: await filesOut(), clips: clipsOut(), notices: store.data.notices || [],
-  reminders: remindersOut(), agents: agentsOut(), sys: { vol: sys.vol, mic: sys.mic, inuse: sys.inuse, media: sys.media, thumb: sys.thumb, bright: sys.bright, covered: !!sys.covered },
+  reminders: remindersOut(), agents: agentsOut(), sys: { vol: sys.vol, mic: sys.mic, inuse: sys.inuse, media: sys.media, thumb: sys.thumb, bright: sys.bright, covered: !!sys.covered, capture: sys.capture || [] },
   hotkeyErrors, winAccent: winAccent(),
 }));
 function winAccent() { try { const c = systemPreferences.getAccentColor(); return c ? '#' + c.slice(0, 6) : null; } catch { return null; } }

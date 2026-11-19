@@ -120,7 +120,11 @@ public static class WyspaWin {
         object start = k.GetValue("LastUsedTimeStart");
         if (start is long && (long)start > 0 && stop is long && (long)stop == 0) {
           string n = nonPackaged ? name.Substring(name.LastIndexOf('#') + 1) : name.Split('_')[0];
-          if (!list.Contains(n)) list.Add(n);
+          // nazwa*FILETIME startu — z tego liczymy prawdziwy czas rozmowy
+          string entry = n + "*" + ((long)start).ToString();
+          int i = list.FindIndex(x => x.StartsWith(n + "*"));
+          if (i < 0) list.Add(entry);
+          else if (long.Parse(list[i].Substring(n.Length + 1)) > (long)start) list[i] = entry; // najwcześniejszy start
         }
       }
     }
@@ -205,6 +209,37 @@ interface IMMDevice {
   int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
   int GetState(out int state);
 }
+// Sesje audio: która aplikacja w tej chwili naprawdę nagrywa z mikrofonu (stan „Active”).
+[ComImport, Guid("F4B1A599-7266-4319-A8CA-E70ACB11E8CD"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioSessionControl {
+  int GetState(out int state);
+}
+[ComImport, Guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioSessionControl2 {
+  int GetState(out int state);
+  int GetDisplayName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+  int SetDisplayName([MarshalAs(UnmanagedType.LPWStr)] string name, ref Guid ctx);
+  int GetIconPath([MarshalAs(UnmanagedType.LPWStr)] out string path);
+  int SetIconPath([MarshalAs(UnmanagedType.LPWStr)] string path, ref Guid ctx);
+  int GetGroupingParam(out Guid g);
+  int SetGroupingParam(ref Guid g, ref Guid ctx);
+  int RegisterAudioSessionNotification(IntPtr n);
+  int UnregisterAudioSessionNotification(IntPtr n);
+  int GetSessionIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
+  int GetSessionInstanceIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
+  int GetProcessId(out uint pid);
+}
+[ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioSessionEnumerator {
+  int GetCount(out int n);
+  int GetSession(int i, out IAudioSessionControl2 s);
+}
+[ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IAudioSessionManager2 {
+  int GetAudioSessionControl(IntPtr guid, int flags, out IntPtr ctl);
+  int GetSimpleAudioVolume(IntPtr guid, int flags, out IntPtr vol);
+  int GetSessionEnumerator(out IAudioSessionEnumerator e);
+}
 [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IMMDeviceCollection {
   int GetCount(out uint n);
@@ -259,6 +294,37 @@ public static class WyspaAudio {
   }
   public static void SetMute(int flow, bool mute) {
     try { var v = Vol(flow); Guid g = Guid.Empty; if (v != null) v.SetMute(mute, ref g); } catch { }
+  }
+  // Nazwy procesów, które W TEJ CHWILI nagrywają z dowolnego mikrofonu (aktywna sesja audio).
+  public static string CaptureActive() {
+    var names = new List<string>();
+    try {
+      if (en == null) en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+      IMMDeviceCollection col; en.EnumAudioEndpoints(1, 1, out col);
+      uint n; col.GetCount(out n);
+      Guid iid = typeof(IAudioSessionManager2).GUID;
+      for (uint i = 0; i < n; i++) {
+        try {
+          IMMDevice dev; col.Item(i, out dev);
+          object o; dev.Activate(ref iid, 23, IntPtr.Zero, out o);
+          IAudioSessionEnumerator se; ((IAudioSessionManager2)o).GetSessionEnumerator(out se);
+          int c; se.GetCount(out c);
+          for (int j = 0; j < c; j++) {
+            try {
+              IAudioSessionControl2 s; se.GetSession(j, out s);
+              int st; s.GetState(out st);
+              if (st != 1) continue; // 1 = aktywna
+              uint pid; s.GetProcessId(out pid);
+              if (pid == 0) continue;
+              string name = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+              if (!names.Contains(name)) names.Add(name);
+            } catch { }
+          }
+        } catch { }
+      }
+    } catch { }
+    names.Sort();
+    return string.Join("|", names.ToArray());
   }
   // Wycisza / wlacza WSZYSTKIE aktywne mikrofony - dziala we wszystkich aplikacjach naraz.
   public static void MuteAllMics(bool mute) {

@@ -149,12 +149,20 @@ function Handle($line) {
   }
 }
 
+# "app*FILETIME|app2*FILETIME" -> obiekty { app, since (ms od 1970) }
+function ConvertTo-Use([string]$s) {
+  foreach ($e in ($s.Split('|') | Where-Object { $_ })) {
+    $p = $e.Split('*'); $ft = 0L; [void][long]::TryParse($p[1], [ref]$ft)
+    @{ app = $p[0]; since = if ($ft -gt 0) { [long](($ft - 116444736000000000) / 10000) } else { 0 } }
+  }
+}
+
 $stdin = New-Object System.IO.StreamReader ([Console]::OpenStandardInput()), ([System.Text.Encoding]::UTF8)
 $readTask = $stdin.ReadLineAsync()
 $lastMedia = ''; $lastKey = ''; $thumbTries = 0
 $lastFs = $null; $lastSeq = [WyspaWin]::GetClipboardSequenceNumber()
 $lastVol = ''; $lastMic = ''; $lastKeys = -1; $lastUse = ''; $lastBright = $null
-$tick = 0; $script:force = $true; $script:ownPid = 0; $lastCov = -1
+$tick = 0; $script:force = $true; $script:ownPid = 0; $lastCov = -1; $lastCap = $null
 
 while ($true) {
   while ($readTask.IsCompleted) {
@@ -194,13 +202,19 @@ while ($true) {
   $k = [WyspaWin]::LockKeys()
   if ($k -ne $lastKeys) { if ($lastKeys -ge 0) { Out-Line @{ t = 'keys'; caps = [bool]($k -band 1); num = [bool]($k -band 2) } }; $lastKeys = $k }
 
+  # kto naprawde nagrywa z mikrofonu teraz (aktywna sesja audio) -> minutnik rozmowy
+  if ($tick % 5 -eq 0) {
+    $cap = ''; try { $cap = [WyspaAudio]::CaptureActive() } catch {}
+    if ($cap -ne $lastCap) { $lastCap = $cap; Out-Line @{ t = 'capture'; apps = @($cap.Split('|') | Where-Object { $_ }) } }
+  }
+
   # mikrofon / kamera w uzyciu
   if ($tick % 10 -eq 0) {
     $mic = [WyspaWin]::InUse('microphone'); $cam = [WyspaWin]::InUse('webcam')
     $u = "$mic/$cam"
     if ($u -ne $lastUse) {
       $lastUse = $u
-      Out-Line @{ t = 'inuse'; mic = @($mic.Split('|') | Where-Object { $_ }); cam = @($cam.Split('|') | Where-Object { $_ }) }
+      Out-Line @{ t = 'inuse'; mic = @(ConvertTo-Use $mic); cam = @(ConvertTo-Use $cam) }
     }
   }
 

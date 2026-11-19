@@ -46,7 +46,17 @@ const rnd = () => (st.S.roundness ?? 100) / 100;
 function obsLive() { return !!(st.obs && st.obs.connected && (st.obs.rec?.active || st.obs.live?.active)); }
 function hasLive() { return playing() || st.focus.running || st.rec.on || callActive() || agentWorking() || obsLive(); }
 function playing() { return !!(st.media && st.media.has && st.media.playing); }
-function callActive() { return st.S.callTimer && st.inuse.mic.some(a => !/electron|wyspa/i.test(a)); }
+// Rozmowa = mikrofon otwarty przez aplikację do rozmów (nie np. Voicemod, który trzyma mikrofon cały czas).
+// Czas liczymy od chwili, gdy Windows zanotował otwarcie mikrofonu przez tę aplikację (since).
+const CALL_APPS = /discord|teams|zoom|slack|whatsapp|telegram|signal|skype|teamspeak|ts3client|mumble|webex|element|messenger|guilded|chrome|msedge|opera|firefox|brave|vivaldi|arc/i;
+const NOT_CALL = /voicemod|nvidia|broadcast|obs64|obs32|electron|aura|wyspa|krisp|soundpad|steam|audacity|voicemeeter/i;
+const useName = a => (a && typeof a === 'object') ? a.app : String(a || '');
+// st.capture = procesy, które W TEJ CHWILI nagrywają z mikrofonu (sesje audio Windows), a nie stare wpisy z rejestru
+function callApps() { return (st.capture || []).filter(n => CALL_APPS.test(n) && !NOT_CALL.test(n)); }
+function callActive() { return !!st.S.callTimer && callApps().length > 0; }
+function callSince() {
+  return st.callStart || Date.now();
+}
 function agentWorking() { return st.agents.some(a => a.state === 'working' || a.state === 'needs'); }
 
 // ---------- macOS z fabrycznym notchem: Aura otacza wycięcie ----------
@@ -233,7 +243,7 @@ function renderPill() {
   }
   else if (st.rec.on) { time.textContent = fmt((Date.now() - st.rec.start) / 1000); time.classList.add('rec'); }
   else if (st.focus.running || (st.focus.total && st.focus.left > 0)) time.textContent = fmt(st.focus.left);
-  else if (callActive()) { time.textContent = fmt((Date.now() - st.callStart) / 1000); time.classList.add('call'); }
+  else if (callActive()) { time.textContent = fmt((Date.now() - callSince()) / 1000); time.classList.add('call'); }
   else if (agentWorking() && !play) { const a = st.agents.find(x => x.state === 'needs') || st.agents[0]; text.textContent = a.state === 'needs' ? 'Czeka na Ciebie' : 'Pracuje…'; }
   if (!hasLive() && st.S.idleShows !== 'none') {
     const d = new Date();
@@ -246,7 +256,7 @@ function renderPill() {
   $('#viz').classList.toggle('on', play);
   const dot = $('#pDot');
   const ignore = st.S.privacyIgnore || [];
-  const mic = st.inuse.mic.filter(a => !ignore.includes(a)).length, cam = st.inuse.cam.filter(a => !ignore.includes(a)).length;
+  const mic = st.inuse.mic.filter(a => !ignore.includes(useName(a))).length, cam = st.inuse.cam.filter(a => !ignore.includes(useName(a))).length;
   dot.className = 'pdot' + (st.S.privacyDot ? (cam ? ' cam' : mic ? ' mic' : '') : '');
 }
 setInterval(() => { if (st.mode === 'pill') renderPill(); }, 1000);
@@ -464,7 +474,8 @@ W.on('settings', s => { const prevSurf = st.S.surface; st.S = s; if (prevSurf !=
 W.on('screen', s => { st.screen = s; kick(); });
 W.on('hud', h => showHud(h));
 W.on('banner', n => showBanner(n));
-W.on('inuse', m => { const was = callActive(); st.inuse = m; if (!was && callActive()) st.callStart = Date.now(); update(); });
+W.on('inuse', m => { st.inuse = { mic: m.mic || [], cam: m.cam || [] }; update(); });
+W.on('capture', apps => { const was = callActive(); st.capture = apps || []; if (!was && callActive()) st.callStart = Date.now(); if (!callActive()) st.callStart = 0; update(); });
 W.on('agents', a => { st.agents = a || []; update(); });
 W.on('obs', s => { st.obs = s; update(); });
 W.on('covered', on => { st.covered = !!on; update(); });
@@ -477,7 +488,7 @@ W.on('game', on => { st.game = !!on; $('#gIco').innerHTML = I.svg('game'); updat
   if (!gl) document.body.classList.add('nogl');
   const d = await W.invoke('init');
   st.S = d.settings; st.screen = d.screen; st.winAccent = d.winAccent || null;
-  st.media = d.sys.media; st.thumb = d.sys.thumb; st.vol = d.sys.vol; st.mic = d.sys.mic; st.inuse = d.sys.inuse || st.inuse;
+  st.media = d.sys.media; st.thumb = d.sys.thumb; st.vol = d.sys.vol; st.mic = d.sys.mic; st.inuse = d.sys.inuse || st.inuse; st.capture = d.sys.capture || [];
   st.agents = d.agents || []; st.notices = d.notices || []; st.covered = !!d.sys.covered;
   if (callActive()) st.callStart = Date.now();
   st.tab = d.settings.lastPanel || 'music';
