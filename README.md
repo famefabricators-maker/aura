@@ -17,12 +17,15 @@
 Wymagania: Windows 10 (2004 lub nowszy) albo Windows 11, 64-bit.
 ### macOS (MacBooki z notchem i bez)
 
-Pobierz `Aura-x.y.z-mac-arm64.dmg` (Apple Silicon: M1, M2, M3, M4…) albo `Aura-x.y.z-mac-x64.dmg` (Intel), otwórz i przeciągnij Aurę do Aplikacji.
+Pobierz `Aura-x.y.z-mac-arm64.dmg` (Apple Silicon: M1, M2, M3, M4…) albo `Aura-x.y.z-mac-x64.dmg` (Intel), otwórz i **przeciągnij Aurę do folderu Aplikacje**. Nie uruchamiaj jej prosto z okna .dmg — po wysunięciu obrazu przestanie się otwierać.
 
-Aura nie ma płatnego podpisu Apple, więc przy pierwszym uruchomieniu:
-1. Kliknij Aurę w Aplikacjach **prawym przyciskiem → Otwórz → Otwórz**.
-2. Jeśli macOS pisze, że aplikacja „jest uszkodzona”, w Terminalu wpisz `xattr -cr /Applications/Aura.app` i otwórz ją ponownie.
+Aura nie ma płatnego podpisu Apple (Developer ID), więc macOS ostrzega, że „nie może sprawdzić, czy aplikacja nie zawiera złośliwego oprogramowania”. To samo widać przy każdej darmowej aplikacji spoza App Store bez tego podpisu. Przy pierwszym uruchomieniu:
+1. W ostrzeżeniu kliknij **Gotowe** (nie „Przenieś do Kosza”).
+2. Otwórz **Ustawienia systemowe → Prywatność i ochrona**, przewiń na dół i przy Aurze kliknij **Otwórz mimo to**, potem potwierdź hasłem lub Touch ID.
+   Albo jednym poleceniem w Terminalu: `xattr -dr com.apple.quarantine /Applications/Aura.app`
 3. Przy pierwszym utworze macOS zapyta, czy Aura może sterować Spotify / Muzyką — zezwól.
+
+Aura nie ma ikony w Docku: działa w pasku menu (ikona przy zegarze — na MacBookach z notchem może schować się za wycięciem, gdy ikon jest dużo). Ponowne otwarcie Aury z Aplikacji pokazuje jej ustawienia.
 
 Na Macu z notchem Aura otacza fabryczne wycięcie: w spoczynku jej nie widać, a gdy coś gra lub przychodzi komunikat, wysuwa „skrzydełka” po bokach notcha (okładka z lewej, wizualizer lub głośność z prawej). Po najechaniu kursorem karta rozwija się w dół pod notchem.
 

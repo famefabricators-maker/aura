@@ -988,13 +988,41 @@ app.whenReady().then(async () => {
   powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
   if (process.argv.includes('--settings')) openSettings();
+  // macOS: Aura nie ma ikony w Docku, a przy notchu w spoczynku jej nie widać — przy pierwszym uruchomieniu
+  // pokazujemy ustawienia, żeby było widać, że działa
+  if (IS_MAC && !store.data.macWelcomed && !process.env.WYSPA_SHOT) { store.data.macWelcomed = true; store.saveData(); openSettings(); }
+  readyAt = Date.now();
   if (process.env.WYSPA_SHOT) testShots(process.env.WYSPA_SHOT);
+});
+// macOS: ponowne „otwarcie” działającej Aury (Finder, Launchpad, Spotlight) — pokazujemy wyspę i ustawienia,
+// zamiast nic nie robić (wcześniej wyglądało to tak, jakby Aura się nie otwierała)
+let readyAt = 0;
+app.on('activate', () => {
+  if (!IS_MAC || !readyAt || Date.now() - readyAt < 3000) return;
+  userHidden = false; applyVisibility(); openSettings();
 });
 
 // Tryb testowy (tylko z WYSPA_SHOT): zrzuty okna wyspy w kolejnych stanach, potem zamknięcie.
 async function testShots(dir) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
+  if (process.env.WYSPA_MACVIZ) { // wygląd na Macu z notchem (razem z WYSPA_FAKE_NOTCH): zrzuty stanów na czarnej powierzchni
+    const prev = S().surface; applySettings({ surface: 'pure' });
+    const shot = async n => fs.writeFileSync(path.join(dir, n + '.png'), (await island.webContents.capturePage()).toPNG());
+    const js = code => island.webContents.executeJavaScript(code);
+    helper.removeAllListeners('media'); helper.removeAllListeners('thumb'); // tylko udawany utwór, nie to, co gra naprawdę
+    await wait(5000); await shot('mac-1-spoczynek');
+    const cover = 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a3d"/><stop offset=".55" stop-color="#d9366e"/><stop offset="1" stop-color="#3a1a5c"/></linearGradient></defs><rect width="300" height="300" fill="url(#g)"/><circle cx="150" cy="138" r="58" fill="#ffd27a" opacity=".9"/><path d="M0 230 L70 150 L110 190 L160 120 L215 185 L250 160 L300 210 L300 300 L0 300Z" fill="#1d0f33"/><path d="M0 262 L90 205 L150 240 L220 200 L300 245 L300 300 L0 300Z" fill="#120822"/></svg>`).toString('base64');
+    sys.thumb = cover; send('thumb', cover);
+    const m = { t: 'media', has: true, title: 'Nocny kurs', artist: 'Tatra Lights', album: 'Halny', app: 'Spotify', playing: true, pos: 72, end: 214, upd: Date.now(), canNext: true, canPrev: true, canSeek: true };
+    sys.media = m; send('media', m); await wait(2500); await shot('mac-2-muzyka');
+    addNotice({ kind: 'script', title: 'Build gotowy', body: '0 błędów · 12,4 s' }); await wait(900); await shot('mac-3-powiadomienie'); await wait(5500);
+    pin = true; pinEntered = false; open = true; send('open', true); await wait(1200);
+    await js(`setTab('music')`); await wait(1200); await shot('mac-4-karta-muzyka');
+    await js(`setTab('widgets')`); await wait(2600); await shot('mac-5-karta-widzety');
+    pin = false; open = false; send('open', false);
+    applySettings({ surface: prev }); await wait(800); app.quit(); return;
+  }
   if (process.env.WYSPA_SECTEST) { // zabezpieczenia: uprawnienia własnych okien i karty Web, blokada nawigacji, Skupienie
     const out = [], log = (k, v) => out.push(`${k}: ${v}`);
     const js = (wc, code) => wc.executeJavaScript(code, true).catch(e => 'wyjątek ' + e.message);
