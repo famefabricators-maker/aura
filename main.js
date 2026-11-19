@@ -24,6 +24,14 @@ if (PORTABLE) {
 }
 process.env.AURA_CACHE = path.join(app.getPath('userData'), 'native'); // tu pomocnicy kompilują kod natywny
 
+// Dziennik błędów (Windows: %APPDATA%\Aura, macOS: ~/Library/Application Support/Aura) — żeby dało się sprawdzić,
+// czemu Aura nie startuje, bez dostępu do komputera użytkownika.
+const logError = (kind, e) => { try { fs.appendFileSync(path.join(app.getPath('userData'), 'aura-bledy.log'), `${new Date().toISOString()} ${app.getVersion()} ${kind}: ${(e && e.stack) || e}\n`); } catch {} };
+process.on('uncaughtException', e => logError('wyjątek', e));
+process.on('unhandledRejection', e => logError('obietnica', e));
+app.on('render-process-gone', (_, wc, d) => logError('okno', `${d.reason} (${d.exitCode}) ${wc && wc.getURL().split('/').slice(-2).join('/')}`));
+app.on('child-process-gone', (_, d) => { if (d.reason !== 'clean-exit') logError('proces', `${d.type} ${d.reason} (${d.exitCode})`); });
+
 app.setAppUserModelId('pl.aura.app');
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
@@ -1006,12 +1014,18 @@ app.on('activate', () => {
 async function testShots(dir) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
-  if (process.env.WYSPA_MACVIZ) { // wygląd na Macu z notchem (razem z WYSPA_FAKE_NOTCH): zrzuty stanów na czarnej powierzchni
-    const prev = S().surface; applySettings({ surface: 'pure' });
-    const shot = async n => fs.writeFileSync(path.join(dir, n + '.png'), (await island.webContents.capturePage()).toPNG());
+  if (process.env.WYSPA_VIZ) { // zrzuty do README: Mac z notchem (razem z WYSPA_FAKE_NOTCH) albo Windows; dane przykładowe, nie prawdziwe
+    const pre = process.env.WYSPA_FAKE_NOTCH ? 'mac' : 'win';
+    const prev = S().surface; applySettings({ surface: process.env.WYSPA_VIZ_SURFACE || 'pure' });
+    const shot = async n => fs.writeFileSync(path.join(dir, n.replace(/^mac/, pre) + '.png'), (await island.webContents.capturePage()).toPNG());
     const js = code => island.webContents.executeJavaScript(code);
     helper.removeAllListeners('media'); helper.removeAllListeners('thumb'); // tylko udawany utwór, nie to, co gra naprawdę
+    helper.removeAllListeners('covered'); helper.removeAllListeners('fs'); sys.covered = false; fsHidden = false; send('covered', false); applyVisibility(); // bez „cienkiej linii” pod oknami na ekranie
+    const fakeWeather = () => { weather = { temp: 4, code: 3, day: true, text: 'Pochmurno', max: 7, min: 1, place: 'Warszawa' }; weatherAt = Date.now(); send('weather', weather); }; // nie prawdziwe miasto
+    fakeWeather(); setTimeout(fakeWeather, 3000);
+    calendar = [{ title: 'Spotkanie z klientem', start: Date.now() + 2 * 3600e3, end: Date.now() + 3 * 3600e3, allDay: false, location: '' }]; send('calendar', calendar);
     await wait(5000); await shot('mac-1-spoczynek');
+    if (pre === 'win') { send('hud', { kind: 'volume', level: 0.62, mute: false }); await wait(700); await shot('win-hud'); await wait(2000); }
     const cover = 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a3d"/><stop offset=".55" stop-color="#d9366e"/><stop offset="1" stop-color="#3a1a5c"/></linearGradient></defs><rect width="300" height="300" fill="url(#g)"/><circle cx="150" cy="138" r="58" fill="#ffd27a" opacity=".9"/><path d="M0 230 L70 150 L110 190 L160 120 L215 185 L250 160 L300 210 L300 300 L0 300Z" fill="#1d0f33"/><path d="M0 262 L90 205 L150 240 L220 200 L300 245 L300 300 L0 300Z" fill="#120822"/></svg>`).toString('base64');
     sys.thumb = cover; send('thumb', cover);
     const m = { t: 'media', has: true, title: 'Nocny kurs', artist: 'Tatra Lights', album: 'Halny', app: 'Spotify', playing: true, pos: 72, end: 214, upd: Date.now(), canNext: true, canPrev: true, canSeek: true };
@@ -1019,7 +1033,7 @@ async function testShots(dir) {
     addNotice({ kind: 'script', title: 'Build gotowy', body: '0 błędów · 12,4 s' }); await wait(900); await shot('mac-3-powiadomienie'); await wait(5500);
     pin = true; pinEntered = false; open = true; send('open', true); await wait(1200);
     await js(`setTab('music')`); await wait(1200); await shot('mac-4-karta-muzyka');
-    await js(`setTab('widgets')`); await wait(2600); await shot('mac-5-karta-widzety');
+    await js(`setTab('widgets')`); await wait(1200); fakeWeather(); await wait(1400); await shot('mac-5-karta-widzety');
     pin = false; open = false; send('open', false);
     applySettings({ surface: prev }); await wait(800); app.quit(); return;
   }
