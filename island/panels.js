@@ -544,7 +544,7 @@ W.on('deck-pair', r => {
 W.on('update-alert', u => {
   const ready = u.kind === 'ready';
   showAlert({ icon: 'check', title: ready ? `Aura ${u.version} jest gotowa` : `Dostępna Aura ${u.version}`,
-    body: ready ? 'Uruchom ponownie, żeby zainstalować (albo zainstaluje się przy zamknięciu).' : 'Pobierz nową wersję ze strony wydań.',
+    body: ready ? 'Zainstaluje się po ponownym uruchomieniu.' : 'Pobierz nową wersję ze strony wydań.',
     actions: [
       { label: 'Później', fn: () => { W.send('update-answer', 'later'); closeAlert(); } },
       { label: ready ? 'Uruchom ponownie' : 'Pobierz', accent: true, fn: () => { W.send('update-answer', ready ? 'install' : 'open'); closeAlert(); } },
