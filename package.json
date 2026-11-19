@@ -39,7 +39,8 @@
       "!make-icon.js",
       "!**/*.md",
       "!build/**",
-      "!.github/**"
+      "!.github/**",
+      "!screenshots/**"
     ],
     "win": {
       "target": "nsis",

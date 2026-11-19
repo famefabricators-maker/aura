@@ -6,6 +6,36 @@
 
 > Aura jest niezależnym projektem open source. Nie jest powiązana z Apple; „Dynamic Island” to znak towarowy Apple Inc.
 
+## Jak to wygląda
+
+### Windows
+
+![Aura na Windowsie: wyspa u góry ekranu, gdy gra muzyka](screenshots/win-muzyka.jpg)
+
+![Kształty wyspy na Windowsie: spoczynek, muzyka, głośność, powiadomienie](screenshots/win-zblizenie.jpg)
+
+<table>
+  <tr>
+    <td><img src="screenshots/win-karta.jpg" alt="Karta z muzyką na Windowsie"></td>
+    <td><img src="screenshots/win-widzety.jpg" alt="Widżety na Windowsie"></td>
+  </tr>
+</table>
+
+### macOS (MacBooki z notchem)
+
+![Aura na MacBooku: okładka i wizualizer po bokach fabrycznego notcha](screenshots/mac-muzyka.jpg)
+
+![Zbliżenie na notch: spoczynek, muzyka, powiadomienie, karta](screenshots/mac-zblizenie.jpg)
+
+<table>
+  <tr>
+    <td><img src="screenshots/mac-karta.jpg" alt="Karta z muzyką pod notchem"></td>
+    <td><img src="screenshots/mac-widzety.jpg" alt="Widżety pod notchem"></td>
+  </tr>
+</table>
+
+*Zrzuty prawdziwej aplikacji na przykładowych danych, wstawione w obraz urządzenia. Na Macu układ przy notchu odtworzono na Windowsie w trybie podglądu.*
+
 ## Pobieranie
 
 1. Wejdź w **[Releases](../../releases/latest)** i pobierz `Aura-Setup-x.y.z.exe`.
