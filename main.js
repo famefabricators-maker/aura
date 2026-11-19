@@ -47,7 +47,10 @@ function migrateFromWyspa() {
   } catch {}
 }
 const S = () => store.settings;
-const helper = new Helper();
+// macOS: własny pomocnik (AppleScript zamiast PowerShella), okno nad paskiem menu wokół fabrycznego notcha
+const IS_MAC = process.platform === 'darwin';
+const helper = IS_MAC ? new (require('./lib/helper-mac').MacHelper)() : new Helper();
+let notch = { has: false, w: 0, h: 0 };
 const endpoint = new LocalEndpoint();
 const downloadsDir = () => path.join(app.getPath('downloads'), 'Aura');
 const phone = new PhoneShare(() => store.data.files, downloadsDir());
@@ -68,15 +71,19 @@ function place() {
   const d = screen.getPrimaryDisplay().bounds;
   const m = Number(S().edgeMargin) || 24, pad = 34; // pad = odstęp wyspy od krawędzi okna (renderer)
   let x = d.x + (d.width - WIN_W) / 2;
-  if (S().position === 'left') x = d.x + m - pad;
-  if (S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
+  const centered = IS_MAC && notch.has; // na Macu z notchem wyspa zawsze otacza wycięcie
+  if (!centered && S().position === 'left') x = d.x + m - pad;
+  if (!centered && S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
   island.setBounds({ x: Math.round(x), y: d.y, width: WIN_W, height: WIN_H });
   send('screen', screenInfo());
 }
 function screenInfo() {
   const d = screen.getPrimaryDisplay();
   const b = island ? island.getBounds() : { x: 0, y: 0 };
-  return { w: d.bounds.width, h: d.bounds.height, x: d.bounds.x, y: d.bounds.y, winX: b.x - d.bounds.x, winY: b.y - d.bounds.y, scale: d.scaleFactor };
+  return { w: d.bounds.width, h: d.bounds.height, x: d.bounds.x, y: d.bounds.y, winX: b.x - d.bounds.x, winY: b.y - d.bounds.y, scale: d.scaleFactor,
+    // WYSPA_FAKE_NOTCH: podgląd układu macOS z notchem na Windowsie (tylko do testów)
+    platform: process.env.WYSPA_FAKE_NOTCH ? 'darwin' : process.platform,
+    notch: process.env.WYSPA_FAKE_NOTCH ? { has: true, w: 200, h: 32 } : notch };
 }
 
 function createIsland() {
@@ -84,10 +91,12 @@ function createIsland() {
     width: WIN_W, height: WIN_H, frame: false, transparent: true, resizable: false, movable: false,
     minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, hasShadow: false,
     alwaysOnTop: true, show: false, backgroundColor: '#00000000', title: 'Aura',
+    ...(IS_MAC ? { type: 'panel', enableLargerThanScreen: true, focusable: true } : {}),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
   });
   place();
   island.setAlwaysOnTop(true, 'screen-saver');
+  if (IS_MAC) island.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   island.setIgnoreMouseEvents(true, { forward: true });
   applyGlassProtection();
   island.loadFile(path.join('island', 'index.html'));
@@ -175,7 +184,8 @@ function openSettings(page) {
     width: 860, height: 760, minWidth: 720, minHeight: 520, show: false, title: 'Aura — ustawienia',
     // Szkło: tło rysuje strona (rozmyty obraz pulpitu pod oknem, jak na wyspie)
     backgroundColor: '#0b0b0e',
-    titleBarStyle: 'hidden', titleBarOverlay: { color: glass ? '#00000000' : '#0b0b0c', symbolColor: '#f5f5f7', height: 40 },
+    ...(IS_MAC ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 13 } }
+      : { titleBarStyle: 'hidden', titleBarOverlay: { color: glass ? '#00000000' : '#0b0b0c', symbolColor: '#f5f5f7', height: 40 } }),
     icon: path.join(__dirname, 'icon.ico'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
@@ -224,7 +234,7 @@ const HOTKEY_ACTIONS = {
   micMute: () => toggleMic(),
   colorPick: () => helper.send({ c: 'pick' }),
   screenshot: () => takeScreenshot(),
-  snip: () => shell.openExternal('ms-screenclip:'),
+  snip: () => snip(),
   record: () => send('record-toggle'),
   chat: () => toggleChatWindow(),
   obsRecord: () => obs.toggleRecord(),
@@ -255,6 +265,11 @@ async function resolveAppIcon(id) {
   const known = APP_PROC.find(([re]) => re.test(id));
   const name = (known ? known[1] : id.split('!').pop().replace(/\.exe$/i, '').split('.').pop()).replace(/[^\w.\- ]/g, '');
   if (!name) return null;
+  if (IS_MAC) { // macOS: ikona pakietu .app
+    const app_ = ['/Applications/Spotify.app', '/System/Applications/Music.app'].find(p => p.toLowerCase().includes(id.toLowerCase()) && fs.existsSync(p));
+    if (!app_) return null;
+    try { const ic = await app.getFileIcon(app_, { size: 'large' }); const url = ic.isEmpty() ? null : ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
+  }
   const exe = await new Promise(r => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
     `(Get-Process -Name '${name}' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1).Path`],
     { windowsHide: true, timeout: 6000 }, (e, out) => r(e ? '' : String(out).trim())));
@@ -589,7 +604,9 @@ async function takeScreenshot() {
   } catch (e) { addNotice({ kind: 'capture', title: 'Zrzut się nie udał', body: e.message }); }
 }
 ipcMain.on('screenshot', () => setTimeout(takeScreenshot, 350));
-ipcMain.on('snip', () => shell.openExternal('ms-screenclip:'));
+// wycinek: Windows — narzędzie Wycinanie; macOS — zaznaczenie do schowka (jak Cmd+Ctrl+Shift+4)
+function snip() { if (IS_MAC) execFile('screencapture', ['-ic'], () => {}); else shell.openExternal('ms-screenclip:'); }
+ipcMain.on('snip', snip);
 let recStream = null, recPath = null;
 ipcMain.handle('rec-start', () => {
   const dir = path.join(app.getPath('videos'), 'Aura');
@@ -651,7 +668,7 @@ const wp = new Wallpaper();
 let wpState = null;
 wp.on('state', s => { wpState = s; both('wallpaper', s); });
 const wpFilters = () => ({ hue: S().wpHue, saturation: S().wpSaturation, brightness: S().wpBrightness, contrast: S().wpContrast });
-function configureWallpaper() { wp.start(S().liveWallpaper ? S().liveWallpaperFile : '', wpFilters()).catch(e => both('wallpaper', { running: false, error: e.message })); }
+function configureWallpaper() { if (IS_MAC) return; wp.start(S().liveWallpaper ? S().liveWallpaperFile : '', wpFilters()).catch(e => both('wallpaper', { running: false, error: e.message })); }
 ipcMain.handle('wallpaper-state', () => wpState);
 ipcMain.handle('wallpaper-pick', async () => {
   const r = await dialog.showOpenDialog(settingsWin || undefined, { title: 'Wybierz film na tapetę', defaultPath: app.getPath('videos'), properties: ['openFile'], filters: [{ name: 'Filmy', extensions: ['mp4', 'mov', 'mkv', 'webm', 'wmv', 'avi'] }] });
@@ -672,7 +689,7 @@ let deckState = null;
 deck.on('state', s => { deckState = s; both('deck', s); });
 deck.on('pair-request', r => { alertActive = true; applyVisibility(); send('deck-pair', r); });
 ipcMain.handle('deck-state', () => deckState);
-ipcMain.handle('deck-start', async () => { try { return await deck.start(); } catch (e) { return { running: false, error: e.message }; } });
+ipcMain.handle('deck-start', async () => { if (IS_MAC) return { running: false, error: 'PC Deck działa na razie tylko na Windowsie.' }; try { return await deck.start(); } catch (e) { return { running: false, error: e.message }; } });
 ipcMain.on('deck-stop', () => deck.stop());
 ipcMain.on('deck-forget', (_, id) => deck.forget(id));
 ipcMain.on('deck-reset', () => deck.resetToken());
@@ -862,7 +879,8 @@ function setupCapture() {
       const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
       const d = screen.getPrimaryDisplay();
       const src = sources.find(s => String(s.display_id) === String(d.id)) || sources[0];
-      cb(req.audioRequested === false ? { video: src } : { video: src, audio: 'loopback' });
+      // dźwięk systemu („loopback”) Electron daje tylko na Windowsie
+      cb(req.audioRequested === false || IS_MAC ? { video: src } : { video: src, audio: 'loopback' });
     } catch { cb({}); }
   });
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'display-capture'].includes(perm)));
@@ -885,14 +903,19 @@ function updateTray() {
   ]));
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (IS_MAC) {
+    if (app.dock) app.dock.hide();               // Aura żyje w pasku menu, bez ikony w Docku
+    notch = await helper.notch();                // rozmiar fabrycznego wycięcia (0, gdy Mac go nie ma)
+    if (!notch.has && store.settings.surface === 'glass') store.set({ surface: 'pure' });
+  }
   setupCapture();
   createIsland();
   helper.start();
   startEndpoint();
-  tray = new Tray(path.join(__dirname, 'icon.ico'));
+  tray = new Tray(IS_MAC ? nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 18, height: 18 }) : path.join(__dirname, 'icon.ico'));
   tray.setToolTip('Aura');
-  tray.on('click', () => openSettings());
+  if (IS_MAC) tray.on('click', () => tray.popUpContextMenu()); else tray.on('click', () => openSettings());
   updateTray();
   registerHotkeys();
   setAutostart();

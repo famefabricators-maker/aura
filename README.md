@@ -2,7 +2,7 @@
 
 **Aura** to darmowa „wyspa” u góry ekranu Windowsa: muzyka, półka na pliki, schowek, widżety, przypomnienia, komunikaty systemowe i agenci AI w jednej pigułce, która rozwija się po najechaniu kursorem. Szkło jest prawdziwe: wyspa na żywo rozmywa i załamuje to, co jest pod nią.
 
-*A free Dynamic-Island-style notch for Windows 10/11 (Electron). UI in Polish. MIT license.*
+*A free Dynamic-Island-style notch for Windows 10/11 and macOS (Electron). UI in Polish. MIT license.*
 
 > Aura jest niezależnym projektem open source. Nie jest powiązana z Apple; „Dynamic Island” to znak towarowy Apple Inc.
 
@@ -15,6 +15,18 @@
 **Mało miejsca na dysku C:?** Instalator zawsze rozpakowuje się najpierw do folderu tymczasowego na C: (ok. 120 MB), nawet gdy wybierzesz inny dysk. Pobierz wtedy wersję przenośną `Aura-x.y.z-portable.zip`: rozpakuj ją np. na `D:\Aura` i uruchom `Aura.exe`. Bez instalacji, a wszystkie dane trzyma w folderze `dane` obok programu, więc na C: nie zapisuje nic swojego.
 
 Wymagania: Windows 10 (2004 lub nowszy) albo Windows 11, 64-bit.
+### macOS (MacBooki z notchem i bez)
+
+Pobierz `Aura-x.y.z-mac-arm64.dmg` (Apple Silicon: M1, M2, M3, M4…) albo `Aura-x.y.z-mac-x64.dmg` (Intel), otwórz i przeciągnij Aurę do Aplikacji.
+
+Aura nie ma płatnego podpisu Apple, więc przy pierwszym uruchomieniu:
+1. Kliknij Aurę w Aplikacjach **prawym przyciskiem → Otwórz → Otwórz**.
+2. Jeśli macOS pisze, że aplikacja „jest uszkodzona”, w Terminalu wpisz `xattr -cr /Applications/Aura.app` i otwórz ją ponownie.
+3. Przy pierwszym utworze macOS zapyta, czy Aura może sterować Spotify / Muzyką — zezwól.
+
+Na Macu z notchem Aura otacza fabryczne wycięcie: w spoczynku jej nie widać, a gdy coś gra lub przychodzi komunikat, wysuwa „skrzydełka” po bokach notcha (okładka z lewej, wizualizer lub głośność z prawej). Po najechaniu kursorem karta rozwija się w dół pod notchem.
+
+Na macOS działają: muzyka (Spotify i Apple Music), głośność i mikrofon, półka, schowek, widżety, przypomnienia, Web, OBS, czat, agenci AI, zrzuty i nagrywanie (po zgodzie na nagrywanie ekranu). Tylko na Windowsie: animowana tapeta, PC Deck, jasność, Wi-Fi, tryb zasilania, Caps Lock i pasek dla graczy. Szkło na Macu wymaga zgody na nagrywanie ekranu, dlatego domyślna powierzchnia to czysta czerń.
 
 ## Co potrafi
 

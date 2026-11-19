@@ -45,6 +45,13 @@ public static class WyspaDeckInput {
     for (int i = 0; i < vks.Length; i++) Key(vks[i], true);
     for (int i = vks.Length - 1; i >= 0; i--) Key(vks[i], false);
   }
+  [DllImport("user32.dll")] static extern bool LockWorkStation();
+  [DllImport("powrprof.dll")] static extern bool SetSuspendState(bool hibernate, bool force, bool disableWakeEvent);
+  // Win+L nie da się wstrzyknąć przez SendInput (chronione przez Windows), więc blokada idzie przez LockWorkStation
+  public static bool Lock() { return LockWorkStation(); }
+  // uśpienie (nie hibernacja); aplikacje mogą je wstrzymać, bo force = false
+  public static bool Sleep() { return SetSuspendState(false, false, false); }
+
   // dowolny tekst (także polskie znaki) jako znaki Unicode; \n = Enter
   public static void Text(string s) {
     foreach (char c in s ?? "") {

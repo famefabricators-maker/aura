@@ -59,4 +59,7 @@ const entries = sizes.map((s, i) => {
 });
 fs.writeFileSync(path.join(__dirname, 'icon.ico'), Buffer.concat([head, ...entries, ...pngs]));
 fs.writeFileSync(path.join(__dirname, 'icon.png'), pngs[sizes.length - 1]);
-console.log('icon.ico + icon.png gotowe');
+// macOS: electron-builder robi z tego .icns (potrzebuje min. 512 px)
+fs.mkdirSync(path.join(__dirname, 'build'), { recursive: true });
+fs.writeFileSync(path.join(__dirname, 'build', 'icon.png'), png(1024));
+console.log('icon.ico + icon.png + build/icon.png gotowe');

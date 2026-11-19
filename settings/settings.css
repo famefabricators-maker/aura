@@ -22,6 +22,7 @@ button { background: none; border: 0; cursor: pointer; }
 
 .titlebar { height: 40px; display: flex; align-items: center; gap: 9px; padding: 0 16px; -webkit-app-region: drag; border-bottom: 1px solid var(--line); }
 .titlebar img { width: 18px; height: 18px; }
+body.mac .titlebar { padding-left: 86px; } /* miejsce na przyciski okna macOS */
 .titlebar b { font-size: 13px; }
 .titlebar span { color: var(--faint); font-size: 11px; }
 .layout { display: flex; height: calc(100% - 40px); }

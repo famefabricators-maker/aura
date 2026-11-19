@@ -1,54 +1,78 @@
 {
-    "name": "aura",
+  "name": "aura",
+  "productName": "Aura",
+  "version": "2.1.0",
+  "description": "Aura — darmowa wyspa u góry ekranu Windowsa: muzyka, półka, schowek, widżety, przypomnienia i szkło na żywo.",
+  "author": "FameFabricators",
+  "license": "MIT",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg zip --arm64 --x64 --publish never"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "pl.aura.app",
     "productName": "Aura",
-    "version": "2.0.2",
-    "description": "Aura — darmowa wyspa u góry ekranu Windowsa: muzyka, półka, schowek, widżety, przypomnienia i szkło na żywo.",
-    "author": "FameFabricators",
-    "license": "MIT",
-    "private": true,
-    "main": "main.js",
-    "scripts": {
-        "start": "electron .",
-        "dist": "electron-builder --win nsis"
+    "asar": false,
+    "directories": {
+      "output": "dist"
     },
-    "dependencies": {
-        "@fontsource-variable/inter": "^5.3.0",
-        "@fontsource-variable/jetbrains-mono": "^5.3.0",
-        "@fontsource-variable/manrope": "^5.3.0",
-        "qrcode": "^1.5.4"
+    "files": [
+      "**/*",
+      "!docs/**",
+      "!dist/**",
+      "!scratch/**",
+      "!.impeccable/**",
+      "!make-icon.js",
+      "!**/*.md",
+      "!build/**",
+      "!.github/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico",
+      "artifactName": "Aura-Setup-${version}.${ext}"
     },
-    "devDependencies": {
-        "electron": "^45.4.1",
-        "electron-builder": "^26.18.0"
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Aura",
+      "runAfterFinish": true
     },
-    "build": {
-        "appId": "pl.aura.app",
-        "productName": "Aura",
-        "asar": false,
-        "directories": {
-            "output": "dist"
-        },
-        "files": [
-            "**/*",
-            "!docs/**",
-            "!dist/**",
-            "!scratch/**",
-            "!.impeccable/**",
-            "!make-icon.js",
-            "!**/*.md"
-        ],
-        "win": {
-            "target": "nsis",
-            "icon": "icon.ico",
-            "artifactName": "Aura-Setup-${version}.${ext}"
-        },
-        "nsis": {
-            "oneClick": false,
-            "perMachine": false,
-            "allowToChangeInstallationDirectory": true,
-            "createDesktopShortcut": true,
-            "shortcutName": "Aura",
-            "runAfterFinish": true
-        }
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.utilities",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "Aura-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "LSUIElement": true,
+        "NSAppleEventsUsageDescription": "Aura steruje odtwarzaniem w Spotify i Apple Music oraz głośnością systemu.",
+        "NSMicrophoneUsageDescription": "Aura nagrywa Twój głos przy nagrywaniu ekranu, jeśli to włączysz.",
+        "NSCameraUsageDescription": "Podgląd kamery na karcie Rozmowa, tylko gdy go otworzysz."
+      }
+    },
+    "dmg": {
+      "title": "Aura ${version}"
     }
+  }
 }

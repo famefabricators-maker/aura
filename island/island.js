@@ -49,7 +49,22 @@ function playing() { return !!(st.media && st.media.has && st.media.playing); }
 function callActive() { return st.S.callTimer && st.inuse.mic.some(a => !/electron|wyspa/i.test(a)); }
 function agentWorking() { return st.agents.some(a => a.state === 'working' || a.state === 'needs'); }
 
+// ---------- macOS z fabrycznym notchem: Aura otacza wycięcie ----------
+const isMac = () => st.screen.platform === 'darwin';
+const hasNotch = () => isMac() && st.screen.notch && st.screen.notch.has;
+function notchTarget(mode) {
+  const { w: nw, h: nh } = st.screen.notch, s = st.S.size / 100, o = st.S.openSize / 100;
+  switch (mode) {
+    case 'card': return { w: Math.max(420 * o, nw + 140), h: TAB_H[st.tab] * o + nh, r: 24 * o, ear: 8, z: o };
+    case 'alert': return { w: Math.max(384 * s, nw + 100), h: nh + 104 * s, r: 22 * s, ear: 8, z: s };
+    case 'banner': return { w: Math.max(384 * s, nw + 100), h: nh + 64 * s, r: 20 * s, ear: 8, z: s };
+    case 'hud': return { w: nw + 2 * 92 * s, h: nh, r: 12, ear: 6, z: s };   // ikona po lewej, pasek po prawej
+    default: return { w: hasLive() ? nw + 2 * 78 * s : nw, h: nh, r: 12, ear: 6, z: s }; // w spoczynku = sam notch (niewidoczna)
+  }
+}
+
 function targetFor(mode) {
+  if (hasNotch()) return notchTarget(mode);
   const s = st.S.size / 100, o = st.S.openSize / 100, r = rnd();
   switch (mode) {
     case 'card': return { w: 420 * o, h: TAB_H[st.tab] * o, r: 27 * o * r, ear: 16 * o * r, z: o };
@@ -78,18 +93,21 @@ function closedMode() {
   if (st.alert) return 'alert';
   if (st.banner) return 'banner';
   if (st.hud) return 'hud';
+  if (hasNotch()) return 'pill';                        // na Macu pigułka = notch (+ skrzydełka)
   if (st.game) return 'strip';
   if (st.S.slimCovered && st.covered) return 'slim';   // okno zasłania górę: cienka linia
   if (st.S.hiddenUntilHover && !hasLive()) return 'hidden';
   return 'pill';
 }
 function anchorX(w) {
+  if (hasNotch()) return (innerWidth - w) / 2;
   const pos = st.S.position, M = 34;
   if (pos === 'left') return M;
   if (pos === 'right') return innerWidth - M - w;
   return (innerWidth - w) / 2;
 }
-const topY = () => st.S.shape === 'island' ? (st.S.topGap ?? 8) : 0;
+const isIslandShape = () => !hasNotch() && st.S.shape === 'island';
+const topY = () => (!hasNotch() && st.S.shape === 'island') ? (st.S.topGap ?? 8) : 0;
 
 // ---------- sprężyna ----------
 const spring = { w: { x: 184, v: 0 }, h: { x: 36, v: 0 }, r: { x: 18, v: 0 }, ear: { x: 14, v: 0 } };
@@ -131,7 +149,7 @@ function layoutBox() {
   const x = anchorX(w), y = topY();
   isl.style.left = x + 'px'; isl.style.top = y + 'px';
   isl.style.width = w + 'px'; isl.style.height = h + 'px';
-  isl.style.borderRadius = st.S.shape === 'island' ? `${Math.min(r, h / 2, w / 2)}px` : `0 0 ${Math.min(r, h, w / 2)}px ${Math.min(r, h, w / 2)}px`;
+  isl.style.borderRadius = isIslandShape() ? `${Math.min(r, h / 2, w / 2)}px` : `0 0 ${Math.min(r, h, w / 2)}px ${Math.min(r, h, w / 2)}px`;
 }
 function drawGL(now) {
   if (!WyspaGL.ok) return;
@@ -139,7 +157,7 @@ function drawGL(now) {
   const w = spring.w.x, h = Math.max(0, spring.h.x);
   const openness = Math.max(0, Math.min(1, (h - 36) / 140));
   WyspaGL.draw({
-    x: anchorX(w), y: topY(), w, h, r: spring.r.x, ear: st.S.shape === 'island' ? 0 : spring.ear.x, island: st.S.shape === 'island',
+    x: anchorX(w), y: topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(),
     base: T.hexToRgb(surf.base), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
     accent: T.hexToRgb(st.accent), time: (now - t0) / 1000, open: openness, fx: surf.fx || 0, light: surf.light,
@@ -173,7 +191,18 @@ function update() {
   // zoom treści
   const z = target.z;
   for (const id of ['#pill', '#hud', '#banner', '#strip']) { const el = $(id); el.style.zoom = z; el.style.width = (target.w / z) + 'px'; el.style.height = (target.h / z) + 'px'; }
-  const card = $('#card'); const oz = st.S.openSize / 100; card.style.zoom = oz; card.style.height = TAB_H[st.tab] + 'px';
+  const card = $('#card'); const oz = st.S.openSize / 100; card.style.zoom = oz;
+  const nh = hasNotch() ? st.screen.notch.h : 0;
+  card.style.height = (TAB_H[st.tab] + nh / oz) + 'px';
+  // notch: przerwa na wycięcie w pigułce/HUD i miejsce pod nim w karcie i banerze
+  document.body.classList.toggle('notch', hasNotch());
+  if (hasNotch()) {
+    const s = st.S.size / 100;
+    document.body.style.setProperty('--gap', (st.screen.notch.w / s) + 'px');
+    document.body.style.setProperty('--nh-s', (nh / s) + 'px');
+    document.body.style.setProperty('--nh-o', (nh / oz) + 'px');
+    $('#pill').classList.toggle('idle', !hasLive());
+  }
   renderPill();
   sendRects();
   kick();
@@ -252,12 +281,14 @@ let capStream = null, capVideo = null, capWanted = '';
 function glassLive() { return capVideo && T.surface(st.S.surface).glass; }
 async function ensureCapture() {
   const glass = !!T.surface(st.S.surface).glass;
+  // macOS: Electron nie daje dźwięku systemu, a przechwytywanie ekranu wymaga zgody — tylko dla szkła
+  if (isMac() && !glass) return;
   const want = glass ? 'glass' : 'audio';
   if (capWanted === want && capStream) return;
   capWanted = want;
   try {
     if (!capStream) {
-      capStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 } }, audio: true });
+      capStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 } }, audio: !isMac() });
       const at = capStream.getAudioTracks()[0];
       if (at) {
         const ctx = new AudioContext();

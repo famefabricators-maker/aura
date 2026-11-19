@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#0b0b0c">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -10,12 +10,12 @@
   <link rel="stylesheet" href="deck.css">
 </head>
 <body>
-  <!-- parowanie -->
+  <!-- ========== parowanie ========== -->
   <section class="screen pair on" id="pair">
     <div class="pair-box">
       <div class="logo"><span></span></div>
       <h1>Aura Deck</h1>
-      <p class="lead">Telefon jako gładzik i pilot do tego komputera.</p>
+      <p class="lead">Telefon jako pilot do tego komputera: muzyka, gładzik, aplikacje i tryby.</p>
       <div id="pairForm">
         <label for="devName">Nazwa telefonu</label>
         <input id="devName" maxlength="40" autocomplete="off">
@@ -30,85 +30,167 @@
     </div>
   </section>
 
-  <!-- sterowanie -->
+  <!-- ========== sterowanie ========== -->
   <section class="screen main" id="main">
     <header class="top">
       <span class="dot" id="dot"></span>
       <b id="pcName">Komputer</b>
       <small id="conn">łączę…</small>
     </header>
+    <div class="power-bar" id="powerBar">
+      <span id="powerText">Restart za 30 s</span>
+      <button id="powerCancel">Anuluj</button>
+    </div>
 
+    <!-- Teraz -->
+    <div class="panel" data-panel="now">
+      <div class="art" id="art"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><img id="artImg" alt=""></div>
+      <div class="track"><b id="nowTitle">Nic nie gra</b><span id="nowArtist">Włącz muzykę na komputerze</span></div>
+      <div class="transport">
+        <button class="round" data-k="prev" aria-label="Poprzedni"><svg viewBox="0 0 24 24"><path class="fill" d="M19 5L9 12l10 7z"/><path d="M6 5v14"/></svg></button>
+        <button class="round big" id="playBtn" data-k="play" aria-label="Odtwórz / pauza">
+          <svg class="i-play" viewBox="0 0 24 24"><path class="fill" d="M8 5l11 7-11 7z"/></svg>
+          <svg class="i-pause" viewBox="0 0 24 24"><path class="fill" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>
+        </button>
+        <button class="round" data-k="next" aria-label="Następny"><svg viewBox="0 0 24 24"><path class="fill" d="M5 5l10 7-10 7z"/><path d="M18 5v14"/></svg></button>
+      </div>
+      <div class="volume">
+        <button data-k="voldown" aria-label="Ciszej"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 12h5"/></svg></button>
+        <button data-k="mute" aria-label="Wycisz"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M16 9l5 6M21 9l-5 6"/></svg><span>Wycisz</span></button>
+        <button data-k="volup" aria-label="Głośniej"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 12h5M18 9.5v5"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Gładzik -->
     <div class="panel on" data-panel="pad">
-      <div class="pad" id="pad"><span class="hint">Przesuń, aby poruszać kursorem<br>stuknij = klik · dwa palce = przewijanie / prawy klik</span></div>
+      <form class="typebar" id="typebar" autocomplete="off">
+        <input id="typeInput" type="text" enterkeyhint="send" autocapitalize="sentences" autocorrect="on" spellcheck="true" placeholder="Napisz na komputer…" maxlength="500">
+        <button type="submit" class="send">Wyślij</button>
+      </form>
+      <div class="pad" id="pad"><span class="hint">Przesuń, aby poruszać kursorem<br>stuknij = klik · dwa palce = przewijanie / prawy klik<br>stuknij dwa razy i przesuń = przeciąganie</span></div>
       <div class="buttons">
         <button class="mbtn" data-btn="l">Lewy</button>
+        <button class="kbtn" id="kbBtn" aria-label="Klawiatura"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17.5 10h.01M8 14h8"/></svg></button>
         <button class="mbtn" data-btn="r">Prawy</button>
       </div>
-      <div class="sens"><span>Czułość</span><input type="range" id="sens" min="0.5" max="3" step="0.1"></div>
+      <div class="sens"><span>Czułość</span><input type="range" id="sens" min="0.5" max="3" step="0.1" aria-label="Czułość gładzika"></div>
     </div>
 
-    <div class="panel" data-panel="media">
-      <div class="now"><small>Teraz gra</small><b id="nowTitle">—</b><span id="nowArtist"></span></div>
-      <div class="transport">
-        <button class="round" data-k="prev" aria-label="Poprzedni"><svg viewBox="0 0 24 24"><path d="M6 5v14M19 5L9 12l10 7z"/></svg></button>
-        <button class="round big" data-k="play" aria-label="Odtwórz / pauza"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></button>
-        <button class="round" data-k="next" aria-label="Następny"><svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"/></svg></button>
-      </div>
-      <div class="vol">
-        <button class="tile" data-k="voldown">Ciszej</button>
-        <button class="tile" data-k="mute">Wycisz</button>
-        <button class="tile" data-k="volup">Głośniej</button>
-      </div>
-      <div class="vol">
-        <button class="tile" data-k="j">−10 s</button>
-        <button class="tile" data-k="f">Pełny ekran</button>
-        <button class="tile" data-k="l">+10 s</button>
-      </div>
-    </div>
-
+    <!-- Aplikacje -->
     <div class="panel" data-panel="apps">
-      <div class="apps" id="apps"></div>
-      <p class="empty" id="appsEmpty">Dodaj aplikacje w Aurze: Ustawienia → Karty → Launcher.</p>
-      <div class="vol">
-        <button class="tile" data-x="alt+tab">Alt+Tab</button>
-        <button class="tile" data-x="win+d">Pulpit</button>
-        <button class="tile" data-x="alt+f4">Zamknij okno</button>
+      <div class="phead"><h2>Aplikacje</h2><button class="chip" id="editBtn">Edytuj</button></div>
+      <div class="slots" id="slots"></div>
+      <p class="note" id="editNote">Stuknij miejsce, aby wybrać aplikację z komputera.</p>
+      <div class="row2">
+        <button class="tile" data-x="alt+tab"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="10" rx="2"/><path d="M8 19h11a2 2 0 002-2V9"/></svg>Przełącz okno</button>
+        <button class="tile" data-x="win+d"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/></svg>Pulpit</button>
       </div>
     </div>
 
-    <div class="panel" data-panel="slides">
-      <div class="slides">
-        <button class="slide" data-k="left" aria-label="Poprzedni slajd"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <button class="slide" data-k="right" aria-label="Następny slajd"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    <!-- Tryby -->
+    <div class="panel scroll" data-panel="modes">
+      <div class="stats" data-stats></div>
+      <div class="seg" id="modeSeg" role="tablist">
+        <button data-mode="game">Gra</button><button data-mode="slides">Prezentacja</button><button data-mode="film">Film</button><button data-mode="work">Praca</button>
       </div>
-      <div class="vol">
-        <button class="tile" data-k="f5">Od początku</button>
-        <button class="tile" data-x="shift+f5">Od tego slajdu</button>
+
+      <div class="mode" data-mode="game">
+        <div class="grid3">
+          <button class="tile" data-act="mic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>Mikrofon</button>
+          <button class="tile" data-x="win+g"><svg viewBox="0 0 24 24"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>Game Bar</button>
+          <button class="tile" data-act="screenshot"><svg viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>Zrzut ekranu</button>
+          <button class="tile" data-x="win+alt+g"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9"/><path d="M3 4v5h5M12 8v4l3 2"/></svg>Zapisz klip</button>
+          <button class="tile rec" data-act="record"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="fill" cx="12" cy="12" r="3.5"/></svg>Nagrywanie</button>
+          <button class="tile" data-x="alt+tab"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="10" rx="2"/><path d="M8 19h11a2 2 0 002-2V9"/></svg>Przełącz okno</button>
+        </div>
       </div>
-      <div class="vol">
-        <button class="tile" data-k="b">Czarny ekran</button>
-        <button class="tile" data-k="esc">Zakończ</button>
+
+      <div class="mode" data-mode="slides">
+        <div class="slides">
+          <button class="slide" data-k="left" aria-label="Poprzedni slajd"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <button class="slide next" data-k="right" aria-label="Następny slajd"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+        </div>
+        <div class="grid3">
+          <button class="tile" data-k="f5"><svg viewBox="0 0 24 24"><path class="fill" d="M8 5l11 7-11 7z"/></svg>Od początku</button>
+          <button class="tile" data-x="shift+f5"><svg viewBox="0 0 24 24"><path d="M5 5v14"/><path class="fill" d="M9 5l11 7-11 7z"/></svg>Od tego slajdu</button>
+          <button class="tile" data-x="ctrl+l"><svg viewBox="0 0 24 24"><circle class="fill" cx="18" cy="6" r="2.5"/><path d="M4 20L15.5 8.5"/></svg>Wskaźnik</button>
+          <button class="tile" data-k="b"><svg viewBox="0 0 24 24"><rect class="fill" x="3" y="5" width="18" height="12" rx="2"/><path d="M12 17v3M8 20h8"/></svg>Czarny ekran</button>
+          <button class="tile" data-k="w"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M12 17v3M8 20h8"/></svg>Biały ekran</button>
+          <button class="tile" data-k="esc"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>Zakończ</button>
+        </div>
+      </div>
+
+      <div class="mode" data-mode="film">
+        <div class="transport small">
+          <button class="round" data-k="j" aria-label="10 sekund wstecz"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 108-8H8"/><path d="M10 1L7 4l3 3"/></svg><em>10</em></button>
+          <button class="round big" data-k="play" aria-label="Odtwórz / pauza"><svg viewBox="0 0 24 24"><path class="fill" d="M7 5l7 7-7 7zM15 5h2.5v14H15z"/></svg></button>
+          <button class="round" data-k="l" aria-label="10 sekund do przodu"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-8-8h4"/><path d="M14 1l3 3-3 3"/></svg><em>10</em></button>
+        </div>
+        <div class="grid3">
+          <button class="tile" data-k="f"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Pełny ekran</button>
+          <button class="tile" data-k="voldown"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 12h5"/></svg>Ciszej</button>
+          <button class="tile" data-k="volup"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 12h5M18 9.5v5"/></svg>Głośniej</button>
+          <button class="tile" data-k="mute"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M16 9l5 6M21 9l-5 6"/></svg>Wycisz</button>
+          <button class="tile" data-k="left"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>−5 s</button>
+          <button class="tile" data-k="right"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>+5 s</button>
+        </div>
+      </div>
+
+      <div class="mode" data-mode="work">
+        <div class="grid3">
+          <button class="tile" data-x="ctrl+c"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg>Kopiuj</button>
+          <button class="tile" data-x="ctrl+v"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/></svg>Wklej</button>
+          <button class="tile" data-x="ctrl+z"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg>Cofnij</button>
+          <button class="tile" data-x="win+d"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8"/></svg>Pulpit</button>
+          <button class="tile" data-x="alt+tab"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="10" rx="2"/><path d="M8 19h11a2 2 0 002-2V9"/></svg>Przełącz okno</button>
+          <button class="tile" data-act="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Zablokuj</button>
+        </div>
       </div>
     </div>
 
-    <div class="panel" data-panel="keys">
-      <textarea id="text" rows="3" placeholder="Wpisz tekst, wyślij na komputer"></textarea>
-      <button class="primary" id="sendText">Wpisz na komputerze</button>
-      <div class="keys">
-        <button class="key" data-k="esc">Esc</button><button class="key" data-k="tab">Tab</button><button class="key" data-k="back">⌫</button><button class="key" data-k="enter">Enter</button>
-        <button class="key" data-x="ctrl+c">Kopiuj</button><button class="key" data-x="ctrl+v">Wklej</button><button class="key" data-x="ctrl+z">Cofnij</button><button class="key" data-k="space">Spacja</button>
-        <button class="key" data-k="left">←</button><button class="key" data-k="up">↑</button><button class="key" data-k="down">↓</button><button class="key" data-k="right">→</button>
+    <!-- Komputer -->
+    <div class="panel scroll" data-panel="pc">
+      <div class="pc-card">
+        <div class="pc-ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+        <div><b id="pcName2">Komputer</b><span id="pcOs">Windows</span></div>
+      </div>
+      <div class="stats" data-stats></div>
+      <div class="grid2">
+        <button class="ptile" data-power="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg><b>Zablokuj</b><small>od razu</small></button>
+        <button class="ptile" data-power="sleep"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg><b>Uśpij</b><small>po potwierdzeniu</small></button>
+        <button class="ptile" data-power="restart"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.3-5.6"/><path d="M20 4v5h-5"/></svg><b>Uruchom ponownie</b><small>za 30 s</small></button>
+        <button class="ptile danger" data-power="shutdown"><svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1011.4 0"/></svg><b>Wyłącz</b><small>za 30 s</small></button>
       </div>
     </div>
 
     <nav class="tabs" id="tabs">
+      <button data-tab="now"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Teraz</span></button>
       <button class="on" data-tab="pad"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M4 15h16M12 15v6"/></svg><span>Gładzik</span></button>
-      <button data-tab="media"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Muzyka</span></button>
       <button data-tab="apps"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg><span>Aplikacje</span></button>
-      <button data-tab="slides"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg><span>Slajdy</span></button>
-      <button data-tab="keys"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg><span>Klawiatura</span></button>
+      <button data-tab="modes"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Tryby</span></button>
+      <button data-tab="pc"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><span>Komputer</span></button>
     </nav>
+
+    <div class="toast" id="toast"></div>
   </section>
+
+  <!-- arkusz: wybór aplikacji / potwierdzenie -->
+  <div class="sheet-bg" id="sheetBg"></div>
+  <div class="sheet" id="appSheet">
+    <div class="grab"></div>
+    <div class="sheet-head"><b id="appSheetTitle">Miejsce 1</b><button class="chip" id="slotClear">Wyczyść</button></div>
+    <input id="appSearch" type="search" placeholder="Szukaj aplikacji…" autocomplete="off">
+    <div class="applist" id="appList"><p class="note">Wczytuję aplikacje z komputera…</p></div>
+  </div>
+  <div class="sheet" id="confirmSheet">
+    <div class="grab"></div>
+    <b class="confirm-title" id="confirmTitle">Uruchomić ponownie?</b>
+    <p class="confirm-text" id="confirmText"></p>
+    <div class="row2">
+      <button class="ghost" id="confirmNo">Anuluj</button>
+      <button class="primary danger" id="confirmYes">Uruchom ponownie</button>
+    </div>
+  </div>
   <script src="deck.js"></script>
 </body>
 </html>

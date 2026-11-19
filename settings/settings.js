@@ -2,6 +2,13 @@
 const W = window.wyspa, T = window.WYSPA_THEME, I = window.ICONS;
 const $ = s => document.querySelector(s);
 let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', query = '', hkErrors = [], claude = 'disconnected', glassReady = '';
+// opcje, które działają tylko na Windowsie — na Macu ich nie pokazujemy
+const MAC = W.platform === 'darwin';
+const WIN_ONLY = new Set(['slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
+  'privacyDot', 'callTimer', 'tabDeck', 'colorPick', 'liveWallpaper', 'position', 'edgeMargin', 'shape', 'topGap']);
+const hiddenRow = r => MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry' || r.h === 'Umiejscowienie');
+const hiddenPage = p => MAC && p.id === 'wallpaper';
+document.body.classList.toggle('mac', MAC);
 W.on('settings-pos', p => GlassBg.setPos(p));
 W.on('cursor', c => GlassBg.cursor(c));
 W.on('settings-focus', f => GlassBg.setFocus(f));
@@ -188,6 +195,7 @@ function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.
 function renderNav() {
   const nav = $('#nav'); nav.textContent = '';
   for (const p of PAGES) {
+    if (hiddenPage(p)) continue;
     const b = el('button'); const ic = el('span'); ic.innerHTML = I.svg(p.icon); b.append(ic, document.createTextNode(p.name));
     if (p.id === page && !query) b.classList.add('on');
     b.onclick = () => { page = p.id; query = ''; $('#search').value = ''; render(); $('#main').scrollTop = 0; };
@@ -201,7 +209,8 @@ function render() {
     main.append(el('div', 'kicker', 'Szukaj'), el('h1', '', `„${query}”`));
     let n = 0;
     for (const p of PAGES) {
-      const hits = p.rows.filter(r => r.label && (r.label + ' ' + (r.desc || '')).toLowerCase().includes(query.toLowerCase()));
+      if (hiddenPage(p)) continue;
+      const hits = p.rows.filter(r => !hiddenRow(r) && r.label && (r.label + ' ' + (r.desc || '')).toLowerCase().includes(query.toLowerCase()));
       if (!hits.length) continue;
       main.append(el('h2', '', p.name)); hits.forEach(r => { main.append(rowEl(r)); n++; });
     }
@@ -214,6 +223,7 @@ function render() {
   if (p.preview) { const b = el('button', 'preview', 'Pokaż otwartą wyspę'); b.title = 'Wyspa zostaje otwarta, dopóki nie najedziesz na nią kursorem i z niej nie zjedziesz.'; b.onclick = () => W.send('pin-open'); h.append(b); }
   main.append(h);
   for (const r of p.rows) {
+    if (hiddenRow(r)) continue;
     if (r.h) { main.append(el('h2', '', r.h)); continue; }
     main.append(rowEl(r));
   }

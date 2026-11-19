@@ -7,6 +7,8 @@
 #   k <vk>               naciśnij klawisz (kod VK dziesiętnie)
 #   x <vk,vk,...>        skrót (np. 18,9 = Alt+Tab)
 #   t <base64 UTF-8>     wpisz tekst
+#   L                    zablokuj komputer (LockWorkStation)
+#   Z                    uśpij komputer (bez hibernacji)
 #   q                    zakończ
 $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false
@@ -39,6 +41,8 @@ while ($true) {
       'k' { [WyspaDeckInput]::Tap([uint16]$p[1]) }
       'x' { [WyspaDeckInput]::Combo([uint16[]]($p[1].Split(','))) }
       't' { [WyspaDeckInput]::Text([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[1]))) }
+      'L' { [void][WyspaDeckInput]::Lock() }
+      'Z' { [void][WyspaDeckInput]::Sleep() }
       'q' { exit 0 }
     }
   } catch { [Console]::Out.WriteLine("error: $($_.Exception.Message)"); [Console]::Out.Flush() }

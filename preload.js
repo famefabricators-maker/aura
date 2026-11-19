@@ -21,4 +21,5 @@ contextBridge.exposeInMainWorld('wyspa', {
   send: (ch, ...a) => { if (SEND.includes(ch)) ipcRenderer.send(ch, ...a); },
   on: (ch, fn) => { if (ON.includes(ch)) ipcRenderer.on(ch, (_, d) => fn(d)); },
   pathsFor: files => Array.from(files).map(f => webUtils.getPathForFile(f)).filter(Boolean),
+  platform: process.platform,
 });
