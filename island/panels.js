@@ -40,7 +40,7 @@ function renderMusic() {
   const m = st.media, has = !!(m && m.has && (m.title || m.artist));
   $('#music').classList.toggle('empty-state', !has);
   $('#mEmpty').classList.toggle('on', !has);
-  if (!has) return;
+  if (!has) { $('#mBg').classList.remove('on'); $('#card').classList.remove('album'); return; }
   $('#mTitle').textContent = m.title || 'Bez tytułu';
   const t = $('.m-title'); t.classList.remove('marquee');
   requestAnimationFrame(() => { const span = $('#mTitle'); if (span.scrollWidth > t.clientWidth + 2) { t.classList.add('marquee'); if (!span.dataset.dup) { span.textContent = (m.title + '  ').repeat(2); span.dataset.dup = '1'; } } else span.dataset.dup = ''; });
@@ -51,6 +51,7 @@ function renderMusic() {
   if (st.thumb) { art.src = st.thumb; $('#mArtNote').style.display = 'none'; } else { art.removeAttribute('src'); $('#mArtNote').style.display = ''; }
   const bg = $('#mBg');
   bg.classList.toggle('on', !solid && !!st.thumb && T.surface(st.S.surface).id !== 'white');
+  $('#card').classList.toggle('album', bg.classList.contains('on') && st.tab === 'music');
   bg.style.backgroundImage = st.thumb ? `url("${st.thumb}")` : '';
   const app = prettyApp(m.app); const badge = $('#mBadge');
   badge.title = app;
@@ -612,6 +613,7 @@ setInterval(() => {
 let statsOn = false;
 document.addEventListener('tab', e => {
   const id = e.detail;
+  $('#card').classList.toggle('album', id === 'music' && $('#mBg').classList.contains('on'));
   const wantStats = st.open && id === 'widgets';
   if (wantStats !== statsOn) { statsOn = wantStats; W.send('stats-on', statsOn); }
   if (id === 'widgets') { renderToday(); renderFocus(); W.send('weather-refresh'); renderReminders(); }

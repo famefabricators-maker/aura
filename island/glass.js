@@ -9,14 +9,27 @@ window.paintOverCursors = (ctx, cnv, reg, k, cursors) => {
   for (let i = 0; i < cursors.length; i++) {
     const a = cursors[i]; pts.push(a);
     const b = cursors[i + 1];
-    if (b) { const d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.min(12, Math.floor(d / 22)); for (let j = 1; j <= n; j++) pts.push({ x: a.x + (b.x - a.x) * j / (n + 1), y: a.y + (b.y - a.y) * j / (n + 1) }); }
+    if (b) { const d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.min(8, Math.floor(d / 30)); for (let j = 1; j <= n; j++) pts.push({ x: a.x + (b.x - a.x) * j / (n + 1), y: a.y + (b.y - a.y) * j / (n + 1) }); }
   }
+  // miękka łata: wycinek obok kursora z okrągłą, rozmytą krawędzią (bez kanciastych plam pod szkłem)
+  const P = Math.ceil(Math.max(pw, ph) * 1.5);
+  const tmp = paintOverCursors.tmp || (paintOverCursors.tmp = document.createElement('canvas'));
+  if (tmp.width !== P) { tmp.width = P; tmp.height = P; }
+  const t = tmp.getContext('2d');
   for (const c of pts) {
-    const cx = (c.x - reg.x) * k - 8 * k, cy = (c.y - reg.y) * k - 8 * k;
-    if (cx + pw < 0 || cy + ph < 0 || cx > cnv.width || cy > cnv.height) continue;
-    const left = cx - pw - 4 * k >= 0;
-    const sx = left ? cx - pw - 4 * k : Math.min(cnv.width - pw, cx + pw + 4 * k);
-    ctx.drawImage(cnv, sx, cy, pw, ph, cx, cy, pw, ph);
+    const ccx = (c.x - reg.x) * k + 7 * k, ccy = (c.y - reg.y) * k + 10 * k; // środek kursora (strzałka idzie w prawo-dół)
+    const x = ccx - P / 2, y = ccy - P / 2;
+    if (x + P < 0 || y + P < 0 || x > cnv.width || y > cnv.height) continue;
+    const off = P * 0.9;
+    const sx = x - off >= 0 ? x - off : Math.min(cnv.width - P, x + off);
+    const sy = Math.max(0, Math.min(cnv.height - P, y - P * 0.35));
+    t.globalCompositeOperation = 'copy';
+    t.drawImage(cnv, sx, sy, P, P, 0, 0, P, P);
+    t.globalCompositeOperation = 'destination-in';
+    const g = t.createRadialGradient(P / 2, P / 2, P * 0.22, P / 2, P / 2, P / 2);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    t.fillStyle = g; t.fillRect(0, 0, P, P);
+    ctx.drawImage(tmp, x, y);
   }
 };
 window.WyspaGL = (() => {

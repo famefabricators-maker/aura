@@ -48,10 +48,13 @@ window.GlassBg = (() => {
   let gl, loc = {}, tex, canvas, video = null, stream = null, has = false, ts = [1, 1];
   let pos = { x: 0, y: 0, sw: 1920, sh: 1080, ok: true }, blurAmt = 0.5, focus = 1, raf = 0, cursors = [], usedReg = null, movingUntil = 0;
   const moving = () => performance.now() < movingUntil;
-  function region() {
-    // w trakcie przesuwania okna bierzemy duży zapas wokół okna, żeby tło nadążało między klatkami
-    const M = moving() ? 480 : 30, x0 = Math.max(0, pos.x - M), y0 = Math.max(0, pos.y - M);
-    const x1 = Math.min(pos.sw, pos.x + innerWidth + M), y1 = Math.min(pos.sh, pos.y + innerHeight + M);
+  function region(k = 1) {
+    // Zapas wokół okna: rozmycie sięga ~100 px poza okno, a w ruchu okno musi zmieścić się w starym wycinku.
+    // Wycinek jest przyklejony do stałej siatki 128 px ekranu — wtedy mipmapy (z których liczy się rozmycie)
+    // nie przeliczają się inaczej przy każdym przesunięciu okna i tło nie migocze.
+    const M = moving() ? 480 : 200, G = 128 / k;
+    const x0 = Math.max(0, Math.floor((pos.x - M) / G) * G), y0 = Math.max(0, Math.floor((pos.y - M) / G) * G);
+    const x1 = Math.min(pos.sw, Math.ceil((pos.x + innerWidth + M) / G) * G), y1 = Math.min(pos.sh, Math.ceil((pos.y + innerHeight + M) / G) * G);
     return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0), sw: pos.sw };
   }
   function init(cv) {
@@ -106,7 +109,7 @@ window.GlassBg = (() => {
         if (moving() || now - last > (focus ? 33 : 120)) {
           last = now;
           // tylko fragment ekranu pod oknem (+ margines na załamanie), z zamalowanym kursorem
-          const r = region(), k = video.videoWidth / pos.sw;
+          const k = video.videoWidth / pos.sw, r = region(k);
           const W2 = Math.max(1, Math.round(r.w * k)), H2 = Math.max(1, Math.round(r.h * k));
           if (crop.width !== W2 || crop.height !== H2) { crop.width = W2; crop.height = H2; }
           cctx.drawImage(video, r.x * k, r.y * k, W2, H2, 0, 0, W2, H2);
