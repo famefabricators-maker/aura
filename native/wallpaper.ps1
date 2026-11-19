@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $src = Join-Path $PSScriptRoot 'WallpaperNative.cs'
 $code = [IO.File]::ReadAllText($src)
 $sha = [BitConverter]::ToString((New-Object Security.Cryptography.SHA1Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes($code))).Replace('-', '').Substring(0, 12)
-$cacheDir = Join-Path $env:APPDATA 'wyspa\native'
+$cacheDir = if ($env:AURA_CACHE) { $env:AURA_CACHE } else { Join-Path $env:APPDATA 'Aura\native' }
 $dll = Join-Path $cacheDir "WallpaperNative-$sha.dll"
 try {
   if (Test-Path $dll) { Add-Type -Path $dll }

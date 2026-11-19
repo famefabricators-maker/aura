@@ -12,6 +12,8 @@
 2. Uruchom instalator. Windows może pokazać „System Windows ochronił ten komputer”, bo aplikacja nie ma płatnego podpisu cyfrowego. Kliknij **Więcej informacji → Uruchom mimo to**.
 3. Aura pojawi się u góry ekranu, a jej ikona w zasobniku obok zegara. Kliknięcie ikony otwiera ustawienia.
 
+**Mało miejsca na dysku C:?** Instalator zawsze rozpakowuje się najpierw do folderu tymczasowego na C: (ok. 120 MB), nawet gdy wybierzesz inny dysk. Pobierz wtedy wersję przenośną `Aura-x.y.z-portable.zip`: rozpakuj ją np. na `D:\Aura` i uruchom `Aura.exe`. Bez instalacji, a wszystkie dane trzyma w folderze `dane` obok programu, więc na C: nie zapisuje nic swojego.
+
 Wymagania: Windows 10 (2004 lub nowszy) albo Windows 11, 64-bit.
 
 ## Co potrafi

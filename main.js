@@ -13,6 +13,17 @@ const { Store } = require('./lib/store');
 const { Helper } = require('./lib/helper');
 const { LocalEndpoint, PhoneShare } = require('./lib/servers');
 
+// Wersja przenośna (ZIP): plik „portable” obok Aura.exe → wszystkie dane, pamięć podręczna i pliki tymczasowe
+// trzymamy w folderze aplikacji, np. na dysku D:, a nie na C:.
+const PORTABLE = app.isPackaged && fs.existsSync(path.join(path.dirname(process.execPath), 'portable'));
+if (PORTABLE) {
+  const base = path.join(path.dirname(process.execPath), 'dane');
+  app.setPath('userData', base);
+  const tmp = path.join(base, 'tmp');
+  try { fs.mkdirSync(tmp, { recursive: true }); process.env.TEMP = process.env.TMP = tmp; } catch {}
+}
+process.env.AURA_CACHE = path.join(app.getPath('userData'), 'native'); // tu pomocnicy kompilują kod natywny
+
 app.setAppUserModelId('pl.aura.app');
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
