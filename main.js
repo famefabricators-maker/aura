@@ -904,6 +904,13 @@ app.whenReady().then(() => {
 async function testShots(dir) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
+  if (process.env.WYSPA_CLICKTEST) { // co dostaje kliknięcie w przycisk okienka zatwierdzania telefonu
+    await wait(5000);
+    send('deck-pair', { id: 'test', name: 'Telefon testowy', ip: '192.168.0.10', code: '1234' }); await wait(900);
+    const r = await island.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('#bAct button')].find(x => x.textContent === 'Zatwierdź'); const q = b.getBoundingClientRect(); const z = parseFloat(getComputedStyle(document.querySelector('#banner')).zoom) || 1; const el = document.elementFromPoint((q.left + q.width / 2) * z, (q.top + q.height / 2) * z); return { trafia: el === b ? 'Zatwierdź (OK)' : (el.id || el.className || el.tagName) + ' / ' + (el.closest('button') ? el.closest('button').id || el.closest('button').textContent : '') }; })()`);
+    fs.writeFileSync(path.join(dir, 'clicktest.txt'), JSON.stringify(r));
+    app.quit(); return;
+  }
   if (process.env.WYSPA_WPTEST) { // test tapety: start, stan, zrzut pulpitu, stop (zwykła tapeta wraca)
     const log = s => fs.appendFileSync(path.join(dir, 'wallpaper.txt'), s + '\n');
     wp.on('state', s => log('state ' + JSON.stringify(s)));
