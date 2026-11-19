@@ -1,13 +1,16 @@
-# Buduje Aurę na macOS (Apple Silicon i Intel) i dołącza pliki do wydania na GitHubie.
-# Uruchamianie: Actions → "Aura na macOS" → Run workflow → wpisz tag wydania (np. v2.1.0).
+# Buduje Aurę na macOS (Apple Silicon i Intel).
+# Actions → "Aura na macOS" → Run workflow:
+#  - z tagiem (np. v2.1.0) dołącza .dmg i .zip do tego wydania,
+#  - bez tagu tylko buduje (próba) i zostawia pliki jako artefakt przebiegu.
 name: Aura na macOS
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag wydania, do którego dołączyć pliki (np. v2.1.0)'
-        required: true
+        description: 'Tag wydania, do którego dołączyć pliki (np. v2.1.0). Puste = tylko próba.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -18,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag }}
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -33,9 +36,23 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      - name: Dołączenie do wydania
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Sprawdzenie podpisu (ad-hoc)
         run: |
           ls -la dist
-          gh release upload "${{ github.event.inputs.tag }}" dist/*.dmg dist/*-mac-*.zip --clobber --repo "${{ github.repository }}"
+          for app in dist/mac*/Aura.app; do echo "== $app"; codesign -dv "$app" 2>&1 | head -5 || true; done
+
+      - name: Artefakt (próba)
+        if: ${{ github.event.inputs.tag == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aura-mac
+          path: |
+            dist/*.dmg
+            dist/*-mac-*.zip
+          retention-days: 7
+
+      - name: Dołączenie do wydania
+        if: ${{ github.event.inputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.inputs.tag }}" dist/*.dmg dist/*-mac-*.zip --clobber --repo "${{ github.repository }}"
