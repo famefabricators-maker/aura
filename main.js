@@ -488,7 +488,13 @@ function addNotice(n) {
 ipcMain.handle('notices', () => store.data.notices || []);
 ipcMain.on('notice-remove', (_, id) => { store.data.notices = (store.data.notices || []).filter(n => n.id !== id); store.saveData(); send('notices', store.data.notices); });
 ipcMain.on('notices-clear', () => { store.data.notices = []; store.saveData(); send('notices', []); });
-ipcMain.on('notice-open', (_, id) => { const n = (store.data.notices || []).find(x => x.id === id); if (n && n.path && fs.existsSync(n.path)) shell.openPath(n.path); });
+// Pliki z telefonu, które dałoby się uruchomić (programy, skrypty, skróty…), tylko pokazujemy w folderze — klik w komunikat niczego nie uruchamia.
+const RUNNABLE = /\.(exe|com|scr|pif|msi|msix|msp|appx|appxbundle|bat|cmd|ps1|psm1|psd1|vbs|vbe|js|jse|wsf|wsh|hta|lnk|url|reg|cpl|inf|jar|chm|scf|application|appref-ms|settingcontent-ms|library-ms|iso|img|vhd|vhdx|xll|docm|xlsm|pptm|dll|sys|gadget|msc)$/i;
+ipcMain.on('notice-open', (_, id) => {
+  const n = (store.data.notices || []).find(x => x.id === id);
+  if (!n || !n.path || !fs.existsSync(n.path)) return;
+  if (n.kind === 'phone' && RUNNABLE.test(n.path)) shell.showItemInFolder(n.path); else shell.openPath(n.path);
+});
 
 // ---------- skrypty i agenci AI (127.0.0.1) ----------
 const agents = new Map();
@@ -861,6 +867,7 @@ ipcMain.on('web-open', (_, url) => {
     webWin.contentView.addChildView(webView);
     const wc = webView.webContents;
     wc.setWindowOpenHandler(({ url: u }) => { if (/^https?:/i.test(u)) wc.loadURL(u); return { action: 'deny' }; });
+    wc.on('will-navigate', (e, u) => { if (!/^https?:/i.test(u)) e.preventDefault(); }); // tylko strony www, bez file:// itp.
     for (const ev of ['did-navigate', 'did-navigate-in-page', 'page-title-updated', 'did-start-loading', 'did-stop-loading']) wc.on(ev, webInfo);
     // Esc zamyka okno (strona dalej gra w tle — np. muzyka)
     const esc = (e, input) => { if (input.type === 'keyDown' && input.key === 'Escape' && !wc.isFullScreen?.()) { hideWeb(); e.preventDefault(); } };
@@ -882,7 +889,7 @@ ipcMain.on('web-cmd', (_, cmd) => {
   if (cmd === 'back' && h.canGoBack()) h.goBack();
   if (cmd === 'fwd' && h.canGoForward()) h.goForward();
   if (cmd === 'reload') wc.reload();
-  if (cmd === 'external') shell.openExternal(wc.getURL());
+  if (cmd === 'external' && /^https?:\/\//i.test(wc.getURL())) shell.openExternal(wc.getURL());
   if (cmd === 'close') hideWeb();
 });
 ipcMain.on('web-pins', (_, pins) => { if (Array.isArray(pins)) applySettings({ webPins: pins.filter(p => p && /^https?:\/\//i.test(p.url)).slice(0, 12) }); });
@@ -915,9 +922,25 @@ function setupCapture() {
       cb(req.audioRequested === false || IS_MAC ? { video: src } : { video: src, audio: 'loopback' });
     } catch { cb({}); }
   });
-  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(['media', 'display-capture'].includes(perm)));
-  session.defaultSession.setPermissionCheckHandler((wc, perm) => ['media', 'display-capture'].includes(perm));
+  // kamera/mikrofon/ekran tylko dla własnych stron Aury (file://), nic więcej
+  const own = (wc, origin) => (!wc || /^file:/i.test(wc.getURL())) && (!origin || /^file:/i.test(origin));
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb, d) => cb(['media', 'display-capture'].includes(perm) && own(wc, d && d.requestingUrl)));
+  session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => ['media', 'display-capture'].includes(perm) && own(wc, origin));
+  // karta Web (obce strony): bez kamery, mikrofonu, lokalizacji, powiadomień, otwierania programów przez protokoły itp.
+  const web = session.fromPartition('persist:wyspa-web');
+  const WEB_OK = new Set(['fullscreen', 'clipboard-sanitized-write', 'pointerLock', 'mediaKeySystem']);
+  web.setPermissionRequestHandler((wc, perm, cb) => cb(WEB_OK.has(perm)));
+  web.setPermissionCheckHandler((wc, perm) => WEB_OK.has(perm));
+  web.setDisplayMediaRequestHandler((req, cb) => cb({}));
 }
+// Własne okna (wyspa, ustawienia, czat, tapeta, pasek Web) nie mogą przejść na obcą stronę ani otwierać nowych okien.
+app.on('web-contents-created', (_, wc) => {
+  if (wc.session !== session.defaultSession) return; // karta Web ma własne zasady (setWindowOpenHandler przy tworzeniu)
+  wc.on('will-navigate', (e, u) => { if (!/^file:/i.test(u)) e.preventDefault(); });
+  wc.on('will-redirect', (e, u) => { if (!/^file:/i.test(u)) e.preventDefault(); });
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  wc.on('will-attach-webview', e => e.preventDefault());
+});
 
 // ---------- zasobnik / autostart ----------
 function setAutostart() {
@@ -936,6 +959,7 @@ function updateTray() {
 }
 
 app.whenReady().then(async () => {
+  store.unlock();                                // historia schowka i hasła: szyfrowanie działa dopiero teraz
   if (IS_MAC) {
     if (app.dock) app.dock.hide();               // Aura żyje w pasku menu, bez ikony w Docku
     notch = await helper.notch();                // rozmiar fabrycznego wycięcia (0, gdy Mac go nie ma)
@@ -971,6 +995,27 @@ app.whenReady().then(async () => {
 async function testShots(dir) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
+  if (process.env.WYSPA_SECTEST) { // zabezpieczenia: uprawnienia własnych okien i karty Web, blokada nawigacji, Skupienie
+    const out = [], log = (k, v) => out.push(`${k}: ${v}`);
+    const js = (wc, code) => wc.executeJavaScript(code, true).catch(e => 'wyjątek ' + e.message);
+    await wait(4000);
+    log('wyspa: przechwytywanie ekranu (szkło)', await js(island.webContents, `navigator.mediaDevices.getDisplayMedia({video:true}).then(s=>{s.getTracks().forEach(t=>t.stop());return 'działa'}).catch(e=>e.name)`));
+    await js(island.webContents, `window.open('https://example.com')`); await js(island.webContents, `location.href='https://example.com'`); await wait(1500);
+    log('wyspa: po próbie przejścia na obcą stronę', island.webContents.getURL().startsWith('file:') ? 'zostaje na swojej stronie' : 'PRZESZŁA ' + island.webContents.getURL());
+    log('wyspa: liczba okien po window.open', BrowserWindow.getAllWindows().length);
+    log('Skupienie: przesunięcie pierścienia po +5 +5 −5', await js(island.webContents, `(()=>{Object.assign(st.focus,{mode:'focus',total:0,left:0,running:false});focusAdjust(5);focusAdjust(5);focusAdjust(-5);return document.getElementById('fRing').style.strokeDashoffset+' (0 = pełny) · '+document.getElementById('fTime').textContent})()`));
+    ipcMain.emit('web-open', {}, 'https://example.com'); await wait(5000);
+    const w = webView.webContents;
+    log('Web: mikrofon', await js(w, `navigator.mediaDevices.getUserMedia({audio:true}).then(()=>'DOZWOLONY').catch(e=>e.name)`));
+    log('Web: kamera', await js(w, `navigator.mediaDevices.getUserMedia({video:true}).then(()=>'DOZWOLONA').catch(e=>e.name)`));
+    log('Web: przechwytywanie ekranu', await js(w, `navigator.mediaDevices.getDisplayMedia({video:true}).then(()=>'DOZWOLONE').catch(e=>e.name)`));
+    log('Web: lokalizacja', await js(w, `new Promise(r=>navigator.geolocation.getCurrentPosition(()=>r('DOZWOLONA'),e=>r('odmowa (kod '+e.code+')'),{timeout:4000}))`));
+    log('Web: powiadomienia', await js(w, `Notification.requestPermission()`));
+    await js(w, `location.href='file:///C:/Windows/win.ini'`); await wait(1000);
+    log('Web: przejście na plik z dysku', w.getURL().startsWith('file:') ? 'PRZESZŁA' : 'zablokowane (' + w.getURL() + ')');
+    fs.writeFileSync(path.join(dir, 'sec.txt'), out.join('\n'));
+    app.quit(); return;
+  }
   if (process.env.WYSPA_UPDATETEST) { // aktualizacje: udajemy starą wersję i sprawdzamy GitHuba
     await wait(4000);
     const s = await updates.check(true); await wait(1200);
@@ -987,6 +1032,30 @@ async function testShots(dir) {
     await wait(1500);
     fs.writeFileSync(path.join(dir, 'autoupd-alert.png'), (await island.webContents.capturePage()).toPNG());
     app.exit(0); return;
+  }
+  if (process.env.WYSPA_DECKE2E) { // udawany telefon: parowanie → WebSocket → ruch myszy → czy kursor się przesunął
+    const log = s => fs.appendFileSync(path.join(dir, 'deck-e2e.txt'), new Date().toISOString().slice(11, 19) + ' ' + s + '\n');
+    await wait(3000);
+    try {
+      const st = await deck.start(); log('start ' + JSON.stringify({ running: st.running, error: st.error }));
+      const base = st.url;
+      const pr = await (await net.fetch(base + 'pair', { method: 'POST', body: JSON.stringify({ name: 'Test' }), headers: { 'Content-Type': 'application/json' } })).json();
+      log('pair ' + JSON.stringify(pr));
+      deck.approve(pr.id);
+      const ok = await (await net.fetch(base + 'pair/' + pr.id)).json(); log('pair-status ' + JSON.stringify({ status: ok.status, key: !!ok.key }));
+      const wsUrl = base.replace(/^http/, 'ws') + `ws?dev=${encodeURIComponent(ok.id)}&key=${encodeURIComponent(ok.key)}`;
+      const ws = new WebSocket(wsUrl);
+      await new Promise((res, rej) => { ws.onopen = res; ws.onerror = e => rej(new Error('ws error')); setTimeout(() => rej(new Error('ws timeout')), 5000); });
+      log('ws open');
+      ws.onmessage = e => log('ws <- ' + String(e.data).slice(0, 90));
+      const p0 = screen.getCursorScreenPoint();
+      ws.send(JSON.stringify({ t: 'm', x: 40, y: 0 })); await wait(6000); // pierwszy ruch uruchamia pomocnika (kompilacja)
+      ws.send(JSON.stringify({ t: 'm', x: 40, y: 0 })); await wait(800);
+      const p1 = screen.getCursorScreenPoint(); log(`kursor ${p0.x},${p0.y} -> ${p1.x},${p1.y}`);
+      ws.send(JSON.stringify({ t: 'm', x: -80, y: 0 })); await wait(500);
+      ws.close();
+    } catch (e) { log('BŁĄD ' + e.message); }
+    deck.stop(); await wait(500); app.exit(0); return;
   }
   if (process.env.WYSPA_DECKTEST) { // pilot: start, strona dla telefonu, statystyki, stop
     await wait(4000);

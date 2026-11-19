@@ -371,7 +371,17 @@ function focusToggle() {
   else { if (!F.total || F.left <= 0) { F.total = focusLen(F.mode); F.left = F.total; } F.end = Date.now() + F.left * 1000; F.running = true; }
   renderFocus(); update();
 }
-function focusAdjust(d) { if (!F.total) { F.total = focusLen(F.mode); F.left = F.total; } F.left = Math.max(60, F.left + d * 60); F.total = Math.max(F.total, F.left); if (F.running) F.end = Date.now() + F.left * 1000; renderFocus(); update(); }
+// +/− zmienia długość całej sesji (nie tylko pozostały czas), więc upłynięta część pierścienia się nie zmienia;
+// przed startem pierścień zostaje pełny. Zakres: pozostało min. 1 min, cała sesja maks. 3 h.
+function focusAdjust(d) {
+  if (F.running) F.left = Math.max(0, (F.end - Date.now()) / 1000);
+  if (!F.total || F.left <= 0) { F.total = focusLen(F.mode); F.left = F.total; }
+  const elapsed = F.total - F.left;
+  F.left = Math.min(Math.max(60, F.left + d * 60), 180 * 60 - elapsed);
+  F.total = elapsed + F.left;
+  if (F.running) F.end = Date.now() + F.left * 1000;
+  renderFocus(); update();
+}
 setInterval(() => {
   if (!F.running) return;
   F.left = Math.max(0, Math.ceil((F.end - Date.now()) / 1000));

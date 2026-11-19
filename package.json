@@ -1,7 +1,7 @@
 {
   "name": "aura",
   "productName": "Aura",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Aura — darmowa wyspa u góry ekranu Windowsa: muzyka, półka, schowek, widżety, przypomnienia i szkło na żywo.",
   "author": "FameFabricators",
   "license": "MIT",
@@ -81,6 +81,11 @@
         "owner": "famefabricators-maker",
         "repo": "aura"
       }
-    ]
+    ],
+    "electronLanguages": [
+      "pl",
+      "en-US"
+    ],
+    "compression": "maximum"
   }
 }
