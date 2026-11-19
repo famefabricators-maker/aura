@@ -160,6 +160,9 @@ const PAGES = [
   ] },
   { id: 'about', icon: 'note', name: 'Informacje', rows: [
     { type: 'about' },
+    { h: 'Aktualizacje' },
+    { type: 'update', label: 'Wersja', desc: 'Aura sprawdza GitHuba przy starcie i co 6 godzin. W wersji z instalatorem nowa wersja pobiera się sama i instaluje po ponownym uruchomieniu.' },
+    tog('updateNotify', 'Powiadamiaj o nowych wersjach', 'Okienko na wyspie, gdy pojawi się nowa wersja.'),
   ] },
 ];
 
@@ -286,6 +289,25 @@ function rowEl(r) {
       }
       ctl.append(g); break;
     }
+    case 'update': {
+      const status = el('span', 'val', '…'); status.style.minWidth = 'auto';
+      const b = el('button', 'btn', 'Sprawdź teraz');
+      const show = s => {
+        if (!s) return;
+        const txt = { idle: '', dev: 'wersja z kodu (bez aktualizacji)', checking: 'sprawdzam…', current: 'masz najnowszą', available: `dostępna ${s.latest}`,
+          downloading: `pobieram ${s.latest}${s.percent != null ? ' · ' + s.percent + '%' : ''}`, ready: `${s.latest} gotowa — uruchom ponownie`, error: 'nie udało się sprawdzić' }[s.status] || '';
+        status.textContent = `v${s.current}${txt ? ' · ' + txt : ''}`;
+        b.textContent = s.status === 'ready' ? 'Uruchom ponownie' : s.status === 'available' && s.mode === 'notify' ? 'Pobierz' : 'Sprawdź teraz';
+        b.onclick = async () => {
+          if (s.status === 'ready') return W.send('update-answer', 'install');
+          if (s.status === 'available' && s.mode === 'notify') return W.send('update-answer', 'open');
+          b.disabled = true; show(await W.invoke('update-check')); b.disabled = false;
+        };
+      };
+      W.invoke('update-state').then(show);
+      updateView = show;
+      ctl.append(status, b); break;
+    }
     case 'button': {
       if (r.sub) { const s = el('span', 'val', r.sub(S)); s.style.minWidth = 'auto'; s.style.maxWidth = '220px'; s.style.overflow = 'hidden'; s.style.textOverflow = 'ellipsis'; s.style.whiteSpace = 'nowrap'; ctl.append(s); }
       const b = el('button', 'btn', r.text); b.onclick = r.fn; ctl.append(b); break;
@@ -382,11 +404,13 @@ W.on('settings', s => { S = s; applyTheme(); if (!document.activeElement || docu
 W.on('hotkey-errors', e => { hkErrors = e || []; if (page === 'keys') render(); });
 W.on('goto', p => { page = p; query = ''; render(); });
 W.on('obs', () => { if (page === 'streaming') render(); });
+let updateView = null;
+W.on('update-state', s => { if (updateView && page === 'about') updateView(s); });
 W.on('wallpaper', s => { if (page === 'wallpaper' && s && s.error) { const m = $('main .lead.err') || document.createElement('p'); m.className = 'lead err'; m.style.color = '#ff9f0a'; m.textContent = s.error; $('#main h1').after(m); } });
 (async () => {
   S = await W.invoke('settings-get');
   hkErrors = await W.invoke('hotkey-errors');
   claude = await W.invoke('claude-status');
-  $('#ver').textContent = 'v2.0';
+  W.invoke('update-state').then(s => { $('#ver').textContent = 'v' + ((s && s.current) || ''); });
   applyTheme(); render();
 })();

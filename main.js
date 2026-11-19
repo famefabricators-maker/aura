@@ -684,7 +684,25 @@ const deck = new Deck({
   // zgodnie z API modułu: 6 miejsc (null = puste), indeks = numer miejsca
   getApps: async () => (await launchInfo()).map(a => a && { name: a.name, icon: a.icon }),
   launch: i => launchSlot(i),
-  getMedia: () => sys.media && sys.media.has ? { title: sys.media.title, artist: sys.media.artist, playing: sys.media.playing } : null,
+  getMedia: () => sys.media && sys.media.has ? { title: sys.media.title, artist: sys.media.artist, playing: sys.media.playing,
+    art: sys.thumb && sys.thumb.length < 270000 ? sys.thumb : undefined } : null,
+  // statystyki dla kart Tryby i Komputer na telefonie
+  getStats: async () => {
+    const a = cpuSample(); await new Promise(r => setTimeout(r, 250)); const b = cpuSample();
+    const cpu = 100 * (1 - (b.idle - a.idle) / Math.max(1, b.total - a.total));
+    const g = await gpuSample();
+    return { cpu: Math.round(cpu), gpu: g ? Math.round(g.util) : null, ram: Math.round(100 * (1 - os.freemem() / os.totalmem())), temp: g ? Math.round(g.temp) : null };
+  },
+  // akcje z telefonu: mikrofon, zrzut i nagrywanie robi Aura; zasilanie robi Deck, a my tylko powiadamiamy
+  onAction: (name, info) => {
+    if (name === 'mic') toggleMic();
+    else if (name === 'screenshot') takeScreenshot();
+    else if (name === 'record') send('record-toggle');
+    else if (name === 'restart' || name === 'shutdown') addNotice({ kind: 'phone', title: name === 'restart' ? 'Ponowne uruchomienie z telefonu' : 'Wyłączanie z telefonu', body: `Za ${info && info.delay ? info.delay : 30} s · zapisz pracę` });
+    else if (name === 'cancel') addNotice({ kind: 'phone', title: 'Anulowano z telefonu', body: 'Komputer zostaje włączony' });
+  },
+  // „Edytuj” na telefonie zmienia miejsca launchera
+  setApp: async (slot, p) => { if (slot < 0 || slot > 5) return; const l = [...S().launchApps]; l[slot] = p || ''; applySettings({ launchApps: l }); },
 });
 let deckState = null;
 deck.on('state', s => { deckState = s; both('deck', s); });
@@ -793,6 +811,19 @@ obs.on('recorded', async p => { if (S().capturesToShelf) await addFiles([p]); ad
 function configureObs() { obs.configure({ enabled: S().obsEnabled, auto: S().obsAuto, port: Number(S().obsPort) || 4455, password: S().obsPassword || '' }); }
 ipcMain.handle('obs-local', () => Obs.findLocal());
 ipcMain.handle('obs-state', () => obsState);
+
+// ---------- aktualizacje z GitHuba ----------
+const { Updates } = require('./lib/updates');
+const updates = new Updates({ portable: PORTABLE });
+updates.on('state', s => send('update-state', s, settingsWin));
+updates.on('ready', v => { alertActive = true; applyVisibility(); send('update-alert', { version: v, kind: 'ready' }); });
+updates.on('available', v => { if (!S().updateNotify) return; alertActive = true; applyVisibility(); send('update-alert', { version: v, kind: 'available' }); });
+ipcMain.handle('update-state', () => updates.state);
+ipcMain.handle('update-check', () => updates.check(true));
+ipcMain.on('update-answer', (_, a) => {
+  alertActive = false; applyVisibility();
+  if (a === 'install') updates.install(); else if (a === 'open') updates.openPage(); else updates.later();
+});
 
 // ---------- mała przeglądarka pod wyspą (karta Web) ----------
 // Okno ze szklaną ramką (Acrylic) i własnym paskiem; strona siedzi w osobnym widoku z zaokrąglonymi rogami.
@@ -924,6 +955,7 @@ app.whenReady().then(async () => {
   refreshCalendar();
   configureObs();
   configureChat();
+  updates.start();
   if (S().liveWallpaper) configureWallpaper();
   pruneClips();
   screen.on('display-metrics-changed', place);
@@ -939,6 +971,31 @@ app.whenReady().then(async () => {
 async function testShots(dir) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
+  if (process.env.WYSPA_UPDATETEST) { // aktualizacje: udajemy starą wersję i sprawdzamy GitHuba
+    await wait(4000);
+    const s = await updates.check(true); await wait(1200);
+    fs.writeFileSync(path.join(dir, 'update.txt'), JSON.stringify(s));
+    fs.writeFileSync(path.join(dir, 'update-alert.png'), (await island.webContents.capturePage()).toPNG());
+    app.quit(); return;
+  }
+  if (process.env.WYSPA_AUTOUPD && updates.updater) { // automatyczna aktualizacja: wykrycie i pobranie, BEZ instalacji
+    updates.updater.autoInstallOnAppQuit = false;
+    const log = s => fs.appendFileSync(path.join(dir, 'autoupd.txt'), new Date().toISOString().slice(11, 19) + ' ' + s + '\n');
+    updates.on('state', s => log(JSON.stringify(s)));
+    await wait(3000); updates.check(true);
+    for (let i = 0; i < 90 && updates.state.status !== 'ready' && updates.state.status !== 'error' && updates.state.status !== 'current'; i++) await wait(2000);
+    await wait(1500);
+    fs.writeFileSync(path.join(dir, 'autoupd-alert.png'), (await island.webContents.capturePage()).toPNG());
+    app.exit(0); return;
+  }
+  if (process.env.WYSPA_DECKTEST) { // pilot: start, strona dla telefonu, statystyki, stop
+    await wait(4000);
+    const out = {};
+    try { const s = await deck.start(); out.running = s.running; out.url = (s.url || '').replace(/\/[^/]*$/, '/…'); const r = await net.fetch(s.url); out.page = r.status; out.html = (await r.text()).includes('Aura Deck'); } catch (e) { out.error = e.message; }
+    try { out.stats = await deck.opts?.getStats?.() ?? 'brak'; } catch (e) { out.statsError = e.message; }
+    fs.writeFileSync(path.join(dir, 'decktest.txt'), JSON.stringify(out));
+    deck.stop(); await wait(500); app.quit(); return;
+  }
   if (process.env.WYSPA_CLICKTEST) { // co dostaje kliknięcie w przycisk okienka zatwierdzania telefonu
     await wait(5000);
     send('deck-pair', { id: 'test', name: 'Telefon testowy', ip: '192.168.0.10', code: '1234' }); await wait(900);
@@ -981,6 +1038,6 @@ async function testShots(dir) {
   if (!process.env.WYSPA_KEEP) app.quit();
 }
 app.on('second-instance', (_, argv) => { userHidden = false; applyVisibility(); if (argv.includes('--settings')) openSettings(); });
-app.on('before-quit', () => { quitting = true; clearInterval(cursorLoop); helper.stop(); endpoint.stop(); phone.stop(); try { cal.stop(); obs.stop(); chat.stop(); deck.stop(); wp.stop(); } catch {} });
+app.on('before-quit', () => { quitting = true; clearInterval(cursorLoop); helper.stop(); endpoint.stop(); phone.stop(); try { cal.stop(); obs.stop(); chat.stop(); deck.stop(); wp.stop(); updates.stop(); } catch {} });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => { if (quitting) app.quit(); });
