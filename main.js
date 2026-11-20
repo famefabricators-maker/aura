@@ -132,7 +132,7 @@ function applyVisibility() {
 }
 
 // Pozycja kursora dla szkła: przechwytywanie ekranu zawiera kursor, więc szkło go zamalowuje.
-let lastCur = '', curNear = { island: false, settings: false };
+let lastCur = '', curNear = { island: false, settings: false }, lastCurPt = { x: 0, y: 0 };
 function sendCursor(p, ib) {
   if (S().surface !== 'glass') return;
   const d = screen.getPrimaryDisplay().bounds;
@@ -157,9 +157,13 @@ const cursorLoop = setInterval(() => {
   sendCursor(p, b);
   const r = open ? rects.o : rects.c;
   const pad = open ? 10 : 2;
-  const inside = rx >= r.x - pad && rx <= r.x + r.w + pad && ry >= -2 && ry <= r.y + r.h + pad;
+  // u góry liczy się też sama krawędź ekranu nad wyspą; na dole tylko sama wyspa (wcześniej cały pas nad nią otwierał wyspę)
+  const bottom = S().edge === 'bottom' && !(IS_MAC && notch.has);
+  const inside = rx >= r.x - pad && rx <= r.x + r.w + pad && ry >= (bottom ? r.y - pad : -2) && ry <= r.y + r.h + pad;
   const now = Date.now();
-  if (inside) { lastInside = now; if (!insideSince) insideSince = now; } else insideSince = 0;
+  // zamiar: szybki przejazd kursora przez wyspę jej nie otwiera — odliczanie startuje, gdy kursor zwolni
+  const speed = Math.hypot(p.x - lastCurPt.x, p.y - lastCurPt.y); lastCurPt = p; // piksele na 30 ms
+  if (inside) { lastInside = now; if (!insideSince || (!open && speed > 14)) insideSince = now; } else insideSince = 0;
   if (inside !== interactive) { interactive = inside; island.setIgnoreMouseEvents(!inside, { forward: true }); }
   if (pin && inside) pinEntered = true;
   if (pin && pinEntered && !inside && now - lastInside > 400) { pin = false; pinEntered = false; }
