@@ -1479,5 +1479,5 @@ async function testShots(dir) {
 }
 app.on('second-instance', (_, argv) => { userHidden = false; applyVisibility(); if (argv.includes('--settings')) openSettings(); });
 app.on('before-quit', () => { quitting = true; if (taskbar && taskbar.active) taskbar.stop(); clearInterval(cursorLoop); helper.stop(); endpoint.stop(); phone.stop(); try { cal.stop(); obs.stop(); chat.stop(); deck.stop(); wp.stop(); updates.stop(); } catch {} });
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => { if (app.isReady()) globalShortcut.unregisterAll(); }); // druga kopia kończy się przed „ready”
 app.on('window-all-closed', () => { if (quitting) app.quit(); });

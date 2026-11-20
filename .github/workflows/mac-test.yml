@@ -46,6 +46,7 @@ jobs:
 
       - name: 2) Aura.app, symulowany notch — zrzuty
         run: |
+          pkill -f "Electron.app" || true; pkill -f "Aura.app" || true; sleep 2  # poprzednia kopia nie może blokować nowej
           mkdir -p "$OUT/2-aplikacja"
           APP="$(ls -d dist/mac*/Aura.app | head -1)"; echo "aplikacja: $APP"
           WYSPA_SHOT="$OUT/2-aplikacja" WYSPA_VIZ=1 WYSPA_FAKE_NOTCH=1 "$APP/Contents/MacOS/Aura" > "$OUT/2-aplikacja/wyjscie.txt" 2>&1 &
@@ -55,6 +56,7 @@ jobs:
 
       - name: 3) Aura.app, zwykłe uruchomienie na 25 s
         run: |
+          pkill -f "Electron.app" || true; pkill -f "Aura.app" || true; sleep 2  # poprzednia kopia nie może blokować nowej
           mkdir -p "$OUT/3-zwykle"
           APP="$(ls -d dist/mac*/Aura.app | head -1)"
           "$APP/Contents/MacOS/Aura" > "$OUT/3-zwykle/wyjscie.txt" 2>&1 &
