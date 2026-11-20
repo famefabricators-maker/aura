@@ -10,6 +10,7 @@ public static class AuraTaskbar {
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr h);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
   [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
@@ -60,6 +61,7 @@ public static class AuraTaskbar {
   [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
   [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
   static IntPtr appBar = IntPtr.Zero;
+  public static void DpiAware() { SetProcessDPIAware(); } // prostokąty okien i ekranu w prawdziwych pikselach
   public static void Reserve(long hv, int height) {
     SetProcessDPIAware();
     IntPtr h = new IntPtr(hv);
@@ -97,8 +99,11 @@ public static class AuraTaskbar {
       uint pid; GetWindowThreadProcessId(h, out pid); if (pid == ownPid) return true;
       var t = new StringBuilder(len + 1); GetWindowText(h, t, t.Capacity);
       string title = t.ToString().Replace('\t', ' ').Replace('\n', ' ').Replace('\r', ' ');
+      RECT r; GetWindowRect(h, out r);
       sb.Append(h.ToInt64()).Append('\t').Append(pid).Append('\t').Append(IsIconic(h) ? 1 : 0).Append('\t').Append(h == fg ? 1 : 0)
-        .Append('\t').Append(IsZoomed(h) ? 1 : 0).Append('\t').Append(ProcPath(pid)).Append('\t').Append(title).Append('\n');
+        .Append('\t').Append(IsZoomed(h) ? 1 : 0).Append('\t').Append(ProcPath(pid))
+        .Append('\t').Append(r.L).Append(',').Append(r.T).Append(',').Append(r.R).Append(',').Append(r.B)
+        .Append('\t').Append(title).Append('\n');
       return true;
     }, IntPtr.Zero);
     return sb.ToString();

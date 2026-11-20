@@ -23,13 +23,38 @@ else {
 }
 function Out-Line($o) { [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress)); [Console]::Out.Flush() }
 
+[AuraTaskbar]::DpiAware()
+
+# Ikony zasobnika: Windows 11 trzyma je w rejestrze (ścieżka programu, podpis, obrazek PNG, czy widoczna przy zegarze).
+# Pokazujemy te, których program teraz działa.
+$knownFolders = @{ '{7C5A40EF-A0FB-4BFC-874A-C0F2E0B9FA8E}' = ${env:ProgramFiles(x86)}; '{6D809377-6AF0-444B-8957-A3773F02200E}' = $env:ProgramFiles;
+  '{F38BF404-1D43-42F2-9305-67DE0B28FC23}' = $env:windir; '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}' = "$env:windir\System32"; '{D65231B0-B2F1-4857-A4CE-A8E7C6EA7D27}' = "$env:windir\SysWOW64" }
+$skipTray = @('explorer.exe', 'electron.exe', 'aura.exe', 'monotificationux.exe')
+function Get-Tray {
+  $run = @{}; foreach ($p in [Diagnostics.Process]::GetProcesses()) { $run[$p.ProcessName.ToLower() + '.exe'] = 1 }
+  $out = @{}
+  foreach ($k in (Get-ChildItem 'HKCU:\Control Panel\NotifyIconSettings' -ErrorAction SilentlyContinue)) {
+    $p = Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue
+    $exe = [string]$p.ExecutablePath; if (-not $exe) { continue }
+    $name = ($exe -split '\\')[-1].ToLower()
+    if (-not $run.ContainsKey($name) -or $skipTray -contains $name) { continue }
+    $img = [byte[]]$p.IconSnapshot; if (-not $img -or $img.Length -lt 50) { continue }
+    $prom = ($p.IsPromoted -eq 1)
+    $prev = $out[$name]; if ($prev -and ($prev.promoted -or -not $prom)) { continue }
+    foreach ($g in $knownFolders.Keys) { if ($exe.StartsWith($g, 'OrdinalIgnoreCase')) { $exe = $knownFolders[$g] + $exe.Substring($g.Length) } }
+    $tip = [string]$p.InitialTooltip
+    $out[$name] = [ordered]@{ key = $name; exe = $exe; name = $(if ($tip) { $tip } else { $name -replace '\.exe$', '' }); promoted = $prom; icon = [Convert]::ToBase64String($img) }
+  }
+  return ,@($out.Values)
+}
+
 $state = if ($Orig -ge 0) { $Orig } else { [AuraTaskbar]::GetState() }
 Out-Line @{ t = 'state'; s = $state }
 [AuraTaskbar]::Hide()
 # znacznik: „pasek Windows schowany, oryginalny stan = N” — stróż przywróci go, gdyby Aura padła
 if ($Marker) { try { [IO.File]::WriteAllText($Marker, [string]$state) } catch {} }
 
-$ownPid = 0; $last = ''; $tick = 0
+$ownPid = 0; $last = ''; $tick = 0; $lastTray = ''
 $stdin = New-Object System.IO.StreamReader ([Console]::OpenStandardInput()), ([System.Text.Encoding]::UTF8)
 $read = $stdin.ReadLineAsync()
 try {
@@ -56,6 +81,13 @@ try {
       $w = ''; try { $w = [AuraTaskbar]::Windows($ownPid) } catch {}
       if ($w -ne $last) { $last = $w; Out-Line @{ t = 'windows'; list = $w } }
       if ($tick % 30 -eq 0) { try { [AuraTaskbar]::Hide() } catch {} }  # np. po restarcie Eksploratora
+    }
+    if ($tick % 20 -eq 0) {  # zasobnik co ~3 s
+      try {
+        $tj = ConvertTo-Json -InputObject (Get-Tray) -Compress -Depth 4
+        if (-not $tj -or $tj -eq 'null') { $tj = '[]' } elseif (-not $tj.StartsWith('[')) { $tj = "[$tj]" }
+        if ($tj -ne $lastTray) { $lastTray = $tj; [Console]::Out.WriteLine('{"t":"tray","list":' + $tj + '}'); [Console]::Out.Flush() }
+      } catch {}
     }
     [void]$read.Wait(150)
     $tick++
