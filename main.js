@@ -1053,7 +1053,7 @@ async function testShots(dir) {
     const js = code => island.webContents.executeJavaScript(code);
     const real = !!process.env.WYSPA_VIZ_REAL; // prawdziwy utwór ze Spotify zamiast udawanego
     if (!real) { helper.removeAllListeners('media'); helper.removeAllListeners('thumb'); } // tylko udawany utwór, nie to, co gra naprawdę
-    helper.removeAllListeners('covered'); helper.removeAllListeners('fs'); sys.covered = false; fsHidden = false; send('covered', false); applyVisibility(); // bez „cienkiej linii” pod oknami na ekranie
+    helper.removeAllListeners('covered'); helper.removeAllListeners('fs'); sys.covered = !!process.env.WYSPA_VIZ_COVERED; fsHidden = false; send('covered', sys.covered); applyVisibility(); // bez „cienkiej linii” pod oknami na ekranie
     const fakeWeather = () => { weather = { temp: 4, code: 3, day: true, text: 'Pochmurno', max: 7, min: 1, place: 'Warszawa' }; weatherAt = Date.now(); send('weather', weather); }; // nie prawdziwe miasto
     fakeWeather(); setTimeout(fakeWeather, 3000);
     calendar = [{ title: 'Spotkanie z klientem', start: Date.now() + 2 * 3600e3, end: Date.now() + 3 * 3600e3, allDay: false, location: '' }]; send('calendar', calendar);

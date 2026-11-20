@@ -105,6 +105,8 @@ function closedMode() {
   if (st.hud) return 'hud';
   if (hasNotch()) return 'pill';                        // na Macu pigułka = notch (+ skrzydełka)
   if (st.game) return 'strip';
+  // nowy utwór: wyspa wysuwa się z tytułem na 10 s także nad oknem, które zasłania górę (np. przeglądarką)
+  if (showTitle() && (st.S.pillTitle || 'change') === 'change') return 'pill';
   if (st.S.slimCovered && st.covered) return 'slim';   // okno zasłania górę: cienka linia
   if (st.S.hiddenUntilHover && !hasLive()) return 'hidden';
   return 'pill';
