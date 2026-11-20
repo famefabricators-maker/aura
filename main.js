@@ -349,7 +349,23 @@ helper.on('bright', m => {
   const prev = sys.bright; sys.bright = m; send('bright', m);
   if (!m.initial && prev && prev.v >= 0 && m.v !== prev.v && S().hudBrightness) send('hud', { kind: 'bright', level: m.v / 100 });
 });
-helper.on('capture', m => { sys.capture = m.apps || []; send('capture', sys.capture); }); // kto naprawdę nagrywa z mikrofonu
+// Od kiedy każda aplikacja nagrywa z mikrofonu — liczone zawsze (także przy wyłączonym minutniku), żeby po jego
+// włączeniu w trakcie rozmowy pokazać prawdziwy czas. Rejestr Windows (ConsentStore) bywa pusty albo nieaktualny.
+// Zapis na dysk co minutę: po restarcie Aury (np. aktualizacji) w ciągu 3 min rozmowa liczy się dalej, nie od zera.
+sys.captureSince = {};
+{ const saved = store.data.captureSince; if (saved && saved.map && Date.now() - (saved.seen || 0) < 180e3) sys.captureRestore = saved.map; }
+function saveCaptureSince() { store.data.captureSince = { map: sys.captureSince, seen: Date.now() }; store.saveData(); }
+helper.on('capture', m => { // kto naprawdę nagrywa z mikrofonu
+  sys.capture = m.apps || [];
+  const now = Date.now(), next = {}, old = sys.captureRestore || {}, gone = sys.captureGone || (sys.captureGone = {});
+  for (const a in sys.captureSince) if (!sys.capture.includes(a)) gone[a] = { since: sys.captureSince[a], at: now }; // np. wyciszenie w Discordzie zamyka mikrofon
+  for (const a in gone) if (now - gone[a].at > 600e3) delete gone[a]; // po 10 min przerwy to już nowa rozmowa
+  for (const a of sys.capture) next[a] = sys.captureSince[a] || (gone[a] && gone[a].since) || (old[a] > 0 && old[a] < now ? old[a] : now);
+  for (const a of sys.capture) delete gone[a];
+  sys.captureRestore = null; sys.captureSince = next; saveCaptureSince();
+  send('capture-since', next); send('capture', sys.capture);
+});
+setInterval(() => { if (Object.keys(sys.captureSince).length) saveCaptureSince(); }, 60e3).unref?.();
 helper.on('covered', m => { sys.covered = !!m.on; send('covered', sys.covered); });
 helper.on('power', m => { sys.power = m.g; send('power', m.g); });
 helper.on('radios', m => { sys.radios = m.list || []; send('radios', sys.radios); });
@@ -1205,7 +1221,7 @@ ipcMain.on('notes-set', (_, d) => { if (typeof d.notes === 'string') store.data.
 // ---------- stan początkowy dla okna wyspy ----------
 ipcMain.handle('init', async () => ({
   settings: S(), screen: screenInfo(), files: await filesOut(), clips: clipsOut(), notices: store.data.notices || [],
-  reminders: remindersOut(), agents: agentsOut(), sys: { vol: sys.vol, mic: sys.mic, inuse: sys.inuse, media: sys.media, thumb: sys.thumb, bright: sys.bright, covered: !!sys.covered, capture: sys.capture || [] },
+  reminders: remindersOut(), agents: agentsOut(), sys: { vol: sys.vol, mic: sys.mic, inuse: sys.inuse, media: sys.media, thumb: sys.thumb, bright: sys.bright, covered: !!sys.covered, capture: sys.capture || [], captureSince: sys.captureSince || {} },
   hotkeyErrors, winAccent: winAccent(),
 }));
 function winAccent() { try { const c = systemPreferences.getAccentColor(); return c ? '#' + c.slice(0, 6) : null; } catch { return null; } }

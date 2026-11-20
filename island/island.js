@@ -61,8 +61,9 @@ const useName = a => (a && typeof a === 'object') ? a.app : String(a || '');
 // st.capture = procesy, które W TEJ CHWILI nagrywają z mikrofonu (sesje audio Windows), a nie stare wpisy z rejestru
 function callApps() { return (st.capture || []).filter(n => CALL_APPS.test(n) && !NOT_CALL.test(n)); }
 function callActive() { return !!st.S.callTimer && callApps().length > 0; }
-function callSince() {
-  return st.callStart || Date.now();
+function callSince() { // najwcześniejszy start mikrofonu wśród aplikacji do rozmów (liczony w Aurze, także przy wyłączonym minutniku)
+  const t = callApps().map(a => (st.captureSince || {})[a]).filter(x => x > 0);
+  return t.length ? Math.min(...t) : (st.callStart || Date.now());
 }
 function agentWorking() { return st.agents.some(a => a.state === 'working' || a.state === 'needs'); }
 
@@ -527,6 +528,7 @@ W.on('screen', s => { st.screen = s; if (st.S && st.S.surface) update(); else ki
 W.on('hud', h => showHud(h));
 W.on('banner', n => showBanner(n));
 W.on('inuse', m => { st.inuse = { mic: m.mic || [], cam: m.cam || [] }; update(); });
+W.on('capture-since', m => { st.captureSince = m || {}; });
 W.on('capture', apps => { const was = callActive(); st.capture = apps || []; if (!was && callActive()) st.callStart = Date.now(); if (!callActive()) st.callStart = 0; update(); });
 W.on('agents', a => { st.agents = a || []; update(); });
 W.on('obs', s => { st.obs = s; update(); });
@@ -540,7 +542,7 @@ W.on('game', on => { st.game = !!on; $('#gIco').innerHTML = I.svg('game'); updat
   if (!gl) document.body.classList.add('nogl');
   const d = await W.invoke('init');
   st.S = d.settings; st.screen = d.screen; st.winAccent = d.winAccent || null;
-  st.media = d.sys.media; st.thumb = d.sys.thumb; st.vol = d.sys.vol; st.mic = d.sys.mic; st.inuse = d.sys.inuse || st.inuse; st.capture = d.sys.capture || [];
+  st.media = d.sys.media; st.thumb = d.sys.thumb; st.vol = d.sys.vol; st.mic = d.sys.mic; st.inuse = d.sys.inuse || st.inuse; st.capture = d.sys.capture || []; st.captureSince = d.sys.captureSince || {};
   st.agents = d.agents || []; st.notices = d.notices || []; st.covered = !!d.sys.covered;
   if (callActive()) st.callStart = Date.now();
   st.tab = d.settings.lastPanel || 'music';
