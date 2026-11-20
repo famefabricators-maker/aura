@@ -45,6 +45,8 @@ try {
           'close' { [AuraTaskbar]::Close([long]$m.h) }
           'keys' { [AuraTaskbar]::Keys([string]$m.k) }
           'pid' { $ownPid = [uint32]$m.pid }
+          'reserve' { [AuraTaskbar]::Reserve([long]$m.h, [int]$m.px) }
+          'unreserve' { [AuraTaskbar]::Unreserve() }
           'quit' { return }
         }
       } catch {}
@@ -59,6 +61,7 @@ try {
     $tick++
   }
 } finally {
+  try { [AuraTaskbar]::Unreserve() } catch {}
   [AuraTaskbar]::Restore($state)
   if ($Marker) { try { [IO.File]::Delete($Marker) } catch {} }
 }

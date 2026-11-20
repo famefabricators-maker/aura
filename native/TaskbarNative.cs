@@ -55,6 +55,28 @@ public static class AuraTaskbar {
     if (state >= 0) { var d = Bar(); d.lParam = (IntPtr)state; SHAppBarMessage(ABM_SETSTATE, ref d); }
   }
 
+  // Rezerwacja miejsca na pasek Aury (AppBar), jak robi to pasek Windows: zmaksymalizowane okna kończą się nad nim.
+  // Wszystko w prawdziwych pikselach ekranu (proces „DPI aware”); wysokość przelicza Aura wg skalowania ekranu.
+  [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  static IntPtr appBar = IntPtr.Zero;
+  public static void Reserve(long hv, int height) {
+    SetProcessDPIAware();
+    IntPtr h = new IntPtr(hv);
+    var d = new APPBARDATA(); d.cbSize = Marshal.SizeOf(typeof(APPBARDATA)); d.hWnd = h;
+    if (appBar != h) { Unreserve(); d.uCallbackMessage = 0x8000 + 77; SHAppBarMessage(0 /*ABM_NEW*/, ref d); appBar = h; }
+    int sw = GetSystemMetrics(0), sh = GetSystemMetrics(1);
+    d.uEdge = 3; /*ABE_BOTTOM*/ d.rc.L = 0; d.rc.R = sw; d.rc.T = sh - height; d.rc.B = sh;
+    SHAppBarMessage(2 /*ABM_QUERYPOS*/, ref d);
+    d.rc.T = d.rc.B - height;
+    SHAppBarMessage(3 /*ABM_SETPOS*/, ref d);
+  }
+  public static void Unreserve() {
+    if (appBar == IntPtr.Zero) return;
+    var d = new APPBARDATA(); d.cbSize = Marshal.SizeOf(typeof(APPBARDATA)); d.hWnd = appBar;
+    SHAppBarMessage(1 /*ABM_REMOVE*/, ref d); appBar = IntPtr.Zero;
+  }
+
   static string ProcPath(uint pid) {
     IntPtr p = OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION
     if (p == IntPtr.Zero) return "";

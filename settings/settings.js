@@ -131,7 +131,7 @@ const PAGES = [
   { id: 'taskbar', icon: 'grid', name: 'Pasek zadań', rows: [
     { h: 'Pasek zadań Aury' },
     tog('dock', 'Pasek zadań Aury', 'Wyspa u dołu ekranu zamiast paska Windows: Start, przypięte i otwarte aplikacje, grający utwór, minutnik, szybkie ustawienia i zegar. Prawy przycisk na ikonie przypina albo zamyka. Pasek Windows wraca po wyłączeniu (także gdy Aura się zamknie).'),
-    tog('dockHideMax', 'Chowaj nad zmaksymalizowanymi oknami', 'Przesuń kursor do dolnej krawędzi ekranu, żeby go pokazać.', { when: s => s.dock }),
+    tog('dockAutoHide', 'Chowaj nad zmaksymalizowanymi oknami', 'Okna zajmują wtedy cały ekran, a pasek wysuwa się po dosunięciu kursora do dołu. Wyłączone: okna kończą się nad paskiem, jak przy pasku Windows.', { when: s => s.dock }),
     tog('dockMagnify', 'Efekt docka', 'Ikony rosną pod kursorem, jak w docku na Macu.', { when: s => s.dock }),
     sld('dockSize', 'Rozmiar', '', 100, 200, '%', { when: s => s.dock }),
   ] },
