@@ -1023,7 +1023,8 @@ async function testShots(dir) {
     const prev = S().surface, prevEdge = S().edge; applySettings({ surface: process.env.WYSPA_VIZ_SURFACE || 'pure', edge: process.env.WYSPA_VIZ_EDGE || prevEdge });
     const shot = async n => fs.writeFileSync(path.join(dir, n.replace(/^mac/, pre) + '.png'), (await island.webContents.capturePage()).toPNG());
     const js = code => island.webContents.executeJavaScript(code);
-    helper.removeAllListeners('media'); helper.removeAllListeners('thumb'); // tylko udawany utwór, nie to, co gra naprawdę
+    const real = !!process.env.WYSPA_VIZ_REAL; // prawdziwy utwór ze Spotify zamiast udawanego
+    if (!real) { helper.removeAllListeners('media'); helper.removeAllListeners('thumb'); } // tylko udawany utwór, nie to, co gra naprawdę
     helper.removeAllListeners('covered'); helper.removeAllListeners('fs'); sys.covered = false; fsHidden = false; send('covered', false); applyVisibility(); // bez „cienkiej linii” pod oknami na ekranie
     const fakeWeather = () => { weather = { temp: 4, code: 3, day: true, text: 'Pochmurno', max: 7, min: 1, place: 'Warszawa' }; weatherAt = Date.now(); send('weather', weather); }; // nie prawdziwe miasto
     fakeWeather(); setTimeout(fakeWeather, 3000);
@@ -1031,9 +1032,9 @@ async function testShots(dir) {
     await wait(5000); await shot('mac-1-spoczynek');
     if (pre === 'win') { send('hud', { kind: 'volume', level: 0.62, mute: false }); await wait(700); await shot('win-hud'); await wait(2000); }
     const cover = 'data:image/svg+xml;base64,' + Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a3d"/><stop offset=".55" stop-color="#d9366e"/><stop offset="1" stop-color="#3a1a5c"/></linearGradient></defs><rect width="300" height="300" fill="url(#g)"/><circle cx="150" cy="138" r="58" fill="#ffd27a" opacity=".9"/><path d="M0 230 L70 150 L110 190 L160 120 L215 185 L250 160 L300 210 L300 300 L0 300Z" fill="#1d0f33"/><path d="M0 262 L90 205 L150 240 L220 200 L300 245 L300 300 L0 300Z" fill="#120822"/></svg>`).toString('base64');
-    sys.thumb = cover; send('thumb', cover);
+    if (!real) { sys.thumb = cover; send('thumb', cover); }
     const m = { t: 'media', has: true, title: 'Nocny kurs', artist: 'Tatra Lights', album: 'Halny', app: 'Spotify', playing: true, pos: 72, end: 214, upd: Date.now(), canNext: true, canPrev: true, canSeek: true };
-    sys.media = m; send('media', m); await wait(2500); await shot('mac-2-muzyka');
+    if (!real) { sys.media = m; send('media', m); } await wait(2500); await shot('mac-2-muzyka');
     addNotice({ kind: 'script', title: 'Build gotowy', body: '0 błędów · 12,4 s' }); await wait(900); await shot('mac-3-powiadomienie'); await wait(5500);
     pin = true; pinEntered = false; open = true; send('open', true); await wait(1200);
     await js(`setTab('music')`); await wait(1200); await shot('mac-4-karta-muzyka');
