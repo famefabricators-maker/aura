@@ -126,9 +126,12 @@ function anchorX(w) {
 }
 // wyspa przy dolnej krawędzi ekranu (nie na Macu z notchem — tam zawsze otacza wycięcie)
 const atBottom = () => !hasNotch() && st.S.edge === 'bottom';
-const boxY = h => atBottom() ? innerHeight - topY() - h : topY();
+// wyspa na dole z paskiem zadań Aury: przy dolnej krawędzi, a gdy pasek się wysuwa — podjeżdża nad niego (płynnie)
+let liftX = 0;
+const liftTarget = () => (atBottom() && st.screen && st.screen.dockBelow && st.screen.dockShown ? (st.screen.dockLift || 0) : 0);
+const boxY = (h, lift = liftX) => atBottom() ? innerHeight - topY() - h - lift : topY();
 // pływająca pigułka (zaokrąglona ze wszystkich stron): z wyboru albo gdy wyspa stoi na dole nad paskiem zadań Aury
-const isIslandShape = () => !hasNotch() && (st.S.shape === 'island' || (st.S.edge === 'bottom' && !!(st.screen && st.screen.dockBelow)));
+const isIslandShape = () => !hasNotch() && (st.S.shape === 'island' || (atBottom() && !!(st.screen && st.screen.dockBelow) && liftX > 2));
 const topY = () => (!hasNotch() && st.S.shape === 'island') ? (st.S.topGap ?? 8) : 0;
 
 // ---------- sprężyna ----------
@@ -159,6 +162,8 @@ function frame(now) {
   const dt = Math.min(0.034, (now - lastT) / 1000); lastT = now;
   let moving = false;
   for (let i = 0; i < 2; i++) moving = stepSpring(dt / 2) || moving;
+  const lt = liftTarget();
+  if (Math.abs(lt - liftX) > 0.4) { liftX += (lt - liftX) * Math.min(1, dt * 13); moving = true; } else if (liftX !== lt) { liftX = lt; sendRects(); }
   animating = moving;
   layoutBox();
   drawGL(now);
@@ -179,7 +184,7 @@ function drawGL(now) {
   const w = spring.w.x, h = Math.max(0, spring.h.x);
   const openness = Math.max(0, Math.min(1, (h - 36) / 140));
   WyspaGL.draw({
-    x: anchorX(w), y: topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(),
+    x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(),
     base: T.hexToRgb(surf.base), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
     accent: T.hexToRgb(st.accent), time: (now - t0) / 1000, open: openness, fx: surf.fx || 0, light: surf.light,
@@ -236,7 +241,7 @@ function sendRects() {
   const key = JSON.stringify([c, o]);
   if (key !== lastRects) { lastRects = key; W.send('rects', { c, o }); }
 }
-function mode2rect(mode) { const t = targetFor(mode); return { x: Math.round(anchorX(t.w)), y: Math.round(boxY(t.h)), w: Math.round(t.w), h: Math.round(t.h) }; }
+function mode2rect(mode) { const t = targetFor(mode); return { x: Math.round(anchorX(t.w)), y: Math.round(boxY(t.h, liftTarget())), w: Math.round(t.w), h: Math.round(t.h) }; }
 
 // ---------- pigułka ----------
 const fmt = sec => { sec = Math.max(0, Math.floor(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
