@@ -86,7 +86,7 @@ function targetFor(mode) {
     case 'slim': return { w: 150 * s, h: 5, r: 2.5, ear: 0, z: s };
     default: {
       let w = 184;
-      if (st.S.titleInPill && playing()) w = 300;
+      if (showTitle()) w = 300;
       else if ((playing() || agentWorking()) && (st.focus.running || st.rec.on || callActive() || obsLive())) w = obsLive() ? 270 : 236;
       else if (!playing() && (st.focus.running || st.rec.on || callActive() || agentWorking() || obsLive())) w = obsLive() ? 250 : 200;
       if (st.S.idleShows !== 'none' && !hasLive()) w = Math.max(w, st.S.idleShows === 'pet' ? 184 : 200);
@@ -108,6 +108,12 @@ function closedMode() {
   if (st.S.slimCovered && st.covered) return 'slim';   // okno zasłania górę: cienka linia
   if (st.S.hiddenUntilHover && !hasLive()) return 'hidden';
   return 'pill';
+}
+// tytuł utworu w zamkniętej wyspie: przez 10 s po zmianie utworu (domyślnie), zawsze albo nigdy
+function showTitle() {
+  if (!playing()) return false;
+  const m = st.S.pillTitle || 'change';
+  return m === 'always' || (m === 'change' && Date.now() < (st.titleUntil || 0));
 }
 function anchorX(w) {
   if (hasNotch()) return (innerWidth - w) / 2;
@@ -238,7 +244,7 @@ function renderPill() {
   art.removeAttribute('src'); icon.innerHTML = ''; text.textContent = ''; time.textContent = ''; time.className = 'mono';
   if (play) { if (st.thumb) art.src = st.thumb; else icon.innerHTML = I.svg('music'); }
   else if (agentWorking()) icon.innerHTML = I.svg('agent');
-  if (st.S.titleInPill && play) { text.textContent = st.media.title || ''; if (st.media.artist) { const sm = document.createElement('small'); sm.textContent = st.media.artist; text.append(sm); } }
+  if (showTitle()) { text.textContent = st.media.title || ''; if (st.media.artist) { const sm = document.createElement('small'); sm.textContent = st.media.artist; text.append(sm); } }
   if (obsLive()) {
     const o = st.obs, live = o.live?.active, since = live ? o.live.since : o.rec.since;
     time.textContent = `${live ? 'LIVE' : o.rec.paused ? 'PAUZA' : 'REC'} ${fmt((Date.now() - since) / 1000)}`; time.classList.add('rec');

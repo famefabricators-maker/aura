@@ -272,11 +272,16 @@ const sys = { vol: null, mic: null, inuse: { mic: [], cam: [] }, bright: { v: -1
 const appIcons = new Map();
 const APP_PROC = [[/spotify/i, 'Spotify'], [/opera/i, 'opera'], [/chrome/i, 'chrome'], [/msedge|edge/i, 'msedge'], [/firefox/i, 'firefox'], [/brave/i, 'brave'],
   [/vlc/i, 'vlc'], [/zunemusic|mediaplayer/i, 'Microsoft.Media.Player'], [/tidal/i, 'TIDAL'], [/deezer/i, 'Deezer'], [/foobar/i, 'foobar2000'], [/aimp/i, 'AIMP']];
+// nazwa procesu programu, który gra (Spotify, chrome, opera…) i jego ścieżka — także dla paska zadań Aury
+const appExe = new Map();
+function mediaProcName(id) {
+  const known = APP_PROC.find(([re]) => re.test(id));
+  return (known ? known[1] : String(id).split('!').pop().replace(/\.exe$/i, '').split('.').pop()).replace(/[^\w.\- ]/g, '');
+}
 async function resolveAppIcon(id) {
   if (!id || appIcons.has(id)) return appIcons.get(id) || null;
   appIcons.set(id, null);
-  const known = APP_PROC.find(([re]) => re.test(id));
-  const name = (known ? known[1] : id.split('!').pop().replace(/\.exe$/i, '').split('.').pop()).replace(/[^\w.\- ]/g, '');
+  const name = mediaProcName(id);
   if (!name) return null;
   if (IS_MAC) { // macOS: ikona pakietu .app
     const app_ = ['/Applications/Spotify.app', '/System/Applications/Music.app'].find(p => p.toLowerCase().includes(id.toLowerCase()) && fs.existsSync(p));
@@ -287,6 +292,7 @@ async function resolveAppIcon(id) {
     `(Get-Process -Name '${name}' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1).Path`],
     { windowsHide: true, timeout: 6000 }, (e, out) => r(e ? '' : String(out).trim())));
   if (!exe) return null;
+  appExe.set(id, exe);
   try { const ic = await app.getFileIcon(exe, { size: 'large' }); if (ic.isEmpty()) return null; const url = ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
 }
 helper.on('media', m => {
@@ -979,13 +985,14 @@ let taskbar = null;
 function configureDock() {
   if (IS_MAC) return;
   if (!taskbar) {
-    taskbar = new Taskbar({ S, set: p => applySettings(p), preload: path.join(__dirname, 'preload.js') });
+    taskbar = new Taskbar({ S, set: p => applySettings(p), preload: path.join(__dirname, 'preload.js'),
+      mediaProc: id => mediaProcName(id), mediaExe: id => appExe.get(id) || null });
     taskbar.on('change', place);
   }
   if (S().dock && !taskbar.active) { taskbar.start(); taskbar.setMedia(dockMedia()); }
   else if (!S().dock && taskbar.active) taskbar.stop();
 }
-const dockMedia = () => (sys.media && sys.media.has ? { has: true, title: sys.media.title, artist: sys.media.artist, playing: sys.media.playing, thumb: sys.thumb || null } : null);
+const dockMedia = () => (sys.media && sys.media.has ? { has: true, app: sys.media.app || '', title: sys.media.title, artist: sys.media.artist, playing: sys.media.playing, thumb: sys.thumb || null } : null);
 ipcMain.on('focus-state', (_, f) => { if (taskbar && f && typeof f === 'object') taskbar.setFocus({ running: !!f.running, left: Number(f.left) || 0 }); });
 
 app.whenReady().then(async () => {
@@ -1060,7 +1067,7 @@ async function testShots(dir) {
     pin = true; pinEntered = false; open = true; send('open', true); await wait(1200);
     await js(`setTab('music')`); await wait(1200); await shot('mac-4-karta-muzyka');
     await js(`setTab('widgets')`); await wait(1200); fakeWeather(); await wait(1400); await shot('mac-5-karta-widzety');
-    pin = false; open = false; send('open', false);
+    pin = false; open = false; send('open', false); await wait(1500); await shot('mac-6-zwinieta');
     applySettings({ surface: prev, edge: prevEdge }); await wait(800); app.quit(); return;
   }
   if (process.env.WYSPA_GLASSTEST) { // szkło: kolorowa plansza za wyspą, zakładka przy kilku wartościach rozmycia

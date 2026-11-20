@@ -73,7 +73,7 @@ const PAGES = [
     tog('callTimer', 'Minutnik rozmowy', 'Licznik czasu, gdy dowolna aplikacja ma otwarty mikrofon.'),
     { h: 'Teraz odtwarzane' },
     tog('lyrics', 'Teksty piosenek', 'Tytuł, wykonawca i długość utworu trafiają do LRCLIB (darmowa biblioteka tekstów), raz na utwór. Wyłączone = nic nie wychodzi z komputera.'),
-    tog('titleInPill', 'Tytuł utworu w zamkniętej wyspie'),
+    seg('pillTitle', 'Tytuł utworu w zamkniętej wyspie', 'Po zmianie utworu tytuł widać przez 10 sekund, potem wyspa zwija się do okładki i wizualizera.', [['change', 'Przez 10 s'], ['always', 'Zawsze'], ['never', 'Nigdy']]),
     { h: 'Zrzuty ekranu' },
     tog('hideFromCaptures', 'Ukryj wyspę na zrzutach i nagraniach', 'Przy powierzchni Szkło wyspa jest zawsze ukryta przed przechwytywaniem, bo sama czyta obraz ekranu.'),
   ] },

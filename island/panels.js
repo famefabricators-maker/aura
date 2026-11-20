@@ -145,8 +145,12 @@ mVol.oninput = () => { mVol.style.setProperty('--v', mVol.value + '%'); $('#mVol
 W.on('media', m => {
   // tuż po przewinięciu odtwarzacz bywa spóźniony — zostaw lokalną pozycję, żeby pasek nie skakał w tył
   if (Date.now() < seekGuard && st.media && m.title === st.media.title) { m.pos = st.media.pos; m.upd = st.media.upd; }
+  // nowy utwór: tytuł w zamkniętej wyspie na 10 s, potem wyspa się zwija
+  const key = m && m.has ? `${m.title}|${m.artist}` : '';
+  if (key && key !== titleKey) { titleKey = key; st.titleUntil = Date.now() + 10000; clearTimeout(titleTimer); titleTimer = setTimeout(update, 10050); }
   st.media = m; renderMusic(); update();
 });
+let titleKey = '', titleTimer = 0;
 W.on('thumb', d => { st.thumb = d || null; albumColor = null; if (d) extractColor(d); renderMusic(); update(); });
 W.on('vol', v => { st.vol = v; renderVol(); renderCall(); });
 W.on('lyrics', l => { lyrics = l; $('#mLyric').textContent = ''; });

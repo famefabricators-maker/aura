@@ -12,6 +12,7 @@ $('#start').onclick = () => W.send('dock-key', 'start');
 $('#qs').onclick = () => W.send('dock-key', 'quick');
 $('#clock').onclick = () => W.send('dock-key', 'notif');
 $('#npPlay').onclick = e => { e.stopPropagation(); W.send('media', 'toggle'); };
+$('#np').onclick = () => W.send('dock-np'); // otwórz program, z którego gra muzyka
 
 // klikalny jest tylko sam pasek — reszta okna przepuszcza mysz do okien pod spodem
 dock.addEventListener('mouseenter', () => W.send('dock-hover', true));
