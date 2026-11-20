@@ -1,0 +1,77 @@
+# Test Aury na prawdziwym Macu (Apple Silicon) w chmurze GitHuba.
+# Actions → "Test na macOS" → Run workflow. Wynik: artefakt "aura-mac-test" ze zrzutami wyspy,
+# dziennikiem błędów (aura-bledy.log) i wyjściem programu z trzech uruchomień:
+#  1) z kodu, symulowany notch (zrzuty stanów),
+#  2) zbudowana aplikacja Aura.app (zrzuty stanów),
+#  3) zwykłe uruchomienie Aura.app na 25 s — czy działa i się nie wyłącza.
+name: Test na macOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      OUT: ${{ github.workspace }}/aura-mac-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Zależności
+        run: npm ci
+
+      - name: System
+        run: |
+          mkdir -p "$OUT"
+          { sw_vers; uname -m; system_profiler SPDisplaysDataType | grep -E "Resolution|Retina" || true; } | tee "$OUT/system.txt"
+
+      - name: 1) Z kodu, symulowany notch — zrzuty
+        run: |
+          mkdir -p "$OUT/1-z-kodu"
+          WYSPA_SHOT="$OUT/1-z-kodu" WYSPA_VIZ=1 WYSPA_FAKE_NOTCH=1 npx electron . > "$OUT/1-z-kodu/wyjscie.txt" 2>&1 &
+          PID=$!; for i in $(seq 1 120); do sleep 1; kill -0 $PID 2>/dev/null || break; done
+          kill $PID 2>/dev/null || true
+          ls -la "$OUT/1-z-kodu"
+
+      - name: Budowanie Aura.app (arm64, bez instalatora)
+        run: npx electron-builder --mac dir --arm64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: 2) Aura.app, symulowany notch — zrzuty
+        run: |
+          mkdir -p "$OUT/2-aplikacja"
+          APP="$(ls -d dist/mac*/Aura.app | head -1)"; echo "aplikacja: $APP"
+          WYSPA_SHOT="$OUT/2-aplikacja" WYSPA_VIZ=1 WYSPA_FAKE_NOTCH=1 "$APP/Contents/MacOS/Aura" > "$OUT/2-aplikacja/wyjscie.txt" 2>&1 &
+          PID=$!; for i in $(seq 1 120); do sleep 1; kill -0 $PID 2>/dev/null || break; done
+          kill $PID 2>/dev/null || true
+          ls -la "$OUT/2-aplikacja"
+
+      - name: 3) Aura.app, zwykłe uruchomienie na 25 s
+        run: |
+          mkdir -p "$OUT/3-zwykle"
+          APP="$(ls -d dist/mac*/Aura.app | head -1)"
+          "$APP/Contents/MacOS/Aura" > "$OUT/3-zwykle/wyjscie.txt" 2>&1 &
+          PID=$!; sleep 25
+          if kill -0 $PID 2>/dev/null; then echo "DZIAŁA po 25 s" | tee "$OUT/3-zwykle/wynik.txt"; else echo "WYŁĄCZYŁA SIĘ przed 25 s" | tee "$OUT/3-zwykle/wynik.txt"; fi
+          screencapture -x "$OUT/3-zwykle/ekran.png" || true
+          kill $PID 2>/dev/null || true; sleep 2
+
+      - name: Dziennik błędów i ustawienia
+        if: always()
+        run: |
+          D="$HOME/Library/Application Support/Aura"
+          ls -la "$D" > "$OUT/folder-danych.txt" 2>&1 || true
+          cp "$D/aura-bledy.log" "$OUT/" 2>/dev/null || echo "brak dziennika błędów (dobrze)" > "$OUT/aura-bledy.log"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aura-mac-test
+          path: aura-mac-test
