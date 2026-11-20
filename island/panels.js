@@ -37,6 +37,7 @@ function extractColor(src) {
   img.src = src;
 }
 function renderMusic() {
+  $('#mLyr').classList.toggle('on', !!st.S.lyrics);
   const m = st.media, has = !!(m && m.has && (m.title || m.artist));
   $('#music').classList.toggle('empty-state', !has);
   $('#mEmpty').classList.toggle('on', !has);
@@ -121,6 +122,9 @@ prog.addEventListener('pointercancel', endSeek);
 $('#bPlay').onclick = () => { W.send('media', 'toggle'); if (st.media) { st.media.playing = !st.media.playing; st.media.pos = mediaPos(); st.media.upd = Date.now(); renderMusic(); update(); } };
 $('#bNext').onclick = () => W.send('media', 'next');
 $('#bPrev').onclick = () => W.send('media', 'prev');
+$('#mLyr').innerHTML = I.svg('lyrics');
+$('#mLyr').onclick = e => { e.stopPropagation(); W.invoke('settings-set', { lyrics: !st.S.lyrics }); };
+document.addEventListener('settings', () => $('#mLyr').classList.toggle('on', !!st.S.lyrics));
 $('#mPal').onclick = () => W.invoke('settings-set', { musicBackground: st.S.musicBackground === 'solid' ? 'album' : 'solid' });
 const mVol = $('#mVol');
 // głośność: podczas przeciągania suwak słucha tylko myszy (komunikaty z systemu go nie cofają),

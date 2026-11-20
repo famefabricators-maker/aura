@@ -180,6 +180,7 @@ function applySettings(patch) {
   if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
   if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
   if (k.includes('downloads')) configureDownloads();
+  if (k.includes('lyrics')) { lyricsKey = ''; if (S().lyrics) onTrack(sys.media); else send('lyrics', null); } // włączone w trakcie utworu: tekst od razu
   if (k.includes('dock')) configureDock(); else if (k.some(x => /^dock[A-Z]/.test(x))) { if (taskbar) taskbar.push(); if (k.includes('dockSize')) place(); }
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
   if (k.includes('calendarIcs')) refreshCalendar();
@@ -976,16 +977,33 @@ async function onTrack(m) {
   if (key === lyricsKey) return;
   lyricsKey = key;
   send('lyrics', null);
-  if (!m.artist || !(m.end > 30)) return;
+  if (!m.artist) return;
+  const H = { headers: { 'User-Agent': 'Aura/2.1 (https://github.com/famefabricators-maker/aura)' } };
+  // „Recap (feat. X)”, „Song - Remastered 2011”, „A, B” -> czysty tytuł i pierwszy wykonawca do wyszukiwania
+  const clean = s => String(s || '').replace(/\s*[([](feat\.?|ft\.?|with|prod\.?)[^)\]]*[)\]]/ig, '').replace(/\s+-\s+(.*remaster.*|radio edit|live.*|.*version)$/i, '').trim();
+  const artist1 = String(m.artist).split(/,|&| x | feat\.? /i)[0].trim();
+  let synced = null;
   try {
-    const q = `track_name=${encodeURIComponent(m.title)}&artist_name=${encodeURIComponent(m.artist)}&album_name=${encodeURIComponent(m.album || '')}&duration=${Math.round(m.end)}`;
-    const r = await net.fetch(`https://lrclib.net/api/get?${q}`, { headers: { 'User-Agent': 'Aura/2.0' } });
-    if (!r.ok) return;
-    const j = await r.json();
-    if (lyricsKey !== key || !j.syncedLyrics) return;
-    const lines = j.syncedLyrics.split('\n').map(l => { const mm = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/); return mm ? { t: +mm[1] * 60 + +mm[2], text: mm[3] } : null; }).filter(Boolean);
-    send('lyrics', lines);
+    // 1) dokładne dopasowanie (tytuł, wykonawca, album, długość)
+    if (m.end > 30) {
+      const q = `track_name=${encodeURIComponent(m.title)}&artist_name=${encodeURIComponent(m.artist)}&album_name=${encodeURIComponent(m.album || '')}&duration=${Math.round(m.end)}`;
+      const r = await net.fetch(`https://lrclib.net/api/get?${q}`, H);
+      if (r.ok) synced = (await r.json()).syncedLyrics || null;
+    }
+    // 2) wyszukiwanie: oczyszczony tytuł + pierwszy wykonawca, najbliższa długość utworu
+    if (!synced) {
+      const r = await net.fetch(`https://lrclib.net/api/search?track_name=${encodeURIComponent(clean(m.title))}&artist_name=${encodeURIComponent(artist1)}`, H);
+      if (r.ok) {
+        const list = (await r.json()).filter(x => x && x.syncedLyrics);
+        if (m.end > 30) list.sort((a, b) => Math.abs((a.duration || 0) - m.end) - Math.abs((b.duration || 0) - m.end));
+        const best = list[0];
+        if (best && (!(m.end > 30) || Math.abs((best.duration || m.end) - m.end) <= 8)) synced = best.syncedLyrics;
+      }
+    }
   } catch {}
+  if (lyricsKey !== key || !synced) return;
+  const lines = synced.split('\n').map(l => { const mm = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/); return mm ? { t: +mm[1] * 60 + +mm[2], text: mm[3] } : null; }).filter(Boolean);
+  send('lyrics', lines);
 }
 
 // ---------- kalendarz (.ics) ----------
