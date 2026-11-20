@@ -636,7 +636,25 @@ endpoint.on('agent', d => {
   send('agents', agentsOut());
   const where = a.project ? ` · ${a.project}` : '';
   if (a.state === 'needs' && prev.state !== 'needs') addNotice({ kind: 'agent', title: `${a.harness} czeka na Ciebie${where}`, body: a.message || a.title });
-  if (a.state === 'done' && prev.state === 'working' && S().agentsNotifyDone) addNotice({ kind: 'agent', title: `${a.harness} skończył${where}`, body: a.title });
+  // Codex zgłasza tylko koniec tury (bez „pracuje”), więc dla niego komunikat od razu
+  if (a.state === 'done' && (prev.state === 'working' || a.harness === 'Codex') && S().agentsNotifyDone) addNotice({ kind: 'agent', title: `${a.harness} skończył${where}`, body: a.message || a.title });
+});
+
+// ---------- prośby agentów o zgodę (hook PermissionRequest): decyzja na wyspie ----------
+const asks = new Map(); // id -> { respond, timer }
+endpoint.on('ask', (d, respond) => {
+  if (!S().agentsEnabled || S().agentApprove === false) return respond({ decision: 'ask' });
+  const id = newId();
+  const finish = decision => { const x = asks.get(id); if (!x) return; clearTimeout(x.timer); asks.delete(id); x.respond({ decision }); send('agent-ask-done', id); };
+  asks.set(id, { respond, timer: setTimeout(() => finish('ask'), 28000), session: String(d.session || '') }); // bez odpowiedzi: pytanie wraca do terminala
+  const tool = String(d.tool || 'narzędzie').slice(0, 40);
+  send('agent-ask', { id, title: `${String(d.harness || 'Agent').slice(0, 30)} prosi o zgodę: ${tool}${d.project ? ' · ' + String(d.project).slice(0, 40) : ''}`, body: String(d.summary || '').slice(0, 220) });
+  alertActive = true; applyVisibility();
+});
+endpoint.on('ask-cancel', d => { for (const [id, x] of asks) if (x.session === String(d.session || '')) { clearTimeout(x.timer); asks.delete(id); send('agent-ask-done', id); } });
+ipcMain.on('agent-answer', (_, a) => {
+  if (!a || !asks.has(a.id) || !['allow', 'deny', 'ask'].includes(a.decision)) return;
+  const x = asks.get(a.id); clearTimeout(x.timer); asks.delete(a.id); x.respond({ decision: a.decision }); alertActive = false; applyVisibility();
 });
 setInterval(() => { const now = Date.now(); for (const [id, a] of agents) if (a.state !== 'working' && now - a.since > 30 * 60e3) agents.delete(id); send('agents', agentsOut()); }, 60e3);
 ipcMain.handle('agents', () => agentsOut());
@@ -646,7 +664,29 @@ endpoint.on('error', e => console.error('endpoint', e.message));
 // Claude Code: dopisuje / usuwa hooki Aury w ~/.claude/settings.json (z kopią zapasową).
 const claudeSettings = path.join(os.homedir(), '.claude', 'settings.json');
 const hookScript = path.join(__dirname, 'tools', 'claude-hook.js');
-const HOOK_EVENTS = { UserPromptSubmit: 'working', Notification: 'needs', Stop: 'done', SessionEnd: 'end' };
+// PermissionRequest: prośby o zgodę trafiają na wyspę (Zezwól / Odmów / W terminalu); czeka do ~30 s
+const HOOK_EVENTS = { UserPromptSubmit: 'working', Notification: 'needs', Stop: 'done', SessionEnd: 'end', PermissionRequest: 'permission' };
+function writeClaudeHooks(on) {
+  let j = {};
+  try { j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8')); fs.copyFileSync(claudeSettings, claudeSettings + '.aura-backup'); } catch {}
+  j.hooks = j.hooks || {};
+  for (const [ev, state] of Object.entries(HOOK_EVENTS)) {
+    const list = (j.hooks[ev] || []).map(g => ({ ...g, hooks: (g.hooks || []).filter(h => !String(h.command || '').includes('claude-hook.js')) })).filter(g => g.hooks.length);
+    if (on) list.push({ hooks: [{ type: 'command', command: `node "${hookScript}" ${state}`, timeout: state === 'permission' ? 35 : 5 }] });
+    if (list.length) j.hooks[ev] = list; else delete j.hooks[ev];
+  }
+  if (!Object.keys(j.hooks).length) delete j.hooks;
+  fs.mkdirSync(path.dirname(claudeSettings), { recursive: true });
+  fs.writeFileSync(claudeSettings, JSON.stringify(j, null, 2));
+}
+// już połączone hooki z wcześniejszej wersji: dopisz brakujący hook zgód (z kopią zapasową)
+function upgradeClaudeHooks() {
+  try {
+    if (claudeStatus() !== 'connected' || S().agentApprove === false) return;
+    const j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8'));
+    if (!JSON.stringify((j.hooks || {}).PermissionRequest || []).includes('claude-hook.js')) writeClaudeHooks(true);
+  } catch {}
+}
 function claudeStatus() {
   try {
     const j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8'));
@@ -661,18 +701,51 @@ ipcMain.handle('claude-connect', async (_, on) => {
     detail: `Plik: ${claudeSettings}\nPrzed zmianą zapiszę kopię .aura-backup. Hooki wysyłają stan sesji tylko na 127.0.0.1.`,
   });
   if (r.response !== 0) return claudeStatus();
-  let j = {};
-  try { j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8')); fs.copyFileSync(claudeSettings, claudeSettings + '.aura-backup'); } catch {}
-  j.hooks = j.hooks || {};
-  for (const [ev, state] of Object.entries(HOOK_EVENTS)) {
-    const list = (j.hooks[ev] || []).map(g => ({ ...g, hooks: (g.hooks || []).filter(h => !String(h.command || '').includes('claude-hook.js')) })).filter(g => g.hooks.length);
-    if (on) list.push({ hooks: [{ type: 'command', command: `node "${hookScript}" ${state}`, timeout: 5 }] });
-    if (list.length) j.hooks[ev] = list; else delete j.hooks[ev];
-  }
-  if (!Object.keys(j.hooks).length) delete j.hooks;
-  fs.mkdirSync(path.dirname(claudeSettings), { recursive: true });
-  fs.writeFileSync(claudeSettings, JSON.stringify(j, null, 2));
+  writeClaudeHooks(on);
   return claudeStatus();
+});
+
+// Codex CLI: hook w `notify` (~/.codex/config.toml). Poprzedni program powiadomień zapisujemy obok i hook go wywołuje,
+// więc np. aplikacja Codex dalej dostaje swoje powiadomienia.
+const codexConfig = path.join(os.homedir(), '.codex', 'config.toml');
+const codexOrig = path.join(os.homedir(), '.codex', 'aura-notify-original.json');
+const codexHook = path.join(__dirname, 'tools', 'codex-hook.js');
+const NOTIFY_RE = /^[ \t]*notify[ \t]*=[ \t]*\[[\s\S]*?\][ \t]*\r?\n?/m;
+function codexStatus() {
+  try { return fs.readFileSync(codexConfig, 'utf8').includes('codex-hook.js') ? 'connected' : 'disconnected'; }
+  catch { return fs.existsSync(path.dirname(codexConfig)) ? 'disconnected' : 'missing'; }
+}
+ipcMain.handle('codex-status', () => codexStatus());
+ipcMain.handle('codex-connect', async (_, on) => {
+  const r = await dialog.showMessageBox(settingsWin || undefined, {
+    type: 'question', buttons: [on ? 'Połącz' : 'Odłącz', 'Anuluj'], defaultId: 0, cancelId: 1, title: 'Codex',
+    message: on ? 'Dodać powiadomienia Aury do ustawień Codexa?' : 'Usunąć powiadomienia Aury z ustawień Codexa?',
+    detail: `Plik: ${codexConfig}\nPrzed zmianą zapiszę kopię .aura-backup. Dotychczasowy program powiadomień (np. aplikacja Codex) dalej będzie je dostawał.`,
+  });
+  if (r.response !== 0) return codexStatus();
+  let t = ''; try { t = fs.readFileSync(codexConfig, 'utf8'); fs.copyFileSync(codexConfig, codexConfig + '.aura-backup'); } catch {}
+  const m = t.match(NOTIFY_RE);
+  if (on) {
+    if (m && !m[0].includes('codex-hook.js')) {
+      const raw = m[0].replace(/^[^=]*=/, '').trim().replace(/,\s*\]$/, ']');
+      let arr = null;
+      try { arr = JSON.parse(raw); } catch { try { arr = JSON.parse(raw.replace(/'([^']*)'/g, (_, s) => JSON.stringify(s))); } catch {} } // też TOML 'dosłowne'
+      if (!Array.isArray(arr)) { // nie ruszamy cudzego ustawienia, którego nie umiemy odtworzyć
+        await dialog.showMessageBox(settingsWin || undefined, { type: 'warning', title: 'Codex', message: 'Nie udało się odczytać obecnego ustawienia „notify” w Codexie.', detail: 'Niczego nie zmieniłem w pliku config.toml.' });
+        return codexStatus();
+      }
+      fs.writeFileSync(codexOrig, JSON.stringify(arr));
+    }
+    const line = `notify = ${JSON.stringify(['node', codexHook])}\n`;
+    t = m ? t.replace(NOTIFY_RE, line) : line + t; // klucz najwyższego poziomu: na początku pliku, przed tabelami
+  } else {
+    let orig = null; try { orig = JSON.parse(fs.readFileSync(codexOrig, 'utf8')); } catch {}
+    t = m ? t.replace(NOTIFY_RE, orig ? `notify = ${JSON.stringify(orig)}\n` : '') : t;
+    try { fs.unlinkSync(codexOrig); } catch {}
+  }
+  fs.mkdirSync(path.dirname(codexConfig), { recursive: true });
+  fs.writeFileSync(codexConfig, t);
+  return codexStatus();
 });
 
 // ---------- przypomnienia ----------
@@ -1157,6 +1230,7 @@ app.whenReady().then(async () => {
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
   configureDock();
   configureDownloads();
+  upgradeClaudeHooks(); // dopisz hook zgód do już połączonego Claude Code
   if (process.argv.includes('--settings')) openSettings();
   // macOS: Aura nie ma ikony w Docku, a przy notchu w spoczynku jej nie widać — przy pierwszym uruchomieniu
   // pokazujemy ustawienia, żeby było widać, że działa

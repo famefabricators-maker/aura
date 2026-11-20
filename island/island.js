@@ -475,6 +475,11 @@ $('#gear').innerHTML = I.svg('gear');
 $('#gear').onclick = () => W.send('open-settings');
 
 // Ctrl+Shift+1…6: otwórz wyspę na konkretnej karcie (kolejność jak na pasku kart)
+// prośba agenta o zgodę: Zezwól / Odmów / W terminalu (bez odpowiedzi po ~28 s wraca do terminala)
+let askId = null;
+W.on('agent-ask', a => { askId = a.id; const ans = d => () => { W.send('agent-answer', { id: a.id, decision: d }); askId = null; closeAlert(); };
+  showAlert({ icon: 'agent', title: a.title, body: a.body, actions: [{ label: 'Odmów', fn: ans('deny') }, { label: 'W terminalu', fn: ans('ask') }, { label: 'Zezwól', accent: true, fn: ans('allow') }] }); });
+W.on('agent-ask-done', id => { if (id === askId) { askId = null; closeAlert(); } });
 W.on('download', d => { st.download = d || null; update(); });
 W.on('goto-tab', n => { const t = enabledTabs()[Number(n) - 1]; if (t) { st.open = true; setTab(t.id); update(); } });
 W.on('open', on => {
