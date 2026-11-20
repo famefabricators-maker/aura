@@ -85,7 +85,9 @@ function place() {
   if (!centered && S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
   // na dole: okno stoi nad paskiem zadań (obszar roboczy), wyspa przy jego dolnej krawędzi
   const wa = screen.getPrimaryDisplay().workArea;
-  const y = !centered && S().edge === 'bottom' ? wa.y + wa.height - WIN_H - (taskbar ? taskbar.reserve : 0) : d.y; // nad paskiem zadań Aury
+  // na dole z paskiem zadań Aury: wyspa pływa tuż nad paskiem (dolna krawędź ekranu zostaje dla paska)
+  const dockGap = taskbar && taskbar.active ? taskbar.reserve + 4 : 0;
+  const y = !centered && S().edge === 'bottom' ? wa.y + wa.height - WIN_H - dockGap : d.y;
   island.setBounds({ x: Math.round(x), y, width: WIN_W, height: WIN_H });
   send('screen', screenInfo());
 }
@@ -95,7 +97,8 @@ function screenInfo() {
   return { w: d.bounds.width, h: d.bounds.height, x: d.bounds.x, y: d.bounds.y, winX: b.x - d.bounds.x, winY: b.y - d.bounds.y, scale: d.scaleFactor,
     // WYSPA_FAKE_NOTCH: podgląd układu macOS z notchem na Windowsie (tylko do testów)
     platform: process.env.WYSPA_FAKE_NOTCH ? 'darwin' : process.platform,
-    notch: process.env.WYSPA_FAKE_NOTCH ? { has: true, w: 200, h: 32 } : notch };
+    notch: process.env.WYSPA_FAKE_NOTCH ? { has: true, w: 200, h: 32 } : notch,
+    dockBelow: !!(taskbar && taskbar.active && S().edge === 'bottom') }; // wyspa nad paskiem zadań Aury = pływająca pigułka
 }
 
 function createIsland() {

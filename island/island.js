@@ -127,7 +127,8 @@ function anchorX(w) {
 // wyspa przy dolnej krawędzi ekranu (nie na Macu z notchem — tam zawsze otacza wycięcie)
 const atBottom = () => !hasNotch() && st.S.edge === 'bottom';
 const boxY = h => atBottom() ? innerHeight - topY() - h : topY();
-const isIslandShape = () => !hasNotch() && st.S.shape === 'island';
+// pływająca pigułka (zaokrąglona ze wszystkich stron): z wyboru albo gdy wyspa stoi na dole nad paskiem zadań Aury
+const isIslandShape = () => !hasNotch() && (st.S.shape === 'island' || (st.S.edge === 'bottom' && !!(st.screen && st.screen.dockBelow)));
 const topY = () => (!hasNotch() && st.S.shape === 'island') ? (st.S.topGap ?? 8) : 0;
 
 // ---------- sprężyna ----------
@@ -482,7 +483,7 @@ isl.addEventListener('wheel', e => {
 
 // ---------- zdarzenia z procesu głównego ----------
 W.on('settings', s => { const prevSurf = st.S.surface; st.S = s; if (prevSurf !== s.surface) resetCaptureIfNeeded(); applyTheme(); update(); document.dispatchEvent(new CustomEvent('settings')); });
-W.on('screen', s => { st.screen = s; kick(); });
+W.on('screen', s => { st.screen = s; if (st.S && st.S.surface) update(); else kick(); });
 W.on('hud', h => showHud(h));
 W.on('banner', n => showBanner(n));
 W.on('inuse', m => { st.inuse = { mic: m.mic || [], cam: m.cam || [] }; update(); });
