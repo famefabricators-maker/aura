@@ -10,7 +10,7 @@ const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? s
 const tabH = tab => { if (tab === 'music' && lyricsPanel()) return 196; if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
 // tekst piosenki na żywo: karta muzyki poszerza się o kolumnę tekstu (gdy teksty włączone i utwór ma tekst z czasami)
 const lyricsPanel = () => !!(st.S.lyrics && st.lyricLines && st.lyricLines.length && st.media && st.media.has);
-const cardW = () => (st.tab === 'music' && lyricsPanel() ? 680 : 420);
+const cardW = () => (st.tab === 'music' && lyricsPanel() ? 722 : 420);
 const TABS = [
   { id: 'music', icon: 'music', name: 'Muzyka' }, { id: 'web', icon: 'globe', name: 'Web', key: 'tabWeb' },
   { id: 'notices', icon: 'bell', name: 'Powiadomienia', key: 'tabNotices' },

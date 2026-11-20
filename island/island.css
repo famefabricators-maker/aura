@@ -450,15 +450,15 @@ body.reduce .layer, body.reduce section { transition: opacity .1s linear !import
 
 /* tekst piosenki na żywo: kolumna obok odtwarzacza w karcie muzyki (bieżąca linijka wyraźna, brzegi wygaszone) */
 .m-lyrics { display: none; }
-#music.with-lyrics { padding-right: 268px; }
+#music.with-lyrics { padding-right: 310px; }
 #music.with-lyrics .m-lyric { display: none; }
-#music.with-lyrics .m-lyrics { display: block; position: absolute; top: 8px; bottom: 12px; right: 16px; width: 236px; padding-left: 18px;
+#music.with-lyrics .m-lyrics { display: block; position: absolute; top: 8px; bottom: 12px; right: 16px; width: 278px; padding-left: 18px;
   border-left: 1px solid var(--line); overflow: hidden;
   -webkit-mask-image: linear-gradient(transparent 0, #000 24%, #000 76%, transparent 100%); mask-image: linear-gradient(transparent 0, #000 24%, #000 76%, transparent 100%); }
-.ln-wrap { transition: transform .5s cubic-bezier(.25, .8, .3, 1); will-change: transform; }
-.ln { font-size: 14.5px; font-weight: 700; line-height: 1.32; padding: 4px 0; color: var(--fg); opacity: .26; transform-origin: left center; transition: opacity .35s, transform .35s; cursor: pointer; }
+.ln-wrap { transition: transform .5s cubic-bezier(.25, .8, .3, 1); will-change: transform; padding-right: 14px; } /* zapas na powiększoną bieżącą linijkę */
+.ln { font-size: 14.5px; font-weight: 700; line-height: 1.32; padding: 4px 0; overflow-wrap: anywhere; color: var(--fg); opacity: .26; transform-origin: left center; transition: opacity .35s, transform .35s; cursor: pointer; }
 .ln.near { opacity: .5; }
-.ln.cur { opacity: 1; transform: scale(1.035); }
+.ln.cur { opacity: 1; transform: scale(1.03); }
 .ln:hover { opacity: .8; }
 .ln.gap { font-weight: 600; letter-spacing: .2em; }
 
