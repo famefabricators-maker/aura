@@ -123,22 +123,18 @@ public static class AuraTaskbar {
   [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
   [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
 
+  [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
+
   // Windows nie pozwala programowi z tła zabrać fokusu („foreground lock”), więc czasem okno się nie przełączało.
-  // Sposób: pusty sygnał z klawiatury (system uznaje nas za źródło ostatniego wejścia) + chwilowe podłączenie
-  // do wątku aktywnego okna; dopiero wtedy SetForegroundWindow działa zawsze.
+  // Sposób bez dotykania klawiatury: zerowy ruch myszy (system uznaje nas za źródło ostatniego wejścia), potem
+  // SetForegroundWindow, a zapasowo SwitchToThisWindow. Wcześniejszy pusty klawisz + AttachThreadInput potrafił
+  // zawiesić pomocnika i pomieszać stan klawiatury innej aplikacji (np. skróty wyciszenia w Discordzie).
   static void ForceForeground(IntPtr h) {
-    IntPtr fg = GetForegroundWindow();
-    uint dummy;
-    uint fgThread = fg == IntPtr.Zero ? 0 : GetWindowThreadProcessId(fg, out dummy);
-    uint me = GetCurrentThreadId();
-    keybd_event(0, 0, 0, UIntPtr.Zero); keybd_event(0, 0, 2, UIntPtr.Zero);
-    bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
-    try {
-      AllowSetForegroundWindow(-1);
-      BringWindowToTop(h);
-      SetForegroundWindow(h);
-      if (GetForegroundWindow() != h) SwitchToThisWindow(h, true);
-    } finally { if (attached) AttachThreadInput(me, fgThread, false); }
+    mouse_event(0x0001, 0, 0, 0, UIntPtr.Zero); // MOUSEEVENTF_MOVE o 0 px — niewidoczne
+    AllowSetForegroundWindow(-1);
+    BringWindowToTop(h);
+    SetForegroundWindow(h);
+    if (GetForegroundWindow() != h) SwitchToThisWindow(h, true);
   }
 
   // klik w ikonę: zminimalizowane -> przywróć, aktywne -> zminimalizuj, inne -> na wierzch
