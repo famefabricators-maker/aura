@@ -10,11 +10,11 @@ const SEND = ['open-settings', 'settings-titlebar', 'hotkeys-pause', 'media', 's
   'file-open', 'file-show', 'file-drag', 'phone-stop', 'notice-remove', 'notices-clear', 'notice-open', 'reminder-answer',
   'screenshot', 'snip', 'rec-chunk', 'rec-stop', 'launch', 'stats-on', 'weather-refresh', 'notes-set', 'rects', 'hold',
   'close-island', 'pin-open', 'web-open', 'web-pins', 'web-cmd',
-  'chat-pin', 'chat-toggle', 'deck-stop', 'deck-forget', 'deck-reset', 'deck-answer', 'open-author', 'update-answer', 'dock-hover', 'dock-click', 'dock-menu', 'dock-key', 'focus-state', 'dock-tray', 'dock-tray-menu', 'dock-width', 'dock-np'];
+  'chat-pin', 'chat-toggle', 'deck-stop', 'deck-forget', 'deck-reset', 'deck-answer', 'open-author', 'update-answer', 'dock-hover', 'dock-click', 'dock-menu', 'dock-key', 'focus-state', 'dock-tray', 'dock-tray-menu', 'dock-width', 'dock-np', 'file-menu', 'widgets-menu'];
 const ON = ['open', 'settings', 'screen', 'media', 'thumb', 'vol', 'mic', 'hud', 'inuse', 'bright', 'power', 'radios',
   'clips', 'files', 'phone', 'notices', 'banner', 'agents', 'reminders', 'reminder-fire', 'stats', 'weather', 'lyrics',
   'focus-toggle', 'record-toggle', 'hotkey-errors', 'goto', 'calendar', 'game', 'obs', 'web-info', 'covered', 'app-icon', 'cursor', 'settings-pos', 'settings-focus',
-  'chat', 'chat-state', 'wallpaper', 'deck', 'deck-pair', 'capture', 'update-state', 'update-alert', 'dock'];
+  'chat', 'chat-state', 'wallpaper', 'deck', 'deck-pair', 'capture', 'update-state', 'update-alert', 'dock', 'goto-tab', 'download'];
 
 contextBridge.exposeInMainWorld('wyspa', {
   invoke: (ch, ...a) => INVOKE.includes(ch) ? ipcRenderer.invoke(ch, ...a) : Promise.reject(new Error('kanał ' + ch)),

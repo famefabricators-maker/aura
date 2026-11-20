@@ -153,7 +153,14 @@ W.on('media', m => {
 let titleKey = '', titleTimer = 0;
 W.on('thumb', d => { st.thumb = d || null; albumColor = null; if (d) extractColor(d); renderMusic(); update(); });
 W.on('vol', v => { st.vol = v; renderVol(); renderCall(); });
-W.on('lyrics', l => { lyrics = l; $('#mLyric').textContent = ''; });
+W.on('lyrics', l => { lyrics = l; $('#mLyric').textContent = ''; st.lyricLine = ''; update(); });
+// linijka tekstu dla zamkniętej wyspy (karaoke) — liczona co 0,3 s, przerysowanie tylko przy zmianie
+setInterval(() => {
+  let line = '';
+  if (lyrics && lyrics.length && st.media?.has && st.media.playing) { const p = mediaPos(); for (const l of lyrics) { if (l.t <= p + 0.3) line = l.text; else break; } }
+  line = String(line || '').trim();
+  if (line !== (st.lyricLine || '')) { st.lyricLine = line; if (!st.open) update(); }
+}, 300);
 
 // =============== WEB ===============
 const BRAND = [[/music\.youtube/, '#ff0033', '♪'], [/youtube\.com|youtu\.be/, '#ff0033', '▶'], [/spotify/, '#1db954', 'S'], [/twitch/, '#9146ff', 'T'], [/github/, '#24292f', 'G'], [/chatgpt|openai/, '#10a37f', 'AI'], [/claude\.ai/, '#d97757', 'C'], [/netflix/, '#e50914', 'N'], [/discord/, '#5865f2', 'D'], [/gmail|mail\.google/, '#ea4335', 'M']];
@@ -190,7 +197,7 @@ function renderNotices() {
   const list = $('#nList'); list.textContent = '';
   for (const n of st.notices) {
     const row = el('div', 'row');
-    row.append(el('div', 'tile', I.svg({ script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color' }[n.kind] || 'bell')));
+    row.append(el('div', 'tile', I.svg({ script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell' }[n.kind] || 'bell')));
     const t = el('div', 'txt'); t.append(txt('b', '', n.title)); if (n.body) t.append(txt('span', '', n.body)); row.append(t);
     row.append(txt('span', 'when mono', st.S.noticeClockTime ? clock(new Date(n.ts)) : ago(n.ts)));
     const x = el('button', 'x', I.svg('x')); x.title = 'Usuń'; x.onclick = e => { e.stopPropagation(); W.send('notice-remove', n.id); }; row.append(x);
@@ -231,12 +238,12 @@ let files = [];
 function renderShelf() {
   const box = $('#shTiles'); box.textContent = '';
   for (const f of files) {
-    const t = el('div', 'ftile'); t.draggable = true; t.title = `${f.path}\nDwuklik: otwórz · prawy przycisk: pokaż w folderze`;
+    const t = el('div', 'ftile'); t.draggable = true; t.title = `${f.path}\nDwuklik: otwórz · prawy przycisk: folder i konwersja zdjęć`;
     if (f.thumb) { const img = el('img'); img.src = f.thumb; img.alt = ''; t.append(img); } else t.append(el('span', 'ico', I.svg('file')));
     t.append(txt('span', '', f.name)); if (f.info) t.append(txt('small', 'mono', f.info));
     const x = el('button', 'x', I.svg('x')); x.title = 'Zdejmij z półki'; x.onclick = async e => { e.stopPropagation(); setFiles(await W.invoke('file-remove', f.path)); }; t.append(x);
     t.ondblclick = () => W.send('file-open', f.path);
-    t.oncontextmenu = e => { e.preventDefault(); W.send('file-show', f.path); };
+    t.oncontextmenu = e => { e.preventDefault(); W.send('file-menu', f.path); }; // pokaż w folderze, konwersja zdjęć
     t.ondragstart = e => { e.preventDefault(); W.send('file-drag', f.path); };
     box.append(t);
   }

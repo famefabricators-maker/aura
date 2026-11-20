@@ -4,6 +4,10 @@ const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySel
 const isl = $('#isl');
 
 const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 222, shelf: 178, clips: 210, widgets: 262, reminders: 268, controls: 244, launcher: 168, call: 176 };
+// widżety: własny układ (Ustawienia albo prawy przycisk na widżecie); karta rośnie o kolejne rzędy
+const WIDGETS_DEFAULT = ['today', 'focus', 'weather', 'stats'];
+const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? st.S.widgets : WIDGETS_DEFAULT);
+const tabH = tab => { if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
 const TABS = [
   { id: 'music', icon: 'music', name: 'Muzyka' }, { id: 'web', icon: 'globe', name: 'Web', key: 'tabWeb' },
   { id: 'notices', icon: 'bell', name: 'Powiadomienia', key: 'tabNotices' },
@@ -44,7 +48,7 @@ function applyTheme() {
 // ---------- geometria ----------
 const rnd = () => (st.S.roundness ?? 100) / 100;
 function obsLive() { return !!(st.obs && st.obs.connected && (st.obs.rec?.active || st.obs.live?.active)); }
-function hasLive() { return playing() || st.focus.running || st.rec.on || callActive() || agentWorking() || obsLive(); }
+function hasLive() { return playing() || st.focus.running || st.rec.on || callActive() || agentWorking() || obsLive() || !!st.download; }
 function playing() { return !!(st.media && st.media.has && st.media.playing); }
 // Rozmowa = mikrofon otwarty przez aplikację do rozmów (nie np. Voicemod, który trzyma mikrofon cały czas).
 // Czas liczymy od chwili, gdy Windows zanotował otwarcie mikrofonu przez tę aplikację (since).
@@ -65,7 +69,7 @@ const hasNotch = () => isMac() && st.screen.notch && st.screen.notch.has;
 function notchTarget(mode) {
   const { w: nw, h: nh } = st.screen.notch, s = st.S.size / 100, o = st.S.openSize / 100;
   switch (mode) {
-    case 'card': return { w: Math.max(420 * o, nw + 140), h: TAB_H[st.tab] * o + nh, r: 24 * o, ear: 8, z: o };
+    case 'card': return { w: Math.max(420 * o, nw + 140), h: tabH(st.tab) * o + nh, r: 24 * o, ear: 8, z: o };
     case 'alert': return { w: Math.max(384 * s, nw + 100), h: nh + 104 * s, r: 22 * s, ear: 8, z: s };
     case 'banner': return { w: Math.max(384 * s, nw + 100), h: nh + 64 * s, r: 20 * s, ear: 8, z: s };
     case 'hud': return { w: nw + 2 * 92 * s, h: nh, r: 12, ear: 6, z: s };   // ikona po lewej, pasek po prawej
@@ -77,7 +81,7 @@ function targetFor(mode) {
   if (hasNotch()) return notchTarget(mode);
   const s = st.S.size / 100, o = st.S.openSize / 100, r = rnd();
   switch (mode) {
-    case 'card': return { w: 420 * o, h: TAB_H[st.tab] * o, r: 27 * o * r, ear: 16 * o * r, z: o };
+    case 'card': return { w: 420 * o, h: tabH(st.tab) * o, r: 27 * o * r, ear: 16 * o * r, z: o };
     case 'alert': return { w: 384 * s, h: 108 * s, r: 28 * s * r, ear: 15 * s * r, z: s };
     case 'banner': return { w: 384 * s, h: 68 * s, r: 26 * s * r, ear: 15 * s * r, z: s };
     case 'hud': return { w: 236 * s, h: 36 * s, r: 18 * s * r, ear: 14 * s * r, z: s };
@@ -86,8 +90,9 @@ function targetFor(mode) {
     case 'slim': return { w: 150 * s, h: 5, r: 2.5, ear: 0, z: s };
     default: {
       let w = 184;
-      if (showTitle()) w = 300;
-      else if ((playing() || agentWorking()) && (st.focus.running || st.rec.on || callActive() || obsLive())) w = obsLive() ? 270 : 236;
+      if (showTitle() || showLyric()) w = 300;
+      else if ((playing() || agentWorking()) && (st.focus.running || st.rec.on || callActive() || obsLive() || st.download)) w = obsLive() ? 270 : 236;
+      else if (!playing() && st.download) w = 260;
       else if (!playing() && (st.focus.running || st.rec.on || callActive() || agentWorking() || obsLive())) w = obsLive() ? 250 : 200;
       if (st.S.idleShows !== 'none' && !hasLive()) w = Math.max(w, st.S.idleShows === 'pet' ? 184 : 200);
       return { w: w * s, h: 36 * s, r: 18 * s * r, ear: 14 * s * r, z: s };
@@ -117,6 +122,8 @@ function showTitle() {
   const m = st.S.pillTitle || 'change';
   return m === 'always' || (m === 'change' && Date.now() < (st.titleUntil || 0));
 }
+// tekst piosenki w zamkniętej wyspie: po 10 s z tytułem, gdy utwór ma tekst z czasami
+function showLyric() { return st.S.lyrics && st.S.pillLyrics !== false && playing() && !!st.lyricLine && !showTitle(); }
 function anchorX(w) {
   if (hasNotch()) return (innerWidth - w) / 2;
   const pos = st.S.position, M = 34;
@@ -220,7 +227,7 @@ function update() {
   for (const id of ['#pill', '#hud', '#banner', '#strip']) { const el = $(id); el.style.zoom = z; el.style.width = (target.w / z) + 'px'; el.style.height = (target.h / z) + 'px'; }
   const card = $('#card'); const oz = st.S.openSize / 100; card.style.zoom = oz;
   const nh = hasNotch() ? st.screen.notch.h : 0;
-  card.style.height = (TAB_H[st.tab] + nh / oz) + 'px';
+  card.style.height = (tabH(st.tab) + nh / oz) + 'px';
   // notch: przerwa na wycięcie w pigułce/HUD i miejsce pod nim w karcie i banerze
   document.body.classList.toggle('notch', hasNotch());
   if (hasNotch()) {
@@ -249,16 +256,21 @@ window.fmt = fmt;
 function renderPill() {
   const art = $('#pArt'), icon = $('#pIcon'), text = $('#pText'), time = $('#pTime');
   const play = playing();
-  art.removeAttribute('src'); icon.innerHTML = ''; text.textContent = ''; time.textContent = ''; time.className = 'mono';
+  art.removeAttribute('src'); icon.innerHTML = ''; text.textContent = ''; text.classList.remove('lyric'); time.textContent = ''; time.className = 'mono';
   if (play) { if (st.thumb) art.src = st.thumb; else icon.innerHTML = I.svg('music'); }
   else if (agentWorking()) icon.innerHTML = I.svg('agent');
   if (showTitle()) { text.textContent = st.media.title || ''; if (st.media.artist) { const sm = document.createElement('small'); sm.textContent = st.media.artist; text.append(sm); } }
+  else if (showLyric()) { text.textContent = st.lyricLine; text.classList.add('lyric'); }
   if (obsLive()) {
     const o = st.obs, live = o.live?.active, since = live ? o.live.since : o.rec.since;
     time.textContent = `${live ? 'LIVE' : o.rec.paused ? 'PAUZA' : 'REC'} ${fmt((Date.now() - since) / 1000)}`; time.classList.add('rec');
     if (!play && o.scene) text.textContent = o.scene;
   }
   else if (st.rec.on) { time.textContent = fmt((Date.now() - st.rec.start) / 1000); time.classList.add('rec'); }
+  else if (st.download) { // pobieranie z przeglądarki: rozmiar na żywo, a bez muzyki też nazwa pliku
+    const mb = st.download.size / 1048576; time.textContent = '↓ ' + (mb >= 1000 ? (mb / 1024).toFixed(1) + ' GB' : mb >= 10 ? Math.round(mb) + ' MB' : mb.toFixed(1) + ' MB');
+    if (!play) { icon.innerHTML = I.svg('drop'); text.textContent = st.download.count > 1 ? `${st.download.count} pobierania` : st.download.name; }
+  }
   else if (st.focus.running || (st.focus.total && st.focus.left > 0)) time.textContent = fmt(st.focus.left);
   else if (callActive()) { time.textContent = fmt((Date.now() - callSince()) / 1000); time.classList.add('call'); }
   else if (agentWorking() && !play) { const a = st.agents.find(x => x.state === 'needs') || st.agents[0]; text.textContent = a.state === 'needs' ? 'Czeka na Ciebie' : 'Pracuje…'; }
@@ -387,7 +399,7 @@ function showHud(h) {
 }
 
 // ---------- baner i alert ----------
-const NOTICE_ICON = { script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color' };
+const NOTICE_ICON = { script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell' };
 let bannerTimer = null;
 function showBanner(n) {
   if (st.alert) return;
@@ -462,6 +474,9 @@ window.setTab = setTab;
 $('#gear').innerHTML = I.svg('gear');
 $('#gear').onclick = () => W.send('open-settings');
 
+// Ctrl+Shift+1…6: otwórz wyspę na konkretnej karcie (kolejność jak na pasku kart)
+W.on('download', d => { st.download = d || null; update(); });
+W.on('goto-tab', n => { const t = enabledTabs()[Number(n) - 1]; if (t) { st.open = true; setTab(t.id); update(); } });
 W.on('open', on => {
   if (on && !st.open) {
     let tab = st.S.lastPanel || 'music';
@@ -474,8 +489,19 @@ W.on('open', on => {
 });
 
 // kółko myszy: na pigułce głośność, na karcie przewijanie kart
+let swipeAcc = 0, swipeAt = 0;
 isl.addEventListener('wheel', e => {
   const dir = (e.deltaY > 0 ? -1 : 1) * (st.S.reverseScroll ? -1 : 1);
+  // przesunięcie w bok (gładzik albo Shift + kółko) na pigułce: następny / poprzedni utwór
+  const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+  if ((st.mode === 'pill' || st.mode === 'hud') && st.media?.has && Math.abs(dx) > Math.abs(e.shiftKey ? 0 : e.deltaY)) {
+    e.preventDefault();
+    const now = Date.now(); if (now - swipeAt < 700) return;
+    swipeAcc += dx;
+    if (Math.abs(swipeAcc) >= 90) { W.send('media', swipeAcc > 0 ? 'next' : 'prev'); swipeAcc = 0; swipeAt = now; }
+    clearTimeout(isl._swT); isl._swT = setTimeout(() => { swipeAcc = 0; }, 250);
+    return;
+  }
   if (st.mode === 'pill' || st.mode === 'hud') {
     if (!st.vol) return;
     const v = Math.max(0, Math.min(1, st.vol.level + dir * 0.02));

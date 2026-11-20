@@ -174,11 +174,12 @@ function applySettings(patch) {
   store.set(patch);
   const k = Object.keys(patch);
   if (k.includes('surface') || k.includes('hideFromCaptures')) applyGlassProtection();
-  if (k.includes('hotkeys')) registerHotkeys();
+  if (k.includes('hotkeys') || k.includes('tabHotkeys')) registerHotkeys();
   if (k.includes('autostart')) setAutostart();
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
   if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
   if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
+  if (k.includes('downloads')) configureDownloads();
   if (k.includes('dock')) configureDock(); else if (k.some(x => /^dock[A-Z]/.test(x))) { if (taskbar) taskbar.push(); if (k.includes('dockSize')) place(); }
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
   if (k.includes('calendarIcs')) refreshCalendar();
@@ -264,6 +265,10 @@ function registerHotkeys() {
   for (const [action, accel] of Object.entries(S().hotkeys)) {
     if (!accel || !HOTKEY_ACTIONS[action]) continue;
     try { if (!globalShortcut.register(accel, HOTKEY_ACTIONS[action])) hotkeyErrors.push(action); } catch { hotkeyErrors.push(action); }
+  }
+  // Ctrl+Shift+1…6: wyspa otwiera się od razu na danej karcie
+  if (S().tabHotkeys !== false) for (let n = 1; n <= 6; n++) {
+    try { globalShortcut.register(`Control+Shift+${n}`, () => { pin = true; pinEntered = false; open = true; send('open', true); send('goto-tab', n); }); } catch {}
   }
   both('hotkey-errors', hotkeyErrors);
 }
@@ -483,6 +488,102 @@ ipcMain.handle('file-remove', async (_, p) => { store.data.files = store.data.fi
 ipcMain.handle('files-clear', async () => { store.data.files = []; store.saveData(); return filesOut(); });
 ipcMain.on('file-open', (_, p) => { if (store.data.files.includes(p)) shell.openPath(p); });
 ipcMain.on('file-show', (_, p) => { if (store.data.files.includes(p) || p.startsWith(app.getPath('pictures')) || p.startsWith(app.getPath('videos'))) shell.showItemInFolder(p); });
+// ---------- pobierania z przeglądarki: postęp na wyspie, komunikat i półka po zakończeniu ----------
+// Przeglądarki zapisują pobierany plik z tymczasową końcówką (.crdownload — Chrome/Edge/Opera/Brave, .part — Firefox).
+const DL_TMP = /\.(crdownload|part|opdownload|partial)$/i;
+const dls = new Map(); // ścieżka tymczasowa -> { size, t, speed, seen }
+let dlWatch = null, dlTimer = null, dlLast = '';
+function configureDownloads() {
+  const on = S().downloads !== false;
+  if (!on) { if (dlWatch) { try { dlWatch.close(); } catch {} dlWatch = null; } clearInterval(dlTimer); dlTimer = null; dls.clear(); send('download', null); return; }
+  if (dlWatch) return;
+  const dir = app.getPath('downloads');
+  try { dlWatch = fs.watch(dir, () => dlScan()); } catch { return; }
+  dlScan(); dlTimer = setInterval(dlTick, 1000);
+}
+function dlScan() {
+  const dir = app.getPath('downloads');
+  let names = []; try { names = fs.readdirSync(dir); } catch { return; }
+  for (const n of names) {
+    if (!DL_TMP.test(n)) continue;
+    const p = path.join(dir, n);
+    if (!dls.has(p)) { try { const s = fs.statSync(p); if (Date.now() - s.mtimeMs < 120e3) dls.set(p, { size: s.size, t: Date.now(), speed: 0, seen: Date.now() }); } catch {} }
+  }
+}
+function dlTick() {
+  dlScan();
+  const now = Date.now();
+  for (const [p, d] of dls) {
+    let s; try { s = fs.statSync(p); } catch { s = null; }
+    if (!s) { // zniknął plik tymczasowy: pobrane (jest plik bez końcówki) albo anulowane
+      dls.delete(p);
+      const final = p.replace(DL_TMP, '');
+      if (final !== p && fs.existsSync(final) && !/^Unconfirmed \d+/i.test(path.basename(final))) {
+        addNotice({ kind: 'download', title: 'Pobrano', body: path.basename(final), path: final });
+        if (S().downloadsToShelf !== false) addFiles([final]);
+      }
+      continue;
+    }
+    const dt = (now - d.t) / 1000;
+    if (s.size !== d.size) { d.speed = d.speed * 0.5 + ((s.size - d.size) / Math.max(dt, 0.2)) * 0.5; d.size = s.size; d.seen = now; }
+    d.t = now;
+    if (now - d.seen > 90e3) dls.delete(p); // od półtorej minuty nic nie przybywa — porzucone pobieranie
+  }
+  const act = [...dls.entries()].filter(([, d]) => now - d.seen < 15e3);
+  const out = act.length ? { name: path.basename(act[0][0]).replace(DL_TMP, '').replace(/^Unconfirmed \d+$/i, 'plik'), size: act[0][1].size, speed: Math.max(0, act[0][1].speed), count: act.length } : null;
+  const key = JSON.stringify(out && [out.name, Math.round(out.size / 2e5), out.count]);
+  if (key !== dlLast) { dlLast = key; send('download', out); }
+}
+
+// ---------- półka: konwersja zdjęć (PNG / JPG / WebP, zmniejszanie) ----------
+// Dekodowanie i kodowanie robi ukryte okno (Chromium zna WebP/AVIF/GIF), plik wynikowy ląduje obok oryginału i na półce.
+const IMG_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', avif: 'image/avif' };
+let convWin = null;
+async function convertImage(p, fmt, opts = {}) {
+  const mime = IMG_MIME[path.extname(p).slice(1).toLowerCase()];
+  const outMime = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' }[fmt];
+  if (!mime || !outMime) throw new Error('To nie jest obsługiwany obraz');
+  const data = (await fs.promises.readFile(p)).toString('base64');
+  if (!convWin || convWin.isDestroyed()) {
+    convWin = new BrowserWindow({ show: false, webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false } });
+    await convWin.loadURL('about:blank');
+  }
+  const res = await convWin.webContents.executeJavaScript(`new Promise((ok, no) => { const i = new Image();
+    i.onload = () => { let k = ${Number(opts.scale) || 1}; const maxW = ${Number(opts.maxW) || 0}; if (maxW && i.naturalWidth * k > maxW) k = maxW / i.naturalWidth;
+      const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(i.naturalWidth * k)); c.height = Math.max(1, Math.round(i.naturalHeight * k));
+      const x = c.getContext('2d'); ${fmt === 'jpg' ? "x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);" : ''} x.imageSmoothingQuality = 'high'; x.drawImage(i, 0, 0, c.width, c.height);
+      ok({ url: c.toDataURL('${outMime}', 0.88), w: c.width, h: c.height }); };
+    i.onerror = () => no(new Error('Nie udało się odczytać obrazu')); i.src = 'data:${mime};base64,${data}'; })`);
+  const base = path.join(path.dirname(p), path.basename(p, path.extname(p)) + (opts.suffix || ''));
+  let out = `${base}.${fmt}`;
+  for (let n = 1; fs.existsSync(out); n++) out = `${base} (${n}).${fmt}`;
+  try { await fs.promises.writeFile(out, Buffer.from(res.url.split(',')[1], 'base64')); }
+  catch { // brak prawa zapisu obok oryginału -> Pobrane\Aura
+    const dir = path.join(app.getPath('downloads'), 'Aura'); fs.mkdirSync(dir, { recursive: true });
+    out = path.join(dir, path.basename(out)); await fs.promises.writeFile(out, Buffer.from(res.url.split(',')[1], 'base64'));
+  }
+  await addFiles([out]);
+  const kb = Math.round(fs.statSync(out).size / 1024);
+  addNotice({ kind: 'tool', title: `Zapisano ${path.basename(out)}`, body: `${res.w} × ${res.h} · ${kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB'}`, path: out });
+  return out;
+}
+ipcMain.on('file-menu', (e, p) => {
+  if (!store.data.files.includes(p)) return;
+  const conv = (fmt, o) => () => convertImage(p, fmt, o).catch(err => addNotice({ kind: 'tool', title: 'Konwersja się nie udała', body: err.message }));
+  const ext = path.extname(p).slice(1).toLowerCase();
+  const tpl = [{ label: 'Pokaż w folderze', click: () => shell.showItemInFolder(p) }];
+  if (IMG_MIME[ext]) {
+    const same = ext === 'jpeg' ? 'jpg' : ['png', 'jpg', 'webp'].includes(ext) ? ext : 'png';
+    tpl.push({ type: 'separator' },
+      { label: 'Zapisz jako PNG', enabled: ext !== 'png', click: conv('png') },
+      { label: 'Zapisz jako JPG', enabled: ext !== 'jpg' && ext !== 'jpeg', click: conv('jpg') },
+      { label: 'Zapisz jako WebP (na strony www)', enabled: ext !== 'webp', click: conv('webp') },
+      { type: 'separator' },
+      { label: 'Zmniejsz o połowę', click: conv(same, { scale: 0.5, suffix: '-50%' }) },
+      { label: 'Zmniejsz do 1920 px szerokości', click: conv(same, { maxW: 1920, suffix: '-1920' }) });
+  }
+  Menu.buildFromTemplate(tpl).popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined });
+});
 ipcMain.on('file-drag', (e, p) => {
   if (!store.data.files.includes(p)) return;
   const t = thumbs.get(p);
@@ -518,7 +619,7 @@ const RUNNABLE = /\.(exe|com|scr|pif|msi|msix|msp|appx|appxbundle|bat|cmd|ps1|ps
 ipcMain.on('notice-open', (_, id) => {
   const n = (store.data.notices || []).find(x => x.id === id);
   if (!n || !n.path || !fs.existsSync(n.path)) return;
-  if (n.kind === 'phone' && RUNNABLE.test(n.path)) shell.showItemInFolder(n.path); else shell.openPath(n.path);
+  if ((n.kind === 'phone' || n.kind === 'download') && RUNNABLE.test(n.path)) shell.showItemInFolder(n.path); else shell.openPath(n.path);
 });
 
 // ---------- skrypty i agenci AI (127.0.0.1) ----------
@@ -783,8 +884,10 @@ async function refreshWeather(force) {
       store.set({ weatherLat: lat, weatherLon: lon, weatherName: g.results[0].name });
     }
     const unit = S().fahrenheit ? '&temperature_unit=fahrenheit' : '';
-    const w = await (await net.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1${unit}`)).json();
-    weather = { temp: Math.round(w.current.temperature_2m), code: w.current.weather_code, day: !!w.current.is_day, text: WMO[w.current.weather_code] || '', max: Math.round(w.daily.temperature_2m_max[0]), min: Math.round(w.daily.temperature_2m_min[0]), place: S().weatherName };
+    const w = await (await net.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_hours=7&timezone=auto&forecast_days=1${unit}`)).json();
+    weather = { temp: Math.round(w.current.temperature_2m), code: w.current.weather_code, day: !!w.current.is_day, text: WMO[w.current.weather_code] || '', max: Math.round(w.daily.temperature_2m_max[0]), min: Math.round(w.daily.temperature_2m_min[0]), place: S().weatherName,
+      // prognoza na najbliższe godziny (widżet Prognoza godzinowa)
+      hours: w.hourly && Array.isArray(w.hourly.time) ? w.hourly.time.map((t, i) => ({ h: String(t).slice(11, 13), temp: Math.round(w.hourly.temperature_2m[i]), code: w.hourly.weather_code[i] })).slice(1, 7) : [] };
     weatherAt = Date.now();
     send('weather', weather);
   } catch (e) { send('weather', { error: e.message }); }
@@ -920,6 +1023,27 @@ ipcMain.on('web-cmd', (_, cmd) => {
 });
 ipcMain.on('web-pins', (_, pins) => { if (Array.isArray(pins)) applySettings({ webPins: pins.filter(p => p && /^https?:\/\//i.test(p.url)).slice(0, 12) }); });
 
+// ---------- widżety: wybór i kolejność (prawy przycisk na widżecie) ----------
+const WIDGET_NAMES = { today: 'Dzisiaj', focus: 'Skupienie', weather: 'Pogoda', stats: 'Statystyki komputera', todo: 'Zadania', notes: 'Notatka', timers: 'Minutniki', forecast: 'Prognoza godzinowa' };
+ipcMain.on('widgets-menu', (e, id) => {
+  const cur = (Array.isArray(S().widgets) && S().widgets.length ? S().widgets : ['today', 'focus', 'weather', 'stats']).filter(k => WIDGET_NAMES[k]);
+  const tpl = [];
+  if (id && cur.includes(id)) {
+    const i = cur.indexOf(id);
+    const move = d => () => { const a = [...cur]; [a[i], a[i + d]] = [a[i + d], a[i]]; applySettings({ widgets: a }); };
+    tpl.push({ label: `${WIDGET_NAMES[id]}: przesuń wcześniej`, enabled: i > 0, click: move(-1) },
+      { label: `${WIDGET_NAMES[id]}: przesuń dalej`, enabled: i < cur.length - 1, click: move(1) },
+      { label: `Ukryj: ${WIDGET_NAMES[id]}`, enabled: cur.length > 1, click: () => applySettings({ widgets: cur.filter(x => x !== id) }) },
+      { type: 'separator' });
+  }
+  tpl.push({ label: 'Widżety na karcie', enabled: false });
+  for (const [k, name] of Object.entries(WIDGET_NAMES)) {
+    tpl.push({ label: name, type: 'checkbox', checked: cur.includes(k), enabled: !(cur.length === 1 && cur.includes(k)),
+      click: () => applySettings({ widgets: cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k] }) });
+  }
+  Menu.buildFromTemplate(tpl).popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined });
+});
+
 // ---------- notatki / zadania ----------
 ipcMain.handle('notes', () => ({ notes: store.data.notes, todos: store.data.todos }));
 ipcMain.on('notes-set', (_, d) => { if (typeof d.notes === 'string') store.data.notes = d.notes.slice(0, 5000); if (Array.isArray(d.todos)) store.data.todos = d.todos.slice(0, 50); store.saveData(); });
@@ -1032,6 +1156,7 @@ app.whenReady().then(async () => {
   powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
   configureDock();
+  configureDownloads();
   if (process.argv.includes('--settings')) openSettings();
   // macOS: Aura nie ma ikony w Docku, a przy notchu w spoczynku jej nie widać — przy pierwszym uruchomieniu
   // pokazujemy ustawienia, żeby było widać, że działa
@@ -1053,7 +1178,7 @@ async function testShots(dir) {
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
   if (process.env.WYSPA_VIZ) { // zrzuty do README: Mac z notchem (razem z WYSPA_FAKE_NOTCH) albo Windows; dane przykładowe, nie prawdziwe
     const pre = process.env.WYSPA_FAKE_NOTCH ? 'mac' : 'win';
-    const prev = S().surface, prevEdge = S().edge; applySettings({ surface: process.env.WYSPA_VIZ_SURFACE || 'pure', edge: process.env.WYSPA_VIZ_EDGE || prevEdge });
+    const prev = S().surface, prevEdge = S().edge, prevW = S().widgets; if (process.env.WYSPA_VIZ_WIDGETS) applySettings({ widgets: process.env.WYSPA_VIZ_WIDGETS.split(",") }); applySettings({ surface: process.env.WYSPA_VIZ_SURFACE || 'pure', edge: process.env.WYSPA_VIZ_EDGE || prevEdge });
     const shot = async n => fs.writeFileSync(path.join(dir, n.replace(/^mac/, pre) + '.png'), (await island.webContents.capturePage()).toPNG());
     const js = code => island.webContents.executeJavaScript(code);
     const real = !!process.env.WYSPA_VIZ_REAL; // prawdziwy utwór ze Spotify zamiast udawanego
@@ -1073,7 +1198,7 @@ async function testShots(dir) {
     await js(`setTab('music')`); await wait(1200); await shot('mac-4-karta-muzyka');
     await js(`setTab('widgets')`); await wait(1200); fakeWeather(); await wait(1400); await shot('mac-5-karta-widzety');
     pin = false; open = false; send('open', false); await wait(1500); await shot('mac-6-zwinieta');
-    applySettings({ surface: prev, edge: prevEdge }); await wait(800); app.quit(); return;
+    applySettings({ surface: prev, edge: prevEdge, widgets: prevW }); await wait(800); app.quit(); return;
   }
   if (process.env.WYSPA_GLASSTEST) { // szkło: kolorowa plansza za wyspą, zakładka przy kilku wartościach rozmycia
     const prev = { surface: S().surface, glassBlur: S().glassBlur };

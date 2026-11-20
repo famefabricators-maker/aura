@@ -85,14 +85,18 @@
 
         <section data-tab="widgets" id="widgets">
           <div class="wgrid">
-            <div class="w today" id="wToday"></div>
-            <div class="w focus" id="wFocus">
+            <div class="w today" id="wToday" data-w="today"></div>
+            <div class="w focus" id="wFocus" data-w="focus">
               <svg viewBox="0 0 64 64" class="ring"><circle cx="32" cy="32" r="27" class="r-bg"/><circle cx="32" cy="32" r="27" class="r-fg" id="fRing"/></svg>
               <div class="f-mid"><b class="mono" id="fTime">25:00</b><small id="fLabel">25 + 5 min</small></div>
               <div class="f-btns"><button id="fMinus">−</button><button id="fPlay" class="play"></button><button id="fPlus">+</button></div>
             </div>
-            <div class="w weather" id="wWeather"></div>
-            <div class="w stats" id="wStats"></div>
+            <div class="w weather" id="wWeather" data-w="weather"></div>
+            <div class="w stats" id="wStats" data-w="stats"></div>
+            <div class="w todo" id="wTodo" data-w="todo"><input id="tdNew" placeholder="Dodaj zadanie…" maxlength="120" spellcheck="false"><div class="td-list" id="tdList"></div></div>
+            <div class="w notes" id="wNotes" data-w="notes"><textarea id="ntText" placeholder="Szybka notatka…" maxlength="5000" spellcheck="false"></textarea></div>
+            <div class="w timers" id="wTimers" data-w="timers"><div class="tm-add" id="tmAdd"></div><div class="tm-list" id="tmList"></div></div>
+            <div class="w forecast" id="wForecast" data-w="forecast"></div>
             <button class="w-rem" id="wRem" title="Przypomnienia"><span class="ico" id="wRemIco"></span><small class="mono" id="wRemTime"></small></button>
           </div>
         </section>
@@ -153,5 +157,6 @@
   <script src="glass.js"></script>
   <script src="island.js"></script>
   <script src="panels.js"></script>
+  <script src="widgets.js"></script>
 </body>
 </html>

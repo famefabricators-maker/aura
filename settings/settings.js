@@ -72,6 +72,9 @@ const PAGES = [
     tog('privacyDot', 'Kropka prywatności', 'Pomarańczowa, gdy aplikacja używa mikrofonu; zielona przy kamerze.'),
     tog('callTimer', 'Minutnik rozmowy', 'Licznik czasu, gdy dowolna aplikacja ma otwarty mikrofon.'),
     { h: 'Teraz odtwarzane' },
+    tog('downloads', 'Pobierania na wyspie', 'Postęp pobierania z przeglądarki (folder Pobrane), a po zakończeniu komunikat.'),
+    tog('downloadsToShelf', 'Pobrane pliki na półkę', '', { when: s => s.downloads !== false }),
+    tog('pillLyrics', 'Tekst piosenki w zamkniętej wyspie', 'Bieżąca linijka, jak karaoke (gdy są włączone teksty piosenek i utwór ma tekst z czasami).', { when: s => s.lyrics }),
     tog('lyrics', 'Teksty piosenek', 'Tytuł, wykonawca i długość utworu trafiają do LRCLIB (darmowa biblioteka tekstów), raz na utwór. Wyłączone = nic nie wychodzi z komputera.'),
     seg('pillTitle', 'Tytuł utworu w zamkniętej wyspie', 'Po zmianie utworu tytuł widać przez 10 sekund, potem wyspa zwija się do okładki i wizualizera.', [['change', 'Przez 10 s'], ['always', 'Zawsze'], ['never', 'Nigdy']]),
     { h: 'Zrzuty ekranu' },
@@ -162,6 +165,7 @@ const PAGES = [
   ] },
   { id: 'keys', icon: 'grid', name: 'Skróty', rows: [
     { type: 'note', text: 'Kliknij pole i naciśnij kombinację. Backspace czyści, Esc anuluje. Unikaj Ctrl+Alt z literami ą ć ę ł ń ó ś ź ż — to AltGr na polskiej klawiaturze.' },
+    tog('tabHotkeys', 'Ctrl+Shift+1…6 otwiera kartę', 'Wyspa otwiera się od razu na 1., 2., … 6. karcie z paska kart. Na pigułce: kółko myszy zmienia głośność, przesunięcie w bok (gładzik albo Shift + kółko) przełącza utwór.'),
     ...[['open', 'Otwórz lub zamknij wyspę'], ['hide', 'Ukryj lub pokaż Aurę'], ['playPause', 'Odtwórz / wstrzymaj'], ['next', 'Następny utwór'], ['prev', 'Poprzedni utwór'],
       ['focus', 'Minutnik skupienia: start / pauza'], ['micMute', 'Wycisz lub włącz mikrofon (wszystkie aplikacje)'], ['colorPick', 'Kopiuj kolor spod kursora'],
       ['screenshot', 'Zrzut ekranu (Obrazy + półka)'], ['snip', 'Wycinek ekranu'], ['record', 'Nagrywanie ekranu'],

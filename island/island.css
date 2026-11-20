@@ -230,7 +230,9 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px;
 .cl-cards.list .ccard .cf { display: none; }
 
 /* widżety */
-.wgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; position: relative; }
+.wgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 8px; position: relative; }
+.wgrid .w.off { display: none; }
+.wgrid.many .w-rem { top: 108px; }
 .w { background: var(--row); border-radius: 14px; padding: 10px 12px; position: relative; overflow: hidden; }
 .today { display: flex; gap: 10px; }
 .today .big { font-size: 34px; font-weight: 800; line-height: .95; letter-spacing: -.03em; }
@@ -395,3 +397,37 @@ body.notch .card { padding-top: var(--nh-o); }
 
 body.light .b-act button.acc, body.light .accentbtn, body.light .tg.on .ti, body.light .today .days span.on, body.light .m-badge { color: #fff; }
 body.reduce .layer, body.reduce section { transition: opacity .1s linear !important; }
+
+/* linijka tekstu piosenki w zamkniętej wyspie (karaoke) */
+#pText.lyric { font-weight: 650; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* nowe widżety: zadania, notatka, minutniki, prognoza godzinowa */
+.w.todo { display: flex; flex-direction: column; gap: 6px; }
+.w.todo input { width: 100%; background: var(--row-hi); border: 0; border-radius: 8px; padding: 6px 8px; color: var(--fg); font: inherit; font-size: 12px; outline: none; }
+.td-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.td-item { display: flex; align-items: center; gap: 7px; font-size: 12px; padding: 2px 2px; border-radius: 6px; }
+.td-item:hover { background: var(--row); }
+.td-item i { width: 13px; height: 13px; border-radius: 4px; border: 1.5px solid var(--dim); flex: none; }
+.td-item.done i { background: var(--accent); border-color: var(--accent); }
+.td-item.done span { text-decoration: line-through; color: var(--dim); }
+.td-item span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-item button { opacity: 0; width: 16px; height: 16px; color: var(--dim); }
+.td-item:hover button { opacity: 1; }
+.w.notes { padding: 8px 10px; }
+.w.notes textarea { width: 100%; height: 100%; resize: none; background: transparent; border: 0; color: var(--fg); font: inherit; font-size: 12px; line-height: 1.45; outline: none; }
+.w.timers { display: flex; flex-direction: column; gap: 6px; }
+.tm-add { display: flex; gap: 4px; }
+.tm-add button { flex: 1; padding: 5px 0; border-radius: 8px; background: var(--row-hi); font-size: 11px; font-weight: 700; }
+.tm-add button:hover { background: var(--accent); color: #000; }
+.tm-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.tm-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.tm-item b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 14px; }
+.tm-item small { flex: 1; color: var(--dim); }
+.tm-item button { width: 16px; height: 16px; color: var(--dim); }
+.tm-empty { color: var(--dim); font-size: 11px; margin: auto; }
+.w.forecast { display: flex; flex-direction: column; justify-content: space-between; }
+.fc-row { display: flex; justify-content: space-between; }
+.fc-h { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; }
+.fc-h small { color: var(--dim); font-size: 10px; }
+.fc-h .ico { width: 17px; height: 17px; }
+.fc-h b { font-weight: 700; }
