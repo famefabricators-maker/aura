@@ -136,12 +136,12 @@ window.sendVolume = sendVolume;
 function renderVol() {
   const v = st.vol; if (!v) return;
   const pct = Math.round((v.mute ? 0 : v.level) * 100);
-  if (!volDrag) { mVol.value = pct; mVol.style.setProperty('--v', pct + '%'); }
+  if (!volDrag) { mVol.value = pct; mVol.style.setProperty('--v', pct + '%'); $('#mVolPct').textContent = pct + '%'; }
   setIco('#mVolIco', v.mute || pct === 0 ? 'volMute' : 'vol'); renderVSliders();
 }
 mVol.addEventListener('pointerdown', () => { volDrag = true; W.send('hold', true); });
 addEventListener('pointerup', () => { if (volDrag) { volDrag = false; W.send('hold', false); } });
-mVol.oninput = () => { mVol.style.setProperty('--v', mVol.value + '%'); sendVolume(mVol.value / 100); };
+mVol.oninput = () => { mVol.style.setProperty('--v', mVol.value + '%'); $('#mVolPct').textContent = mVol.value + '%'; sendVolume(mVol.value / 100); };
 W.on('media', m => {
   // tuż po przewinięciu odtwarzacz bywa spóźniony — zostaw lokalną pozycję, żeby pasek nie skakał w tył
   if (Date.now() < seekGuard && st.media && m.title === st.media.title) { m.pos = st.media.pos; m.upd = st.media.upd; }
