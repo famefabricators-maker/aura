@@ -7,7 +7,10 @@ const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 222, shel
 // widżety: własny układ (Ustawienia albo prawy przycisk na widżecie); karta rośnie o kolejne rzędy
 const WIDGETS_DEFAULT = ['today', 'focus', 'weather', 'stats'];
 const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? st.S.widgets : WIDGETS_DEFAULT);
-const tabH = tab => { if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
+const tabH = tab => { if (tab === 'music' && lyricsPanel()) return 196; if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
+// tekst piosenki na żywo: karta muzyki poszerza się o kolumnę tekstu (gdy teksty włączone i utwór ma tekst z czasami)
+const lyricsPanel = () => !!(st.S.lyrics && st.lyricLines && st.lyricLines.length && st.media && st.media.has);
+const cardW = () => (st.tab === 'music' && lyricsPanel() ? 680 : 420);
 const TABS = [
   { id: 'music', icon: 'music', name: 'Muzyka' }, { id: 'web', icon: 'globe', name: 'Web', key: 'tabWeb' },
   { id: 'notices', icon: 'bell', name: 'Powiadomienia', key: 'tabNotices' },
@@ -69,7 +72,7 @@ const hasNotch = () => isMac() && st.screen.notch && st.screen.notch.has;
 function notchTarget(mode) {
   const { w: nw, h: nh } = st.screen.notch, s = st.S.size / 100, o = st.S.openSize / 100;
   switch (mode) {
-    case 'card': return { w: Math.max(420 * o, nw + 140), h: tabH(st.tab) * o + nh, r: 24 * o, ear: 8, z: o };
+    case 'card': return { w: Math.max(cardW() * o, nw + 140), h: tabH(st.tab) * o + nh, r: 24 * o, ear: 8, z: o };
     case 'alert': return { w: Math.max(384 * s, nw + 100), h: nh + 104 * s, r: 22 * s, ear: 8, z: s };
     case 'banner': return { w: Math.max(384 * s, nw + 100), h: nh + 64 * s, r: 20 * s, ear: 8, z: s };
     case 'hud': return { w: nw + 2 * 92 * s, h: nh, r: 12, ear: 6, z: s };   // ikona po lewej, pasek po prawej
@@ -81,7 +84,7 @@ function targetFor(mode) {
   if (hasNotch()) return notchTarget(mode);
   const s = st.S.size / 100, o = st.S.openSize / 100, r = rnd();
   switch (mode) {
-    case 'card': return { w: 420 * o, h: tabH(st.tab) * o, r: 27 * o * r, ear: 16 * o * r, z: o };
+    case 'card': return { w: cardW() * o, h: tabH(st.tab) * o, r: 27 * o * r, ear: 16 * o * r, z: o };
     case 'alert': return { w: 384 * s, h: 108 * s, r: 28 * s * r, ear: 15 * s * r, z: s };
     case 'banner': return { w: 384 * s, h: 68 * s, r: 26 * s * r, ear: 15 * s * r, z: s };
     case 'hud': return { w: 236 * s, h: 36 * s, r: 18 * s * r, ear: 14 * s * r, z: s };
@@ -226,6 +229,7 @@ function update() {
   const z = target.z;
   for (const id of ['#pill', '#hud', '#banner', '#strip']) { const el = $(id); el.style.zoom = z; el.style.width = (target.w / z) + 'px'; el.style.height = (target.h / z) + 'px'; }
   const card = $('#card'); const oz = st.S.openSize / 100; card.style.zoom = oz;
+  card.style.setProperty('--card-w', cardW() + 'px'); $('#music').classList.toggle('with-lyrics', lyricsPanel());
   const nh = hasNotch() ? st.screen.notch.h : 0;
   card.style.height = (tabH(st.tab) + nh / oz) + 'px';
   // notch: przerwa na wycięcie w pigułce/HUD i miejsce pod nim w karcie i banerze

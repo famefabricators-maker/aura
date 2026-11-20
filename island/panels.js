@@ -103,7 +103,7 @@ function drawProgress() {
   if (m.end > 1) $('#mEnd').textContent = '-' + fmt(m.end - mediaPos());
   if (lyrics && lyrics.length) { const p = mediaPos(); let line = ''; for (const l of lyrics) { if (l.t <= p + 0.3) line = l.text; else break; } $('#mLyric').textContent = line; }
 }
-(function progLoop() { requestAnimationFrame(progLoop); if (st.open && st.tab === 'music') drawProgress(); })();
+(function progLoop() { requestAnimationFrame(progLoop); if (st.open && st.tab === 'music') { drawProgress(); scrollLyrics(); } })();
 // przewijanie: przeciągasz płynnie (podgląd na bieżąco), utwór przeskakuje po puszczeniu
 const fracAt = e => Math.max(0, Math.min(1, e.offsetX / prog.clientWidth));
 prog.addEventListener('pointerdown', e => {
@@ -157,7 +157,28 @@ W.on('media', m => {
 let titleKey = '', titleTimer = 0;
 W.on('thumb', d => { st.thumb = d || null; albumColor = null; if (d) extractColor(d); renderMusic(); update(); });
 W.on('vol', v => { st.vol = v; renderVol(); renderCall(); });
-W.on('lyrics', l => { lyrics = l; $('#mLyric').textContent = ''; st.lyricLine = ''; update(); });
+W.on('lyrics', l => { lyrics = l; st.lyricLines = l; $('#mLyric').textContent = ''; st.lyricLine = ''; buildLyrics(); update(); });
+// kolumna tekstu: wszystkie linijki, bieżąca na ok. 40% wysokości, klik w linijkę przewija utwór do niej
+let lyrCur = -1;
+function buildLyrics() {
+  const wrap = $('#mLyrWrap'); wrap.textContent = ''; wrap.style.transform = ''; lyrCur = -1;
+  for (const l of lyrics || []) {
+    const d = txt('div', 'ln' + (l.text.trim() ? '' : ' gap'), l.text.trim() || '♪ ♪ ♪');
+    d.onclick = () => { W.send('seek', l.t); if (st.media) { st.media.pos = l.t; st.media.upd = Date.now(); } };
+    wrap.append(d);
+  }
+}
+function scrollLyrics() {
+  if (!lyrics || !lyrics.length || !$('#music').classList.contains('with-lyrics')) return;
+  const p = mediaPos(); let i = -1;
+  for (let k = 0; k < lyrics.length; k++) { if (lyrics[k].t <= p + 0.3) i = k; else break; }
+  if (i === lyrCur) return;
+  lyrCur = i;
+  const wrap = $('#mLyrWrap'), box = $('#mLyrics'), rows = wrap.children;
+  for (let k = 0; k < rows.length; k++) { rows[k].classList.toggle('cur', k === i); rows[k].classList.toggle('near', Math.abs(k - i) === 1); }
+  const row = rows[Math.max(0, i)];
+  if (row) wrap.style.transform = `translateY(${-(row.offsetTop - box.clientHeight * 0.4 + row.offsetHeight / 2)}px)`;
+}
 // linijka tekstu dla zamkniętej wyspy (karaoke) — liczona co 0,3 s, przerysowanie tylko przy zmianie
 setInterval(() => {
   let line = '';
