@@ -637,9 +637,12 @@ endpoint.on('notify', d => addNotice({ kind: 'script', title: d.title, body: d.b
 endpoint.on('agent', d => {
   if (!S().agentsEnabled) return;
   const id = String(d.session || 'agent');
-  if (d.state === 'end') { agents.delete(id); send('agents', agentsOut()); return; }
+  if (d.state === 'end') { agents.delete(id); for (const k of alwaysAllow) if (k.startsWith(id + '|')) alwaysAllow.delete(k); send('agents', agentsOut()); return; }
   const prev = agents.get(id) || {};
-  const a = { id, harness: d.harness || prev.harness || 'Agent', project: d.project || prev.project || '', title: d.title || prev.title || '', state: d.state || 'working', message: d.message || '', since: prev.state === d.state ? prev.since : Date.now() };
+  // kroki agenta: nowe polecenie od użytkownika zaczyna listę od nowa, każde użyte narzędzie dopisuje krok (ostatnie 12)
+  let steps = d.title && d.title !== prev.title ? [] : (prev.steps || []);
+  if (d.step && d.step.tool) steps = [...steps.filter(s => !(s.pending && s.tool === d.step.tool)), { tool: String(d.step.tool).slice(0, 30), text: String(d.step.summary || '').slice(0, 140), ok: true }].slice(-12);
+  const a = { id, harness: d.harness || prev.harness || 'Agent', project: d.project || prev.project || '', title: d.title || prev.title || '', state: d.state || 'working', message: d.message || prev.message || '', since: prev.state === (d.state || 'working') ? prev.since : Date.now(), steps };
   agents.set(id, a);
   send('agents', agentsOut());
   const where = a.project ? ` · ${a.project}` : '';
@@ -667,7 +670,7 @@ helper.on('toast', t => {
 let claudeUsage = null, usageAt = 0;
 async function refreshClaudeUsage(force) {
   if (!S().claudeUsage) { if (claudeUsage) { claudeUsage = null; send('ai-usage', null); } return; }
-  if (!force && claudeUsage && Date.now() - usageAt < 4 * 60e3) return send('ai-usage', claudeUsage);
+  if (!force && claudeUsage && Date.now() - usageAt < 9 * 60e3) return send('ai-usage', claudeUsage);
   usageAt = Date.now();
   let token = null;
   try { const c = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', '.credentials.json'), 'utf8')); token = c && c.claudeAiOauth && c.claudeAiOauth.accessToken; } catch {}
@@ -675,6 +678,7 @@ async function refreshClaudeUsage(force) {
   try {
     const r = await net.fetch('https://api.anthropic.com/api/oauth/usage', { headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' } });
     if (r.status === 401) claudeUsage = { error: 'Sesja Claude Code wygasła — uruchom claude, żeby ją odświeżyć.' };
+    else if (r.status === 429) { if (!claudeUsage || claudeUsage.error) claudeUsage = { error: 'Serwer prosi o chwilę przerwy — spróbuję za kilka minut.' }; } // zostaw ostatni dobry wynik
     else if (!r.ok) claudeUsage = { error: `Limity chwilowo niedostępne (${r.status}).` };
     else {
       const j = await r.json();
@@ -684,24 +688,33 @@ async function refreshClaudeUsage(force) {
   } catch { claudeUsage = { error: 'Brak połączenia z serwerem.' }; }
   send('ai-usage', claudeUsage);
 }
-setInterval(() => refreshClaudeUsage(), 5 * 60e3);
+setInterval(() => refreshClaudeUsage(), 10 * 60e3); // serwer ogranicza częstotliwość pytań
 ipcMain.on('ai-usage-refresh', () => refreshClaudeUsage());
 
 // ---------- prośby agentów o zgodę (hook PermissionRequest): decyzja na wyspie ----------
 const asks = new Map(); // id -> { respond, timer }
+const alwaysAllow = new Set(); // sesja|narzędzie|polecenie zatwierdzone przyciskiem „Zawsze”
 endpoint.on('ask', (d, respond) => {
   if (!S().agentsEnabled || S().agentApprove === false) return respond({ decision: 'ask' });
+  const key = `${d.session}|${d.tool}|${d.summary}`;
+  if (alwaysAllow.has(key)) return respond({ decision: 'allow' }); // „Zawsze” w tej sesji
+  const ag = agents.get(String(d.session || ''));
+  if (ag) { ag.steps = [...(ag.steps || []), { tool: String(d.tool || '').slice(0, 30), text: String(d.summary || '').slice(0, 140), pending: true }].slice(-12); send('agents', agentsOut()); }
   const id = newId();
   const finish = decision => { const x = asks.get(id); if (!x) return; clearTimeout(x.timer); asks.delete(id); x.respond({ decision }); send('agent-ask-done', id); };
-  asks.set(id, { respond, timer: setTimeout(() => finish('ask'), 28000), session: String(d.session || '') }); // bez odpowiedzi: pytanie wraca do terminala
+  asks.set(id, { respond, timer: setTimeout(() => finish('ask'), 28000), session: String(d.session || ''), key }); // bez odpowiedzi: pytanie wraca do terminala
   const tool = String(d.tool || 'narzędzie').slice(0, 40);
   send('agent-ask', { id, title: `${String(d.harness || 'Agent').slice(0, 30)} prosi o zgodę: ${tool}${d.project ? ' · ' + String(d.project).slice(0, 40) : ''}`, body: String(d.summary || '').slice(0, 220) });
   alertActive = true; applyVisibility();
 });
 endpoint.on('ask-cancel', d => { for (const [id, x] of asks) if (x.session === String(d.session || '')) { clearTimeout(x.timer); asks.delete(id); send('agent-ask-done', id); } });
 ipcMain.on('agent-answer', (_, a) => {
-  if (!a || !asks.has(a.id) || !['allow', 'deny', 'ask'].includes(a.decision)) return;
-  const x = asks.get(a.id); clearTimeout(x.timer); asks.delete(a.id); x.respond({ decision: a.decision }); alertActive = false; applyVisibility();
+  if (!a || !asks.has(a.id) || !['allow', 'deny', 'ask', 'always'].includes(a.decision)) return;
+  const x = asks.get(a.id); clearTimeout(x.timer); asks.delete(a.id);
+  if (a.decision === 'always') alwaysAllow.add(x.key);
+  x.respond({ decision: a.decision === 'always' ? 'allow' : a.decision });
+  const ag = agents.get(x.session);
+  if (ag && ag.steps) { const s = [...ag.steps].reverse().find(q => q.pending); if (s) { s.pending = false; s.ok = a.decision !== 'deny'; s.denied = a.decision === 'deny'; } send('agents', agentsOut()); } alertActive = false; applyVisibility();
 });
 setInterval(() => { const now = Date.now(); for (const [id, a] of agents) if (a.state !== 'working' && now - a.since > 30 * 60e3) agents.delete(id); send('agents', agentsOut()); }, 60e3);
 ipcMain.handle('agents', () => agentsOut());
@@ -712,7 +725,7 @@ endpoint.on('error', e => console.error('endpoint', e.message));
 const claudeSettings = path.join(os.homedir(), '.claude', 'settings.json');
 const hookScript = path.join(__dirname, 'tools', 'claude-hook.js');
 // PermissionRequest: prośby o zgodę trafiają na wyspę (Zezwól / Odmów / W terminalu); czeka do ~30 s
-const HOOK_EVENTS = { UserPromptSubmit: 'working', Notification: 'needs', Stop: 'done', SessionEnd: 'end', PermissionRequest: 'permission' };
+const HOOK_EVENTS = { UserPromptSubmit: 'working', Notification: 'needs', Stop: 'done', SessionEnd: 'end', PermissionRequest: 'permission', PostToolUse: 'step' };
 function writeClaudeHooks(on) {
   let j = {};
   try { j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8')); fs.copyFileSync(claudeSettings, claudeSettings + '.aura-backup'); } catch {}
@@ -731,7 +744,8 @@ function upgradeClaudeHooks() {
   try {
     if (claudeStatus() !== 'connected' || S().agentApprove === false) return;
     const j = JSON.parse(fs.readFileSync(claudeSettings, 'utf8'));
-    if (!JSON.stringify((j.hooks || {}).PermissionRequest || []).includes('claude-hook.js')) writeClaudeHooks(true);
+    const has = ev => JSON.stringify((j.hooks || {})[ev] || []).includes('claude-hook.js');
+    if (!has('PermissionRequest') || !has('PostToolUse')) writeClaudeHooks(true); // nowe hooki: zgody i kroki agenta
   } catch {}
 }
 function claudeStatus() {

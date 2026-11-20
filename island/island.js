@@ -3,7 +3,7 @@ const W = window.wyspa, T = window.WYSPA_THEME, I = window.ICONS;
 const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySelectorAll(s));
 const isl = $('#isl');
 
-const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 222, shelf: 178, clips: 210, widgets: 262, reminders: 268, controls: 244, launcher: 168, call: 176 };
+const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 268, shelf: 178, clips: 210, widgets: 262, reminders: 268, controls: 244, launcher: 168, call: 176 };
 // widżety: własny układ (Ustawienia albo prawy przycisk na widżecie); karta rośnie o kolejne rzędy
 const WIDGETS_DEFAULT = ['today', 'focus', 'weather', 'stats'];
 const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? st.S.widgets : WIDGETS_DEFAULT);
@@ -482,7 +482,7 @@ $('#gear').onclick = () => W.send('open-settings');
 // prośba agenta o zgodę: Zezwól / Odmów / W terminalu (bez odpowiedzi po ~28 s wraca do terminala)
 let askId = null;
 W.on('agent-ask', a => { askId = a.id; const ans = d => () => { W.send('agent-answer', { id: a.id, decision: d }); askId = null; closeAlert(); };
-  showAlert({ icon: 'agent', title: a.title, body: a.body, actions: [{ label: 'Odmów', fn: ans('deny') }, { label: 'W terminalu', fn: ans('ask') }, { label: 'Zezwól', accent: true, fn: ans('allow') }] }); });
+  showAlert({ icon: 'agent', title: a.title, body: a.body, actions: [{ label: 'Odmów', fn: ans('deny') }, { label: 'Zawsze', fn: ans('always') }, { label: 'Zezwól', accent: true, fn: ans('allow') }] }); });
 W.on('agent-ask-done', id => { if (id === askId) { askId = null; closeAlert(); } });
 W.on('download', d => { st.download = d || null; update(); });
 W.on('goto-tab', n => { const t = enabledTabs()[Number(n) - 1]; if (t) { st.open = true; setTab(t.id); update(); } });

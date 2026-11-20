@@ -249,11 +249,30 @@ function renderAgents() {
     s.style.display = 'inline'; sub.append(s); sub.append(document.createTextNode(a.project ? ` · ${a.project}` : ` · ${a.harness}`)); t.append(sub); row.append(t);
     row.append(txt('span', 'when mono', ago(a.since)));
     list.append(row);
+    // ostatnie kroki agenta (czyta, edytuje, polecenie…), czekający na zgodę wyróżniony
+    const steps = (a.steps || []).slice(-5);
+    if (steps.length) {
+      const box = el('div', 'a-steps');
+      for (const s of steps) {
+        const r = el('div', 'a-step' + (s.pending ? ' pending' : s.denied ? ' denied' : ''));
+        r.append(el('span', 'ic', I.svg(s.pending ? 'bell' : s.denied ? 'x' : 'check')), txt('span', 'tx', stepLabel(s)));
+        r.title = s.text; box.append(r);
+      }
+      list.append(box);
+    }
   }
   $('#aEmpty').classList.toggle('on', !st.agents.length);
   list.style.display = st.agents.length ? '' : 'none';
   const n = st.agents.filter(a => a.state === 'needs').length, w = st.agents.filter(a => a.state === 'working').length;
   $('#aCount').textContent = st.agents.length ? `Czeka: ${n} · pracuje: ${w}` : '';
+}
+const STEP_VERB = { Bash: 'Polecenie', PowerShell: 'Polecenie', Read: 'Czyta', Edit: 'Edytuje', MultiEdit: 'Edytuje', Write: 'Zapisuje', NotebookEdit: 'Edytuje', Grep: 'Szuka', Glob: 'Szuka plików', WebFetch: 'Pobiera stronę', WebSearch: 'Szuka w sieci', Task: 'Zleca zadanie', Agent: 'Zleca zadanie', TodoWrite: 'Aktualizuje plan' };
+function stepLabel(s) {
+  const verb = STEP_VERB[s.tool] || s.tool || 'Krok';
+  let t = String(s.text || '');
+  if (/^(Read|Edit|MultiEdit|Write|NotebookEdit)$/.test(s.tool)) t = t.split(/[\\/]/).pop(); // sama nazwa pliku (ścieżki z \ i /)
+  if (s.tool === 'TodoWrite') t = '';
+  return t ? verb + ': ' + t : verb;
 }
 W.on('agents', () => renderAgents());
 $('#aSet').onclick = () => W.send('open-settings', 'agents');

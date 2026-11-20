@@ -475,3 +475,15 @@ body.reduce .layer, body.reduce section { transition: opacity .1s linear !import
 .ln.cur { font-weight: 800; text-shadow: 0 1px 14px rgba(0, 0, 0, .35); }
 .b-txt b, .banner b { letter-spacing: -.01em; }
 small, .m-artist { letter-spacing: .005em; }
+
+/* karta Agenci: ostatnie kroki agenta */
+.a-steps { display: flex; flex-direction: column; gap: 2px; padding: 0 8px 6px 45px; margin-top: -4px; }
+.a-step { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--fg); opacity: .78; white-space: nowrap; overflow: hidden; }
+.a-step .ic { width: 12px; height: 12px; flex: none; color: #e8916f; display: grid; }
+.a-step .ic .i { width: 12px; height: 12px; }
+.a-step .tx { overflow: hidden; text-overflow: ellipsis; }
+.a-step.pending { opacity: 1; color: #ff9f0a; font-weight: 650; }
+.a-step.pending .ic { color: #ff9f0a; animation: stepPulse 1.2s ease-in-out infinite; }
+.a-step.denied { opacity: .45; text-decoration: line-through; }
+@keyframes stepPulse { 50% { opacity: .35; } }
+body.reduce .a-step.pending .ic { animation: none; }

@@ -36,6 +36,12 @@ function run() {
   if (started) return; started = true;
   let ev = {};
   try { ev = JSON.parse(input || '{}'); } catch {}
+  // krok agenta (PostToolUse): co właśnie zrobił — tylko do listy kroków na wyspie, nic nie wypisuje
+  if (state === 'step') {
+    post('/agent', { session: ev.session_id || 'claude', harness: 'Claude Code', state: 'working', project: ev.cwd ? path.basename(ev.cwd) : '',
+      step: { tool: ev.tool_name || '', summary: summary(ev.tool_name, ev.tool_input) } }, 800, () => process.exit(0));
+    return;
+  }
   if (state === 'permission') {
     post('/ask', { session: ev.session_id || 'claude', harness: 'Claude Code', project: ev.cwd ? path.basename(ev.cwd) : '',
       tool: ev.tool_name || '', summary: summary(ev.tool_name, ev.tool_input) }, 32000, out => {
