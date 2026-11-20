@@ -1042,6 +1042,19 @@ async function testShots(dir) {
     pin = false; open = false; send('open', false);
     applySettings({ surface: prev, edge: prevEdge }); await wait(800); app.quit(); return;
   }
+  if (process.env.WYSPA_GLASSTEST) { // szkło: kolorowa plansza za wyspą, zakładka przy kilku wartościach rozmycia
+    const prev = { surface: S().surface, glassBlur: S().glassBlur };
+    applySettings({ surface: 'glass' });
+    const b = island.getBounds();
+    const back = new BrowserWindow({ x: b.x, y: b.y, width: b.width, height: b.height, frame: false, focusable: false, skipTaskbar: true, show: false });
+    back.loadURL('data:text/html,' + encodeURIComponent('<body style="margin:0;height:100vh;background:repeating-linear-gradient(90deg,#ff3b5c 0 60px,#ffd23b 60px 120px,#2bd67b 120px 180px,#3b8bff 180px 240px,#b03bff 240px 300px);font:700 46px sans-serif;color:#fff;display:grid;place-items:center">AURA SZKŁO TEST 123</body>'));
+    back.showInactive(); island.moveTop();
+    await wait(4000);
+    pin = true; pinEntered = false; open = true; send('open', true); await wait(900);
+    await island.webContents.executeJavaScript(`setTab('${process.env.WYSPA_GLASSTEST}')`); await wait(2500);
+    for (const v of [0, 16, 50, 100]) { applySettings({ glassBlur: v }); await wait(2500); fs.writeFileSync(path.join(dir, `szklo-${v}.png`), (await island.webContents.capturePage()).toPNG()); }
+    back.destroy(); applySettings(prev); await wait(600); app.quit(); return;
+  }
   if (process.env.WYSPA_SECTEST) { // zabezpieczenia: uprawnienia własnych okien i karty Web, blokada nawigacji, Skupienie
     const out = [], log = (k, v) => out.push(`${k}: ${v}`);
     const js = (wc, code) => wc.executeJavaScript(code, true).catch(e => 'wyjątek ' + e.message);

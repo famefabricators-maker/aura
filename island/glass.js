@@ -152,7 +152,8 @@ window.WyspaGL = (() => {
       if (u_hasTex > 0.5) {
         vec2 sp = pw + u_win;
         // 0% = czyste szkło (tylko załamanie), 50% = wygląd domyślny, 100% = mocno zmatowione
-        float lod = pow(u_blur, 1.25) * 6.2 + u_open * 0.9 * u_blur;
+        // rozmycie rośnie szybko już przy małych wartościach (pierwiastek), a nie dopiero pod koniec suwaka
+        float lod = sqrt(u_blur) * 5.4 + u_open * 0.6 * u_blur;
         vec3 g;
         float disp = 0.10 * edge;                          // rozszczepienie barw tylko przy krawędzi
         g.r = sampleBlur((sp + off * (1.0 + disp)) / u_screen, lod).r;
@@ -161,7 +162,8 @@ window.WyspaGL = (() => {
         float lum = dot(g, vec3(0.299, 0.587, 0.114));
         g = mix(vec3(lum), g, 1.35);                       // żywsze kolory, jak „vibrancy”
         // przyciemnienie: przejrzysta pigułka, mocniejsze na otwartej karcie i na jasnym tle (czytelność)
-        float tint = mix(0.14, 0.34, u_blur) + u_open * mix(0.10, 0.16, u_blur);
+        // przyciemnienie prawie stałe — mocne rozmycie ma dawać matowe szkło, nie szarą plamę
+        float tint = mix(0.16, 0.24, u_blur) + u_open * 0.10;
         tint = mix(tint, 0.80, smoothstep(0.32, 0.92, lum) * (0.5 + 0.5 * u_open) * (0.55 + 0.45 * u_blur));
         col = mix(g, u_base, tint);
       } else col = u_base * 0.9;
