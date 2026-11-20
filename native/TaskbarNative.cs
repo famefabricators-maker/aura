@@ -88,8 +88,17 @@ public static class AuraTaskbar {
 
   // okna jak na pasku zadań: widoczne, bez właściciela, nie narzędziowe, nie ukryte przez system (DWM cloak), z tytułem
   // linia: hwnd \t pid \t zminimalizowane \t aktywne \t zmaksymalizowane \t ścieżka exe \t tytuł
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
   public static string Windows(uint ownPid) {
     var sb = new StringBuilder(); IntPtr fg = GetForegroundWindow();
+    // pierwsza linia: proces aktywnej aplikacji (także gdy aktywne jest jej okienko poboczne, np. panel Messengera w Operze);
+    // 0 = pulpit / pasek zadań
+    uint fgPid = 0;
+    if (fg != IntPtr.Zero) {
+      var cls = new StringBuilder(64); GetClassName(fg, cls, 64); string c = cls.ToString();
+      if (c != "Progman" && c != "WorkerW" && c != "Shell_TrayWnd" && c != "Shell_SecondaryTrayWnd") GetWindowThreadProcessId(fg, out fgPid);
+    }
+    sb.Append("FG\t").Append(fgPid).Append('\n');
     EnumWindows((h, l) => {
       if (!IsWindowVisible(h) || GetWindow(h, 4) != IntPtr.Zero) return true;
       int ex = GetWindowLong(h, GWL_EXSTYLE);
