@@ -461,3 +461,17 @@ body.reduce .layer, body.reduce section { transition: opacity .1s linear !import
 .ln.cur { opacity: 1; transform: scale(1.035); }
 .ln:hover { opacity: .8; }
 .ln.gap { font-weight: 600; letter-spacing: .2em; }
+
+/* ===== dopracowanie wg zasad Apple (reakcja, typografia, krawędzie) ===== */
+/* Reakcja od razu przy naciśnięciu (a nie po puszczeniu): lekkie wciśnięcie, krótki powrót */
+#isl button, .ftile, .tool, .w-rem, .td-item, .tm-add button, .row { transition: transform .14s cubic-bezier(.3, .7, .4, 1), background-color .15s, color .15s, opacity .15s; }
+#isl button:active:not(:disabled), .ftile:active, .tool:active, .td-item:active, .row:active { transform: scale(.95); transition-duration: 60ms; }
+.w-rem:active { transform: scale(.92); transition-duration: 60ms; }
+/* Krawędzie list: łagodne wygaszenie przy przewijaniu zamiast twardego ucięcia */
+.list, .td-list, .tm-list { -webkit-mask-image: linear-gradient(#000 calc(100% - 14px), transparent); mask-image: linear-gradient(#000 calc(100% - 14px), transparent); }
+/* Typografia: ciaśniej przy większych literach, luźniej przy małych */
+.m-title { letter-spacing: -.012em; }
+.ln { letter-spacing: -.01em; }
+.ln.cur { font-weight: 800; text-shadow: 0 1px 14px rgba(0, 0, 0, .35); }
+.b-txt b, .banner b { letter-spacing: -.01em; }
+small, .m-artist { letter-spacing: .005em; }

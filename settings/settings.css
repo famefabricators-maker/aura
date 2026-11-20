@@ -104,3 +104,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .empty { color: var(--dim); padding: 30px 0; }
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--row-hi); border-radius: 4px; }
+
+/* reakcja od razu przy naciśnięciu */
+button { transition: transform .12s cubic-bezier(.3, .7, .4, 1), background-color .15s, color .15s; }
+button:active:not(:disabled) { transform: scale(.96); transition-duration: 60ms; }
