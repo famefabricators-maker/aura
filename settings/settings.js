@@ -5,7 +5,7 @@ let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', q
 // opcje, które działają tylko na Windowsie — na Macu ich nie pokazujemy
 const MAC = W.platform === 'darwin';
 const WIN_ONLY = new Set(['slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
-  'privacyDot', 'callTimer', 'tabDeck', 'colorPick', 'liveWallpaper', 'position', 'edgeMargin', 'shape', 'topGap']);
+  'privacyDot', 'callTimer', 'tabDeck', 'colorPick', 'liveWallpaper', 'edge', 'position', 'edgeMargin', 'shape', 'topGap']);
 const hiddenRow = r => MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry' || r.h === 'Umiejscowienie');
 const hiddenPage = p => MAC && p.id === 'wallpaper';
 document.body.classList.toggle('mac', MAC);
@@ -54,6 +54,7 @@ const PAGES = [
   ] },
   { id: 'island', icon: 'music', name: 'Wyspa', preview: true, rows: [
     { h: 'Umiejscowienie' },
+    seg('edge', 'Krawędź ekranu', 'Na dole wyspa stoi nad paskiem zadań, a karta rozwija się do góry.', [['top', 'Góra'], ['bottom', 'Dół']]),
     seg('position', 'Pozycja', '', [['left', 'Lewo'], ['center', 'Środek'], ['right', 'Prawo']]),
     sld('edgeMargin', 'Margines od krawędzi', 'Dla pozycji Lewo i Prawo.', 0, 400, ' px', { when: s => s.position !== 'center' }),
     tog('hiddenUntilHover', 'Ukryta do najechania', 'Nic nie widać, dopóki kursor nie stanie przy górnej krawędzi. Komunikaty i tak się pokażą.'),

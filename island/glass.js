@@ -41,7 +41,7 @@ window.WyspaGL = (() => {
   uniform vec2 u_pos; uniform vec2 u_size; uniform float u_r; uniform float u_ear; uniform float u_island;
   uniform vec3 u_base; uniform float u_glass; uniform float u_blur; uniform float u_tint;
   uniform vec2 u_screen; uniform vec2 u_win; uniform sampler2D u_tex; uniform float u_hasTex; uniform vec2 u_texSize;
-  uniform vec3 u_accent; uniform float u_time; uniform float u_open; uniform int u_fx; uniform float u_light;
+  uniform vec3 u_accent; uniform float u_time; uniform float u_open; uniform int u_fx; uniform float u_light; uniform float u_flip;
   out vec4 o;
 
   float sdBox(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
@@ -112,7 +112,9 @@ window.WyspaGL = (() => {
     return col * u_open;
   }
   void main(){
-    vec2 p = vec2(gl_FragCoord.x, u_res.y - gl_FragCoord.y) / u_dpr; // DIP, od góry okna
+    vec2 pw = vec2(gl_FragCoord.x, u_res.y - gl_FragCoord.y) / u_dpr; // DIP, od góry okna
+    // wyspa na dole ekranu: kształt liczymy w odbiciu lustrzanym ("góra" kształtu = dolna krawędź okna)
+    vec2 p = u_flip > 0.5 ? vec2(pw.x, u_res.y / u_dpr - pw.y) : pw;
     float d = shape(p);
     float aa = clamp(0.5 - d * u_dpr, 0.0, 1.0);
     // miękki cień pod wyspą (daje głębię, jak u szkła Apple)
@@ -145,9 +147,10 @@ window.WyspaGL = (() => {
       float corner = 0.06 * rimFall * clamp(abs(n.x * n.y) * 4.0, 0.0, 1.0);
       float ripple = sin(inside / max(min(u_size.x, u_size.y), 1.0) * 25.0) * 0.26 * rimFall;
       off -= vec2(n.x * (field + corner) - n.y * ripple, n.y * (field + corner) + n.x * ripple) * W0;
+      if (u_flip > 0.5) { off.y = -off.y; n.y = -n.y; } // z powrotem do prawdziwych współrzędnych ekranu
       float edge = smoothstep(0.0, 1.0, 1.0 - x);
       if (u_hasTex > 0.5) {
-        vec2 sp = p + u_win;
+        vec2 sp = pw + u_win;
         // 0% = czyste szkło (tylko załamanie), 50% = wygląd domyślny, 100% = mocno zmatowione
         float lod = pow(u_blur, 1.25) * 6.2 + u_open * 0.9 * u_blur;
         vec3 g;
@@ -176,7 +179,7 @@ window.WyspaGL = (() => {
       float inside = max(-d, 0.0);
       col += vec3(1.0) * smoothstep(1.2, 0.0, inside) * 0.035 * u_open; // ledwie widoczna krawędź
     }
-    col += particles(p);
+    col += particles(pw);
     o = vec4(col * aa, aa) + vec4(0.0, 0.0, 0.0, sh) * (1.0 - aa);
   }`;
 
@@ -196,7 +199,7 @@ window.WyspaGL = (() => {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const a = gl.getAttribLocation(prog, 'a');
     gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light'])
+    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light', 'u_flip'])
       loc[n] = gl.getUniformLocation(prog, n);
     tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -257,6 +260,7 @@ window.WyspaGL = (() => {
     gl.uniform1f(loc.u_open, st.open);
     gl.uniform1i(loc.u_fx, st.fx || 0);
     gl.uniform1f(loc.u_light, st.light ? 1 : 0);
+    gl.uniform1f(loc.u_flip, st.flip ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   return { init, draw, setVideo, uploadFrame, get ok() { return !!gl; } };

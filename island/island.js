@@ -116,6 +116,9 @@ function anchorX(w) {
   if (pos === 'right') return innerWidth - M - w;
   return (innerWidth - w) / 2;
 }
+// wyspa przy dolnej krawędzi ekranu (nie na Macu z notchem — tam zawsze otacza wycięcie)
+const atBottom = () => !hasNotch() && st.S.edge === 'bottom';
+const boxY = h => atBottom() ? innerHeight - topY() - h : topY();
 const isIslandShape = () => !hasNotch() && st.S.shape === 'island';
 const topY = () => (!hasNotch() && st.S.shape === 'island') ? (st.S.topGap ?? 8) : 0;
 
@@ -156,10 +159,10 @@ function frame(now) {
 }
 function layoutBox() {
   const w = spring.w.x, h = Math.max(0, spring.h.x), r = spring.r.x;
-  const x = anchorX(w), y = topY();
+  const x = anchorX(w), y = boxY(h);
   isl.style.left = x + 'px'; isl.style.top = y + 'px';
   isl.style.width = w + 'px'; isl.style.height = h + 'px';
-  isl.style.borderRadius = isIslandShape() ? `${Math.min(r, h / 2, w / 2)}px` : `0 0 ${Math.min(r, h, w / 2)}px ${Math.min(r, h, w / 2)}px`;
+  isl.style.borderRadius = isIslandShape() ? `${Math.min(r, h / 2, w / 2)}px` : atBottom() ? `${Math.min(r, h, w / 2)}px ${Math.min(r, h, w / 2)}px 0 0` : `0 0 ${Math.min(r, h, w / 2)}px ${Math.min(r, h, w / 2)}px`;
 }
 function drawGL(now) {
   if (!WyspaGL.ok) return;
@@ -167,7 +170,7 @@ function drawGL(now) {
   const w = spring.w.x, h = Math.max(0, spring.h.x);
   const openness = Math.max(0, Math.min(1, (h - 36) / 140));
   WyspaGL.draw({
-    x: anchorX(w), y: topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(),
+    x: anchorX(w), y: topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(),
     base: T.hexToRgb(surf.base), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
     accent: T.hexToRgb(st.accent), time: (now - t0) / 1000, open: openness, fx: surf.fx || 0, light: surf.light,
@@ -224,7 +227,7 @@ function sendRects() {
   const key = JSON.stringify([c, o]);
   if (key !== lastRects) { lastRects = key; W.send('rects', { c, o }); }
 }
-function mode2rect(mode) { const t = targetFor(mode); return { x: Math.round(anchorX(t.w)), y: Math.round(topY()), w: Math.round(t.w), h: Math.round(t.h) }; }
+function mode2rect(mode) { const t = targetFor(mode); return { x: Math.round(anchorX(t.w)), y: Math.round(boxY(t.h)), w: Math.round(t.w), h: Math.round(t.h) }; }
 
 // ---------- pigułka ----------
 const fmt = sec => { sec = Math.max(0, Math.floor(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };

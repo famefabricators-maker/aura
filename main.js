@@ -82,7 +82,10 @@ function place() {
   const centered = IS_MAC && notch.has; // na Macu z notchem wyspa zawsze otacza wycięcie
   if (!centered && S().position === 'left') x = d.x + m - pad;
   if (!centered && S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
-  island.setBounds({ x: Math.round(x), y: d.y, width: WIN_W, height: WIN_H });
+  // na dole: okno stoi nad paskiem zadań (obszar roboczy), wyspa przy jego dolnej krawędzi
+  const wa = screen.getPrimaryDisplay().workArea;
+  const y = !centered && S().edge === 'bottom' ? wa.y + wa.height - WIN_H : d.y;
+  island.setBounds({ x: Math.round(x), y, width: WIN_W, height: WIN_H });
   send('screen', screenInfo());
 }
 function screenInfo() {
@@ -170,7 +173,7 @@ function applySettings(patch) {
   if (k.includes('autostart')) setAutostart();
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
   if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
-  if (k.includes('position') || k.includes('edgeMargin')) place();
+  if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
   if (k.includes('calendarIcs')) refreshCalendar();
   if (k.some(x => x.startsWith('obs'))) configureObs();
@@ -860,9 +863,10 @@ ipcMain.on('web-open', (_, url) => {
   const w = 480, h = Math.min(760, d.height - 90);
   const b = island.getBounds();
   const x = Math.round(Math.min(Math.max(d.x + 8, b.x + WIN_W / 2 - w / 2), d.x + d.width - w - 8));
+  const webY = S().edge === 'bottom' && !(IS_MAC && notch.has) ? d.y + d.height - h - 70 : d.y + 70; // przy wyspie na dole — nad nią
   if (!webWin || webWin.isDestroyed()) {
     webWin = new BrowserWindow({
-      width: w, height: h, x, y: d.y + 70, frame: false, show: false, resizable: true, minWidth: 340, minHeight: 300,
+      width: w, height: h, x, y: webY, frame: false, show: false, resizable: true, minWidth: 340, minHeight: 300,
       backgroundColor: '#00000000', backgroundMaterial: 'acrylic', roundedCorners: true, title: 'Aura — Web',
       icon: path.join(__dirname, 'icon.ico'),
       webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
@@ -885,7 +889,7 @@ ipcMain.on('web-open', (_, url) => {
     webWin.on('close', e => { if (!quitting) { e.preventDefault(); hideWeb(); } });
     webWin.on('closed', () => { webWin = null; webView = null; });
   }
-  webWin.setBounds({ x, y: d.y + 70, width: w, height: h });
+  webWin.setBounds({ x, y: webY, width: w, height: h });
   layoutWeb();
   if (webView.webContents.getURL() !== url) webView.webContents.loadURL(url);
   webWin.show(); webWin.focus();
@@ -1016,7 +1020,7 @@ async function testShots(dir) {
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
   if (process.env.WYSPA_VIZ) { // zrzuty do README: Mac z notchem (razem z WYSPA_FAKE_NOTCH) albo Windows; dane przykładowe, nie prawdziwe
     const pre = process.env.WYSPA_FAKE_NOTCH ? 'mac' : 'win';
-    const prev = S().surface; applySettings({ surface: process.env.WYSPA_VIZ_SURFACE || 'pure' });
+    const prev = S().surface, prevEdge = S().edge; applySettings({ surface: process.env.WYSPA_VIZ_SURFACE || 'pure', edge: process.env.WYSPA_VIZ_EDGE || prevEdge });
     const shot = async n => fs.writeFileSync(path.join(dir, n.replace(/^mac/, pre) + '.png'), (await island.webContents.capturePage()).toPNG());
     const js = code => island.webContents.executeJavaScript(code);
     helper.removeAllListeners('media'); helper.removeAllListeners('thumb'); // tylko udawany utwór, nie to, co gra naprawdę
@@ -1035,7 +1039,7 @@ async function testShots(dir) {
     await js(`setTab('music')`); await wait(1200); await shot('mac-4-karta-muzyka');
     await js(`setTab('widgets')`); await wait(1200); fakeWeather(); await wait(1400); await shot('mac-5-karta-widzety');
     pin = false; open = false; send('open', false);
-    applySettings({ surface: prev }); await wait(800); app.quit(); return;
+    applySettings({ surface: prev, edge: prevEdge }); await wait(800); app.quit(); return;
   }
   if (process.env.WYSPA_SECTEST) { // zabezpieczenia: uprawnienia własnych okien i karty Web, blokada nawigacji, Skupienie
     const out = [], log = (k, v) => out.push(`${k}: ${v}`);
