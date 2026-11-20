@@ -34,6 +34,9 @@ app.on('render-process-gone', (_, wc, d) => logError('okno', `${d.reason} (${d.e
 app.on('child-process-gone', (_, d) => { if (d.reason !== 'clean-exit') logError('proces', `${d.type} ${d.reason} (${d.exitCode})`); });
 
 app.setAppUserModelId('pl.aura.app');
+// macOS: Chromium szyfruje ciasteczka kluczem z pęku kluczy, a bez podpisu Developer ID system pytał o hasło po każdej
+// aktualizacji i Aura stała do odpowiedzi. Atrapa pęku kluczy wyłącza to pytanie.
+if (process.platform === 'darwin') app.commandLine.appendSwitch('use-mock-keychain');
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
 const WIN_W = 780, WIN_H = 500;
