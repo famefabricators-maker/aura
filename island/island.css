@@ -437,3 +437,13 @@ body.reduce .layer, body.reduce section { transition: opacity .1s linear !import
 .fc-h small { color: var(--dim); font-size: 10px; }
 .fc-h .ico { width: 17px; height: 17px; }
 .fc-h b { font-weight: 700; }
+
+/* limity Claude na karcie Agenci */
+.a-usage { display: flex; gap: 10px; padding: 2px 2px 8px; font-size: 11px; color: var(--dim); }
+.a-usage:empty { display: none; }
+.a-usage .u { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.a-usage .u b { color: var(--fg); font-weight: 650; }
+.a-usage .bar { height: 4px; border-radius: 2px; background: var(--row-hi); overflow: hidden; }
+.a-usage .bar i { display: block; height: 100%; background: var(--accent); }
+.a-usage .bar i.hi { background: #ff9f0a; }
+.a-usage .err { flex: 1; }

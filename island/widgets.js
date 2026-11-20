@@ -80,3 +80,24 @@ function renderForecast() {
 }
 W.on('weather', () => renderForecast());
 layoutWidgets();
+
+// --- limity Claude na karcie Agenci (gdy włączone w Ustawieniach → Agenci AI)
+function resetText(iso) {
+  if (!iso) return '';
+  const d = new Date(iso); if (isNaN(d)) return '';
+  const today = d.toDateString() === new Date().toDateString();
+  return 'reset ' + (today ? '' : d.toLocaleDateString('pl-PL', { weekday: 'short' }) + ' ') + d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+}
+W.on('ai-usage', u => {
+  const box = $('#aUsage'); box.textContent = '';
+  if (!u) return;
+  if (u.error) { box.append(txt('span', 'err', `Limity Claude: ${u.error}`)); return; }
+  for (const [label, x] of [['5 godzin', u.five], ['Tydzień', u.week]]) {
+    if (!x) continue;
+    const c = el('div', 'u'); const head = el('div'); head.append(txt('b', '', `${label}: ${x.pct}%`), document.createTextNode(x.reset ? ` · ${resetText(x.reset)}` : ''));
+    const bar = el('div', 'bar'); const fill = el('i', x.pct >= 80 ? 'hi' : ''); fill.style.width = Math.min(100, x.pct) + '%'; bar.append(fill);
+    c.append(head, bar); box.append(c);
+  }
+});
+document.addEventListener('settings', () => { if (st.S.claudeUsage) W.send('ai-usage-refresh'); });
+W.send('ai-usage-refresh');

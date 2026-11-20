@@ -1,10 +1,10 @@
 /* Aura — okno ustawień, generowane ze schematu. Każda zmiana działa od razu. */
 const W = window.wyspa, T = window.WYSPA_THEME, I = window.ICONS;
 const $ = s => document.querySelector(s);
-let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', query = '', hkErrors = [], claude = 'disconnected', glassReady = '';
+let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', query = '', hkErrors = [], claude = 'disconnected', codex = 'disconnected', glassReady = '';
 // opcje, które działają tylko na Windowsie — na Macu ich nie pokazujemy
 const MAC = W.platform === 'darwin';
-const WIN_ONLY = new Set(['slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
+const WIN_ONLY = new Set(['appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
   'privacyDot', 'callTimer', 'tabDeck', 'colorPick', 'liveWallpaper', 'edge', 'position', 'edgeMargin', 'shape', 'topGap']);
 const hiddenRow = r => MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry' || r.h === 'Umiejscowienie');
 const hiddenPage = p => MAC && (p.id === 'wallpaper' || p.id === 'taskbar');
@@ -87,6 +87,7 @@ const PAGES = [
     tog('tabAgents', 'Agenci AI'), tog('tabShelf', 'Półka'), tog('tabClips', 'Schowek'), tog('tabWidgets', 'Widżety'),
     tog('tabControls', 'Sterowanie'), tog('tabLauncher', 'Launcher'), tog('tabDeck', 'Telefon (PC Deck)', 'Telefon w tej samej sieci Wi-Fi jako gładzik, pilot muzyki i slajdów. Przy pierwszym włączeniu Windows może zapytać o zgodę zapory — kliknij „Zezwól”.'), tog('tabCall', 'Rozmowa'),
     { h: 'Powiadomienia' },
+    tog('appNotifications', 'Powiadomienia z innych aplikacji', 'WhatsApp, Discord, Messenger, poczta i inne pokazują się na wyspie (także nad grą). Aura czyta je przez systemowy dostęp do powiadomień Windows; nic nie wychodzi z komputera. Klik otwiera aplikację.', { win: true }),
     sld('noticeSeconds', 'Czas powiadomienia', 'Jak długo baner zostaje na wyspie.', 2, 20, ' s'),
     tog('noticeClockTime', 'Godziny zamiast „15m”', 'Na liście powiadomień.'),
     { h: 'Pliki i schowek' },
@@ -156,6 +157,10 @@ const PAGES = [
     tog('agentsNotifyDone', 'Powiadom, gdy któryś skończy'),
     { h: 'Agenci' },
     { type: 'claude', label: 'Claude Code', desc: 'Dodaje hooki do ~/.claude/settings.json (z kopią .aura-backup). Raportują tylko na 127.0.0.1.' },
+    tog('agentApprove', 'Zgody z wyspy', 'Gdy Claude Code pyta o zgodę (np. na polecenie w terminalu), wyspa pokazuje Zezwól / Odmów / W terminalu. Bez odpowiedzi po ok. 30 s pytanie wraca do terminala.'),
+    { type: 'codex', label: 'Codex', desc: 'Dodaje powiadomienie Aury w ~/.codex/config.toml (z kopią .aura-backup). Dotychczasowe powiadomienia Codexa nadal działają.' },
+    { h: 'Limity' },
+    tog('claudeUsage', 'Wykorzystanie limitów Claude', 'Na karcie Agenci: ile zużyłeś z limitu 5-godzinnego i tygodniowego oraz kiedy się zresetują. Aura używa logowania Claude Code z tego komputera i pyta tylko serwery Anthropic.'),
   ] },
   { id: 'tools', icon: 'script', name: 'Narzędzia', rows: [
     { h: 'Skrypty i kompilacje' },
@@ -375,6 +380,13 @@ function rowEl(r) {
       b.onclick = async () => { claude = await W.invoke('claude-connect', claude !== 'connected'); render(); };
       ctl.append(status, b); break;
     }
+    case 'codex': {
+      const status = el('span', 'val', { connected: 'Połączono', disconnected: 'Nie połączono', missing: 'Nie znaleziono na tym komputerze' }[codex] || codex);
+      status.style.minWidth = 'auto';
+      const b = el('button', 'btn', codex === 'connected' ? 'Odłącz' : 'Połącz'); b.disabled = codex === 'missing';
+      b.onclick = async () => { codex = await W.invoke('codex-connect', codex !== 'connected'); render(); };
+      ctl.append(status, b); break;
+    }
     case 'hotkey': {
       const b = el('button', 'hk' + (hkErrors.includes(r.key) ? ' err' : ''), pretty(S.hotkeys[r.key]) || 'Nie ustawiono');
       if (hkErrors.includes(r.key)) lbl.append(el('small', 'warn', 'Ten skrót jest zajęty przez inną aplikację.'));
@@ -424,6 +436,7 @@ W.on('wallpaper', s => { if (page === 'wallpaper' && s && s.error) { const m = $
   S = await W.invoke('settings-get');
   hkErrors = await W.invoke('hotkey-errors');
   claude = await W.invoke('claude-status');
+  codex = await W.invoke('codex-status').catch(() => 'missing');
   W.invoke('update-state').then(s => { $('#ver').textContent = 'v' + ((s && s.current) || ''); });
   applyTheme(); render();
 })();

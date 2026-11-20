@@ -180,6 +180,8 @@ function applySettings(patch) {
   if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
   if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
   if (k.includes('downloads')) configureDownloads();
+  if (k.includes('claudeUsage')) refreshClaudeUsage(true);
+  if (k.includes('appNotifications')) configureToasts();
   if (k.includes('lyrics')) { lyricsKey = ''; if (S().lyrics) onTrack(sys.media); else send('lyrics', null); } // włączone w trakcie utworu: tekst od razu
   if (k.includes('dock')) configureDock(); else if (k.some(x => /^dock[A-Z]/.test(x))) { if (taskbar) taskbar.push(); if (k.includes('dockSize')) place(); }
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
@@ -606,7 +608,7 @@ ipcMain.on('phone-stop', () => phone.stop());
 
 // ---------- powiadomienia na wyspie ----------
 function addNotice(n) {
-  const notice = { id: newId(), ts: Date.now(), kind: n.kind || 'script', title: String(n.title || 'Aura').slice(0, 120), body: String(n.body || '').slice(0, 240), path: n.path };
+  const notice = { id: newId(), ts: Date.now(), kind: n.kind || 'script', title: String(n.title || 'Aura').slice(0, 120), body: String(n.body || '').slice(0, 240), path: n.path, aumid: n.aumid && /^[\w.!{}\\-]+$/.test(n.aumid) ? n.aumid : undefined }; // identyfikator aplikacji (tylko bezpieczne znaki)
   store.data.notices = [notice, ...(store.data.notices || [])].slice(0, 24);
   store.saveData();
   send('notices', store.data.notices);
@@ -619,6 +621,7 @@ ipcMain.on('notices-clear', () => { store.data.notices = []; store.saveData(); s
 const RUNNABLE = /\.(exe|com|scr|pif|msi|msix|msp|appx|appxbundle|bat|cmd|ps1|psm1|psd1|vbs|vbe|js|jse|wsf|wsh|hta|lnk|url|reg|cpl|inf|jar|chm|scf|application|appref-ms|settingcontent-ms|library-ms|iso|img|vhd|vhdx|xll|docm|xlsm|pptm|dll|sys|gadget|msc)$/i;
 ipcMain.on('notice-open', (_, id) => {
   const n = (store.data.notices || []).find(x => x.id === id);
+  if (n && n.kind === 'app' && n.aumid) { execFile('explorer.exe', ['shell:AppsFolder\\' + n.aumid], () => {}); return; } // otwórz program, od którego było powiadomienie
   if (!n || !n.path || !fs.existsSync(n.path)) return;
   if ((n.kind === 'phone' || n.kind === 'download') && RUNNABLE.test(n.path)) shell.showItemInFolder(n.path); else shell.openPath(n.path);
 });
@@ -640,6 +643,45 @@ endpoint.on('agent', d => {
   // Codex zgłasza tylko koniec tury (bez „pracuje”), więc dla niego komunikat od razu
   if (a.state === 'done' && (prev.state === 'working' || a.harness === 'Codex') && S().agentsNotifyDone) addNotice({ kind: 'agent', title: `${a.harness} skończył${where}`, body: a.message || a.title });
 });
+
+// ---------- powiadomienia innych aplikacji (WhatsApp, Discord…) na wyspie ----------
+// Opcja do włączenia (appNotifications). Pomocnik czyta je systemowym odbiornikiem powiadomień Windows; nic nie wychodzi z komputera.
+const configureToasts = () => helper.send({ c: 'toasts', on: !IS_MAC && S().appNotifications === true });
+setInterval(configureToasts, 30000); // także po restarcie pomocnika
+helper.on('toast', t => {
+  if (S().appNotifications !== true) return;
+  const app = String(t.app || '').slice(0, 40);
+  if (/^(aura|electron|wyspa)$/i.test(app)) return;
+  const ignore = (S().appNotificationsIgnore || []).map(x => String(x).toLowerCase());
+  if (ignore.includes(app.toLowerCase())) return;
+  addNotice({ kind: 'app', title: t.title ? `${app}: ${t.title}` : app || 'Powiadomienie', body: t.body || '', aumid: t.aumid });
+});
+
+// ---------- limity Claude (karta Agenci) ----------
+// Tylko po włączeniu przez użytkownika (claudeUsage): token z logowania Claude Code na tym komputerze idzie wyłącznie
+// do serwera Anthropic, który go wydał; nic nie jest zapisywane ani wysyłane gdzie indziej.
+let claudeUsage = null, usageAt = 0;
+async function refreshClaudeUsage(force) {
+  if (!S().claudeUsage) { if (claudeUsage) { claudeUsage = null; send('ai-usage', null); } return; }
+  if (!force && claudeUsage && Date.now() - usageAt < 4 * 60e3) return send('ai-usage', claudeUsage);
+  usageAt = Date.now();
+  let token = null;
+  try { const c = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', '.credentials.json'), 'utf8')); token = c && c.claudeAiOauth && c.claudeAiOauth.accessToken; } catch {}
+  if (!token) { claudeUsage = { error: 'Zaloguj się w Claude Code (claude, potem /login).' }; return send('ai-usage', claudeUsage); }
+  try {
+    const r = await net.fetch('https://api.anthropic.com/api/oauth/usage', { headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' } });
+    if (r.status === 401) claudeUsage = { error: 'Sesja Claude Code wygasła — uruchom claude, żeby ją odświeżyć.' };
+    else if (!r.ok) claudeUsage = { error: `Limity chwilowo niedostępne (${r.status}).` };
+    else {
+      const j = await r.json();
+      const pick = x => (x && x.utilization != null ? { pct: Math.round(x.utilization <= 1 ? x.utilization * 100 : x.utilization), reset: x.resets_at || null } : null);
+      claudeUsage = { five: pick(j.five_hour), week: pick(j.seven_day) };
+    }
+  } catch { claudeUsage = { error: 'Brak połączenia z serwerem.' }; }
+  send('ai-usage', claudeUsage);
+}
+setInterval(() => refreshClaudeUsage(), 5 * 60e3);
+ipcMain.on('ai-usage-refresh', () => refreshClaudeUsage());
 
 // ---------- prośby agentów o zgodę (hook PermissionRequest): decyzja na wyspie ----------
 const asks = new Map(); // id -> { respond, timer }
@@ -1249,6 +1291,7 @@ app.whenReady().then(async () => {
   configureDock();
   configureDownloads();
   upgradeClaudeHooks(); // dopisz hook zgód do już połączonego Claude Code
+  setTimeout(configureToasts, 3000);
   if (process.argv.includes('--settings')) openSettings();
   // macOS: Aura nie ma ikony w Docku, a przy notchu w spoczynku jej nie widać — przy pierwszym uruchomieniu
   // pokazujemy ustawienia, żeby było widać, że działa

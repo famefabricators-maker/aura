@@ -33,6 +33,30 @@ function Await($op, [Type]$type) {
   return $null
 }
 
+# --- powiadomienia innych aplikacji (WhatsApp, Discord…) przez systemowy UserNotificationListener ---
+# Tylko gdy włączone w Aurze (polecenie 'toasts'). Te, które już leżą w Centrum powiadomień przy włączeniu, pomijamy.
+$script:toasts = $false; $script:toastSeen = @{}; $script:toastInit = $false; $notifListener = $null
+try { $null = [Windows.UI.Notifications.Management.UserNotificationListener, Windows.UI.Notifications, ContentType = WindowsRuntime]; $notifListener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current } catch {}
+function Poll-Toasts {
+  if (-not $notifListener) { return }
+  $list = Await ($notifListener.GetNotificationsAsync([Windows.UI.Notifications.NotificationKinds]::Toast)) ([System.Collections.Generic.IReadOnlyList[Windows.UI.Notifications.UserNotification]])
+  if ($null -eq $list) { return }
+  $ids = @{}
+  foreach ($n in $list) {
+    $ids[$n.Id] = 1
+    if ($script:toastSeen.ContainsKey($n.Id)) { continue }
+    $script:toastSeen[$n.Id] = 1
+    if (-not $script:toastInit) { continue }
+    $app = ''; try { $app = [string]$n.AppInfo.DisplayInfo.DisplayName } catch {}
+    $aumid = ''; try { $aumid = [string]$n.AppInfo.AppUserModelId } catch {}
+    $texts = @()
+    try { $b = $n.Notification.Visual.GetBinding([Windows.UI.Notifications.KnownNotificationBindings]::ToastGeneric); if ($b) { $texts = @($b.GetTextElements() | ForEach-Object { [string]$_.Text }) } } catch {}
+    Out-Line @{ t = 'toast'; app = $app; aumid = $aumid; title = [string]($texts | Select-Object -First 1); body = [string](($texts | Select-Object -Skip 1) -join ' ') }
+  }
+  $script:toastInit = $true
+  foreach ($k in @($script:toastSeen.Keys)) { if (-not $ids.ContainsKey($k)) { $script:toastSeen.Remove($k) } }
+}
+
 # --- media (Windows Media Session) ---
 $mgr = $null
 try {
@@ -143,6 +167,7 @@ function Handle($line) {
     'brightget' { Out-Line (@{ t = 'bright' } + (Get-Bright)) }
     'stats' { Out-Line (@{ t = 'net' } + (Get-Net)) }
     'ownpid' { $script:ownPid = [int]$m.pid }
+    'toasts' { $on = [bool]$m.on; if ($on -ne $script:toasts) { $script:toasts = $on; $script:toastInit = $false; $script:toastSeen = @{} } }
     'power' { if ($m.g) { [void][WyspaWin]::SetPowerMode([string]$m.g) }; Out-Line @{ t = 'power'; g = [WyspaWin]::PowerMode() } }
     'radios' { Out-Line @{ t = 'radios'; list = @(Get-Radios) } }
     'radio' { Set-Radio ([string]$m.kind) ([bool]$m.on); Out-Line @{ t = 'radios'; list = @(Get-Radios) } }
@@ -258,6 +283,7 @@ while ($true) {
     } catch {}
   }
 
+  if ($script:toasts -and $tick % 8 -eq 0) { try { Poll-Toasts } catch {} }  # ok. co 1,6 s
   $tick++
   # czekaj do 200 ms, ale obudź się od razu, gdy przyjdzie komenda (płynna głośność i przewijanie)
   [void]$readTask.Wait(200)
