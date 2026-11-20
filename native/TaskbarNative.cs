@@ -118,14 +118,37 @@ public static class AuraTaskbar {
     return sb.ToString();
   }
 
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
+
+  // Windows nie pozwala programowi z tła zabrać fokusu („foreground lock”), więc czasem okno się nie przełączało.
+  // Sposób: pusty sygnał z klawiatury (system uznaje nas za źródło ostatniego wejścia) + chwilowe podłączenie
+  // do wątku aktywnego okna; dopiero wtedy SetForegroundWindow działa zawsze.
+  static void ForceForeground(IntPtr h) {
+    IntPtr fg = GetForegroundWindow();
+    uint dummy;
+    uint fgThread = fg == IntPtr.Zero ? 0 : GetWindowThreadProcessId(fg, out dummy);
+    uint me = GetCurrentThreadId();
+    keybd_event(0, 0, 0, UIntPtr.Zero); keybd_event(0, 0, 2, UIntPtr.Zero);
+    bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
+    try {
+      AllowSetForegroundWindow(-1);
+      BringWindowToTop(h);
+      SetForegroundWindow(h);
+      if (GetForegroundWindow() != h) SwitchToThisWindow(h, true);
+    } finally { if (attached) AttachThreadInput(me, fgThread, false); }
+  }
+
   // klik w ikonę: zminimalizowane -> przywróć, aktywne -> zminimalizuj, inne -> na wierzch
   public static void Activate(long hv) {
     IntPtr h = new IntPtr(hv);
-    if (IsIconic(h)) { ShowWindow(h, 9); SwitchToThisWindow(h, true); return; }
+    if (IsIconic(h)) { ShowWindow(h, 9); ForceForeground(h); return; }
     if (GetForegroundWindow() == h) { ShowWindow(h, 6); return; }
-    SwitchToThisWindow(h, true); SetForegroundWindow(h);
+    ForceForeground(h);
   }
-  public static void Focus(long hv) { IntPtr h = new IntPtr(hv); if (IsIconic(h)) ShowWindow(h, 9); SwitchToThisWindow(h, true); SetForegroundWindow(h); }
+  public static void Focus(long hv) { IntPtr h = new IntPtr(hv); if (IsIconic(h)) ShowWindow(h, 9); ForceForeground(h); }
   public static void Close(long hv) { PostMessage(new IntPtr(hv), 0x10, IntPtr.Zero, IntPtr.Zero); }
 
   // Start = Win, szybkie ustawienia = Win+A, powiadomienia i kalendarz = Win+N
