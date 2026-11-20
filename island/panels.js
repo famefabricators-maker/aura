@@ -364,6 +364,7 @@ function renderFocus() {
   $('#fLabel').textContent = F.mode === 'break' ? 'przerwa' : `${st.S.focusMinutes} + ${st.S.breakMinutes} min`;
   $('#fRing').style.strokeDashoffset = 169.6 * (1 - left / total);
   $('#fPlay').innerHTML = I.svg(F.running ? 'pause' : 'play');
+  W.send('focus-state', { running: !!F.running, left: Math.round(left), mode: F.mode });
   $('#wFocus').title = `${F.mode === 'break' ? 'Przerwa' : 'Skupienie'} · ${st.S.focusMinutes} + ${st.S.breakMinutes} min`;
 }
 function focusToggle() {

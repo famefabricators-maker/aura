@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'">
+  <title>Aura — pasek zadań</title>
+  <link rel="stylesheet" href="../island/fonts.css">
+  <link rel="stylesheet" href="dock.css">
+</head>
+<body>
+  <div class="dock" id="dock">
+    <button class="start" id="start" title="Start"></button>
+    <div class="apps" id="apps"></div>
+    <div class="live" id="live">
+      <div class="np" id="np" title=""><img id="npArt" alt=""><span id="npIco"></span><div class="np-txt"><b id="npTitle"></b><small id="npArtist"></small></div><button class="np-btn" id="npPlay"></button></div>
+      <div class="fc" id="fc"><span id="fcIco"></span><b class="mono" id="fcTime"></b></div>
+    </div>
+    <div class="sys">
+      <button class="qs" id="qs" title="Szybkie ustawienia"></button>
+      <button class="clock" id="clock" title="Powiadomienia i kalendarz"><b class="mono" id="cTime"></b><small id="cDate"></small></button>
+    </div>
+  </div>
+  <script src="../island/icons.js"></script>
+  <script src="dock.js"></script>
+</body>
+</html>

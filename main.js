@@ -12,6 +12,7 @@ const QRCode = require('qrcode');
 const { Store } = require('./lib/store');
 const { Helper } = require('./lib/helper');
 const { LocalEndpoint, PhoneShare } = require('./lib/servers');
+const { Taskbar, restoreLeftover } = require('./lib/taskbar');
 
 // Wersja przenośna (ZIP): plik „portable” obok Aura.exe → wszystkie dane, pamięć podręczna i pliki tymczasowe
 // trzymamy w folderze aplikacji, np. na dysku D:, a nie na C:.
@@ -84,7 +85,7 @@ function place() {
   if (!centered && S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
   // na dole: okno stoi nad paskiem zadań (obszar roboczy), wyspa przy jego dolnej krawędzi
   const wa = screen.getPrimaryDisplay().workArea;
-  const y = !centered && S().edge === 'bottom' ? wa.y + wa.height - WIN_H : d.y;
+  const y = !centered && S().edge === 'bottom' ? wa.y + wa.height - WIN_H - (taskbar ? taskbar.reserve : 0) : d.y; // nad paskiem zadań Aury
   island.setBounds({ x: Math.round(x), y, width: WIN_W, height: WIN_H });
   send('screen', screenInfo());
 }
@@ -174,6 +175,7 @@ function applySettings(patch) {
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
   if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
   if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
+  if (k.includes('dock')) configureDock(); else if (k.some(x => /^dock[A-Z]/.test(x))) { if (taskbar) taskbar.push(); if (k.includes('dockSize')) place(); }
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
   if (k.includes('calendarIcs')) refreshCalendar();
   if (k.some(x => x.startsWith('obs'))) configureObs();
@@ -289,14 +291,16 @@ async function resolveAppIcon(id) {
 }
 helper.on('media', m => {
   sys.media = m; send('media', m); onTrack(m);
+  if (taskbar) taskbar.setMedia(dockMedia());
   try { if (deckState && deckState.running && m.has) deck.pushMedia({ title: m.title, artist: m.artist, playing: m.playing }); } catch {}
   if (m.app && !appIcons.has(m.app)) resolveAppIcon(m.app).then(url => { if (url) send('app-icon', { id: m.app, icon: url }); });
 });
 ipcMain.handle('app-icon', (_, id) => appIcons.get(id) || null);
-helper.on('thumb', m => { sys.thumb = m.data; send('thumb', m.data); });
+helper.on('thumb', m => { sys.thumb = m.data; send('thumb', m.data); if (taskbar) taskbar.setMedia(dockMedia()); });
 let gameOn = false;
 helper.on('fs', m => {
   const on = !!m.on;
+  if (taskbar) taskbar.setFullscreen(on); // pasek zadań Aury nie wisi nad grami i filmami
   // pasek dla graczy: zamiast chować wyspę, pokazuje wąski pasek CPU/GPU/RAM nad grą
   gameOn = on && S().gamerOverlay;
   fsHidden = on && S().hideInFullscreen && !gameOn;
@@ -970,8 +974,24 @@ function updateTray() {
   ]));
 }
 
+// ---------- pasek zadań Aury ----------
+let taskbar = null;
+function configureDock() {
+  if (IS_MAC) return;
+  if (!taskbar) {
+    taskbar = new Taskbar({ S, set: p => applySettings(p), preload: path.join(__dirname, 'preload.js') });
+    taskbar.on('change', place);
+  }
+  if (S().dock && !taskbar.active) { taskbar.start(); taskbar.setMedia(dockMedia()); }
+  else if (!S().dock && taskbar.active) taskbar.stop();
+}
+const dockMedia = () => (sys.media && sys.media.has ? { has: true, title: sys.media.title, artist: sys.media.artist, playing: sys.media.playing, thumb: sys.thumb || null } : null);
+ipcMain.on('focus-state', (_, f) => { if (taskbar && f && typeof f === 'object') taskbar.setFocus({ running: !!f.running, left: Number(f.left) || 0 }); });
+
 app.whenReady().then(async () => {
-  store.unlock();                                // historia schowka i hasła: szyfrowanie działa dopiero teraz
+  store.unlock();
+  // po awarii przy wyłączonym pasku Aury: przywróć zapamiętany stan paska Windows
+  if (!IS_MAC && !S().dock) restoreLeftover();                                // historia schowka i hasła: szyfrowanie działa dopiero teraz
   if (IS_MAC) {
     if (app.dock) app.dock.hide();               // Aura żyje w pasku menu, bez ikony w Docku
     notch = await helper.notch();                // rozmiar fabrycznego wycięcia (0, gdy Mac go nie ma)
@@ -999,6 +1019,7 @@ app.whenReady().then(async () => {
   screen.on('display-removed', place);
   powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
+  configureDock();
   if (process.argv.includes('--settings')) openSettings();
   // macOS: Aura nie ma ikony w Docku, a przy notchu w spoczynku jej nie widać — przy pierwszym uruchomieniu
   // pokazujemy ustawienia, żeby było widać, że działa
@@ -1167,6 +1188,6 @@ async function testShots(dir) {
   if (!process.env.WYSPA_KEEP) app.quit();
 }
 app.on('second-instance', (_, argv) => { userHidden = false; applyVisibility(); if (argv.includes('--settings')) openSettings(); });
-app.on('before-quit', () => { quitting = true; clearInterval(cursorLoop); helper.stop(); endpoint.stop(); phone.stop(); try { cal.stop(); obs.stop(); chat.stop(); deck.stop(); wp.stop(); updates.stop(); } catch {} });
+app.on('before-quit', () => { quitting = true; if (taskbar && taskbar.active) taskbar.stop(); clearInterval(cursorLoop); helper.stop(); endpoint.stop(); phone.stop(); try { cal.stop(); obs.stop(); chat.stop(); deck.stop(); wp.stop(); updates.stop(); } catch {} });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => { if (quitting) app.quit(); });

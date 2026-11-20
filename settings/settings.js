@@ -7,7 +7,7 @@ const MAC = W.platform === 'darwin';
 const WIN_ONLY = new Set(['slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
   'privacyDot', 'callTimer', 'tabDeck', 'colorPick', 'liveWallpaper', 'edge', 'position', 'edgeMargin', 'shape', 'topGap']);
 const hiddenRow = r => MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry' || r.h === 'Umiejscowienie');
-const hiddenPage = p => MAC && p.id === 'wallpaper';
+const hiddenPage = p => MAC && (p.id === 'wallpaper' || p.id === 'taskbar');
 document.body.classList.toggle('mac', MAC);
 W.on('settings-pos', p => GlassBg.setPos(p));
 W.on('cursor', c => GlassBg.cursor(c));
@@ -127,6 +127,13 @@ const PAGES = [
     sld('chatOpacity', 'Krycie tła', '', 0, 100, '%'),
     { type: 'color', key: 'chatTextColor', label: 'Kolor tekstu' },
     sld('chatTextSize', 'Rozmiar tekstu', '', 10, 30, ' pt'),
+  ] },
+  { id: 'taskbar', icon: 'grid', name: 'Pasek zadań', rows: [
+    { h: 'Pasek zadań Aury' },
+    tog('dock', 'Pasek zadań Aury', 'Wyspa u dołu ekranu zamiast paska Windows: Start, przypięte i otwarte aplikacje, grający utwór, minutnik, szybkie ustawienia i zegar. Prawy przycisk na ikonie przypina albo zamyka. Pasek Windows wraca po wyłączeniu (także gdy Aura się zamknie).'),
+    tog('dockHideMax', 'Chowaj nad zmaksymalizowanymi oknami', 'Przesuń kursor do dolnej krawędzi ekranu, żeby go pokazać.', { when: s => s.dock }),
+    tog('dockMagnify', 'Efekt docka', 'Ikony rosną pod kursorem, jak w docku na Macu.', { when: s => s.dock }),
+    sld('dockSize', 'Rozmiar', '', 100, 200, '%', { when: s => s.dock }),
   ] },
   { id: 'wallpaper', icon: 'shot', name: 'Tapeta', rows: [
     { h: 'Animowana tapeta' },
