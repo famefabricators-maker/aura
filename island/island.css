@@ -122,11 +122,11 @@ section.on { opacity: 1; pointer-events: auto; transition: opacity .2s ease .05s
 
 /* muzyka */
 #music { padding-top: 6px; }
-/* tło z okładki: mocno rozmyta, przyciemniona okładka + winieta = kolory „w głębi”, ciemne brzegi, czytelny tekst */
-.m-bg { position: absolute; inset: -60px; background-color: #000; background-size: cover; background-position: center; filter: blur(46px) saturate(2.3) contrast(1.55) brightness(.92); opacity: 0; transform: scale(1.35); transition: opacity .5s; pointer-events: none; }
+/* tło z okładki: czarny podkład + miękka poświata w kolorze okładki (ustawiana w panels.js), ciemna góra */
+.m-bg { position: absolute; inset: -70px -40px -40px; background-color: #000; filter: blur(14px); opacity: 0; transition: opacity .5s; pointer-events: none; }
 .m-bg.on { opacity: 1; }
 .m-vig { position: absolute; inset: -40px; pointer-events: none; opacity: 0; transition: opacity .5s;
-  background: radial-gradient(75% 90% at 58% 55%, transparent 0%, rgba(0,0,0,.2) 50%, rgba(0,0,0,.72) 100%), linear-gradient(180deg, rgba(0,0,0,.45) 0%, transparent 34%, transparent 78%, rgba(0,0,0,.35) 100%); }
+  background: linear-gradient(180deg, rgba(0,0,0,.55) 0%, transparent 30%, transparent 80%, rgba(0,0,0,.3) 100%); }
 .m-bg.on + .m-vig { opacity: 1; }
 .m-top { display: flex; align-items: center; gap: 12px; position: relative; }
 .m-art { width: 56px; height: 56px; border-radius: 13px; background: var(--row); flex: none; display: grid; place-items: center; position: relative; }

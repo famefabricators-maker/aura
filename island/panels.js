@@ -24,7 +24,7 @@ function prettyApp(id) {
 }
 let seeking = null, seekGuard = 0; // ułamek utworu podczas przeciągania paska / blokada starych pozycji po przewinięciu
 function mediaPos() { const m = st.media; if (!m) return 0; if (seeking != null && m.end > 0) return seeking * m.end; let p = m.pos || 0; if (m.playing && m.upd) p += (Date.now() - m.upd) / 1000; return m.end > 0 ? Math.min(p, m.end) : p; }
-let albumColor = null;
+let albumColor = null, albumGlow = null;
 function extractColor(src) {
   const img = new Image();
   img.onload = () => {
@@ -32,7 +32,14 @@ function extractColor(src) {
     const x = c.getContext('2d'); x.drawImage(img, 0, 0, 16, 16);
     const d = x.getImageData(0, 0, 16, 16).data; let best = null, bs = -1;
     for (let i = 0; i < d.length; i += 4) { const [r, g, b] = [d[i], d[i + 1], d[i + 2]]; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); const s = (mx - mn) * (mx / 255); if (s > bs) { bs = s; best = [r, g, b]; } }
-    albumColor = best && bs > 25 ? `rgb(${best.join(',')})` : null; renderMusic();
+    albumColor = best && bs > 25 ? `rgb(${best.join(',')})` : null;
+    // poświata tła: średni kolor okładki (jaśniejsze piksele ważą więcej), rozjaśniony i lekko nasycony
+    let R = 0, G = 0, B = 0, Wt = 0;
+    for (let i = 0; i < d.length; i += 4) { const l = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255, sat = (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2])) / 255, w = (0.12 + l * l) * (0.25 + sat * 2); R += d[i] * w; G += d[i + 1] * w; B += d[i + 2] * w; Wt += w; }
+    let m = [R / Wt, G / Wt, B / Wt]; const mean = (m[0] + m[1] + m[2]) / 3; m = m.map(v => mean + (v - mean) * 1.6);
+    const k = 175 / Math.max(1, ...m); m = m.map(v => Math.round(Math.max(0, Math.min(255, v * k))));
+    albumGlow = { main: m.join(','), accent: best && bs > 45 ? best.join(',') : null };
+    renderMusic();
   };
   img.src = src;
 }
@@ -52,7 +59,12 @@ function renderMusic() {
   const bg = $('#mBg');
   bg.classList.toggle('on', !solid && !!st.thumb && T.surface(st.S.surface).id !== 'white');
   $('#card').classList.toggle('album', bg.classList.contains('on') && st.tab === 'music');
-  bg.style.backgroundImage = st.thumb ? `url("${st.thumb}")` : '';
+  // jak w NotchPixel: czarna karta i jedna miękka poświata w kolorze okładki za tytułem, gasnąca do czerni
+  const gl = st.thumb && albumGlow;
+  bg.style.backgroundImage = gl ? [
+    `radial-gradient(52% 78% at 56% 50%, rgba(${gl.main},.60) 0%, rgba(${gl.main},.32) 34%, rgba(${gl.main},.10) 60%, transparent 78%)`,
+    gl.accent ? `radial-gradient(32% 55% at 70% 46%, rgba(${gl.accent},.32), transparent 72%)` : '',
+  ].filter(Boolean).join(', ') : '';
   const app = prettyApp(m.app); const badge = $('#mBadge');
   badge.title = app;
   const icon = appIcons[m.app];
@@ -147,7 +159,7 @@ W.on('media', m => {
   if (Date.now() < seekGuard && st.media && m.title === st.media.title) { m.pos = st.media.pos; m.upd = st.media.upd; }
   st.media = m; renderMusic(); update();
 });
-W.on('thumb', d => { st.thumb = d || null; albumColor = null; if (d) extractColor(d); renderMusic(); update(); });
+W.on('thumb', d => { st.thumb = d || null; albumColor = null; albumGlow = null; if (d) extractColor(d); renderMusic(); update(); });
 W.on('vol', v => { st.vol = v; renderVol(); renderCall(); });
 W.on('lyrics', l => { lyrics = l; $('#mLyric').textContent = ''; });
 
