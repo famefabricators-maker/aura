@@ -103,8 +103,9 @@ jobs:
           echo "stara paczka" > /Applications/Aura.app/Contents/znacznik-testu.txt
           WYSPA_GH_TOKEN="${{ github.token }}" WYSPA_SHOT="$PWD" WYSPA_UPDATETEST=1 WYSPA_AUTOUPD=1 WYSPA_AUTOUPD_INSTALL=1 /Applications/Aura.app/Contents/MacOS/Aura > wyjscie.txt 2>&1 &
           for i in $(seq 1 75); do sleep 2; grep -q "instaluję" autoupd.txt 2>/dev/null && break; done
-          sleep 15
-          { echo "--- stany:"; grep -v '"downloading"' autoupd.txt | tail -8; grep '"downloading"' autoupd.txt | tail -1;
+          sleep 20
+          { echo "--- dziennik podmiany:"; cat "$TMPDIR/Aura-aktualizacja.log" 2>/dev/null || cat /tmp/Aura-aktualizacja.log 2>/dev/null || true;
+            echo "--- stany:"; grep -v '"downloading"' autoupd.txt | tail -8; grep '"downloading"' autoupd.txt | tail -1;
             echo "--- znacznik starej paczki: $(test -f /Applications/Aura.app/Contents/znacznik-testu.txt && echo JEST — nie podmieniono || echo brak — podmieniono)";
             echo "--- wersja w Aplikacjach: $(defaults read /Applications/Aura.app/Contents/Info CFBundleShortVersionString)";
             echo "--- Aura działa po podmianie:"; ps aux | grep "[A]pplications/Aura.app/Contents/MacOS/Aura" | head -2 || true; } | tee wynik.txt
