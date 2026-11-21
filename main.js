@@ -471,6 +471,20 @@ ipcMain.on('clip-copy', async (_, id) => {
     else if (images.has(id)) await clipboard.write([new ClipboardItem({ 'image/png': new Blob([images.get(id)], { type: 'image/png' }) })]);
   } catch { suppress = false; }
 });
+// przeciąganie ze schowka: pełny tekst (do wyspy trafia tylko podgląd) i obraz jako plik PNG
+ipcMain.handle('clip-text', (_, id) => { const c = store.clips.find(x => x.id === id); return c && c.type === 'text' ? c.text : ''; });
+ipcMain.on('clip-drag', (e, id) => {
+  const c = store.clips.find(x => x.id === id); if (!c || c.type !== 'image' || !images.has(id)) return;
+  try {
+    const dir = path.join(app.getPath('temp'), 'Aura-schowek'); fs.mkdirSync(dir, { recursive: true });
+    for (const f of fs.readdirSync(dir)) { const p = path.join(dir, f); try { if (Date.now() - fs.statSync(p).mtimeMs > 86400e3) fs.unlinkSync(p); } catch {} } // stare (ponad dobę) sprzątamy
+    const d = new Date(c.ts || Date.now()), pad = n => String(n).padStart(2, '0');
+    const file = path.join(dir, `Obraz ze schowka ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}.png`);
+    if (!fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(images.get(id)));
+    const img = nativeImage.createFromPath(file);
+    e.sender.startDrag({ file, icon: img.isEmpty() ? nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 32 }) : img.resize({ width: 64 }) });
+  } catch (err) { logError('clip-drag', err); }
+});
 ipcMain.on('clip-pin', (_, id) => { const c = store.clips.find(x => x.id === id); if (c) { c.pinned = !c.pinned; pruneClips(); } });
 ipcMain.on('clip-remove', (_, id) => { store.clips = store.clips.filter(c => c.id !== id); pruneClips(); });
 ipcMain.on('clips-clear', () => { store.clips = store.clips.filter(c => c.pinned); pruneClips(); });

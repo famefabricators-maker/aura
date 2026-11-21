@@ -580,6 +580,8 @@ W.on('game', on => { st.game = !!on; $('#gIco').innerHTML = I.svg('game'); updat
   applyTheme();
   setTab(st.tab);
   st.open = false;
+  // dane startowe zapamiętane: odpowiedź potrafi przyjść, zanim wczyta się panels.js — wtedy sam je odbierze
+  window.__wyspaInit = d;
   window.dispatchEvent(new CustomEvent('wyspa-init', { detail: d }));
   W.invoke('obs-state').then(s => { st.obs = s; update(); });
   update();

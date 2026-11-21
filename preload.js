@@ -1,12 +1,12 @@
 // Bezpieczny most między oknami (wyspa, ustawienia) a procesem głównym.
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
-const INVOKE = ['init', 'settings-get', 'settings-set', 'files-add', 'file-remove', 'files-clear', 'phone-start',
+const INVOKE = ['init', 'clip-text', 'settings-get', 'settings-set', 'files-add', 'file-remove', 'files-clear', 'phone-start',
   'notices', 'agents', 'reminders', 'reminder-add', 'reminder-remove', 'rec-start', 'launch-pick', 'launch-info',
   'weather-city', 'notes', 'claude-status', 'claude-connect', 'hotkey-errors', 'sys', 'win-accent', 'calendar', 'obs-local', 'obs-state', 'app-icon', 'settings-pos',
   'chat-recent', 'chat-state', 'wallpaper-state', 'wallpaper-pick', 'deck-state', 'deck-start', 'update-state', 'update-check', 'dock-state', 'codex-status', 'codex-connect'];
 const SEND = ['open-settings', 'settings-titlebar', 'hotkeys-pause', 'media', 'seek', 'volume', 'mute', 'mic-toggle',
-  'brightness', 'power-mode', 'radio', 'audio-devices', 'audio-set','controls-refresh', 'open-uri', 'clip-copy', 'clip-pin', 'clip-remove', 'clips-clear',
+  'brightness', 'power-mode', 'radio', 'audio-devices', 'audio-set','controls-refresh', 'open-uri', 'clip-copy', 'clip-drag', 'clip-pin', 'clip-remove', 'clips-clear',
   'file-open', 'file-show', 'file-drag', 'phone-stop', 'notice-remove', 'notices-clear', 'notice-open', 'reminder-answer',
   'screenshot', 'snip', 'rec-chunk', 'rec-stop', 'launch', 'stats-on', 'weather-refresh', 'notes-set', 'rects', 'hold',
   'close-island', 'pin-open', 'web-open', 'web-pins', 'web-cmd',

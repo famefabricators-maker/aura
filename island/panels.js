@@ -350,6 +350,14 @@ function renderClips() {
     const x = el('button', '', I.svg('x')); x.title = 'Usuń'; x.onclick = e => { e.stopPropagation(); W.send('clip-remove', c.id); };
     acts.append(pin, x); card.append(acts);
     card.title = c.type === 'text' ? c.text.slice(0, 400) : 'Kliknij, żeby skopiować';
+    // przeciąganie do innych aplikacji: obraz jako plik PNG (systemowo), tekst jako zwykły tekst
+    card.draggable = true;
+    if (c.type === 'text') card.onmousedown = () => { if (c.len > c.text.length) W.invoke('clip-text', c.id).then(t => { card._full = t; }); };
+    card.ondragstart = e => {
+      if (c.type === 'image') { e.preventDefault(); W.send('clip-drag', c.id); return; }
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData('text/plain', card._full || c.text);
+    };
     card.onclick = () => { W.send('clip-copy', c.id); card.classList.add('flash'); f.firstChild.textContent = 'skopiowano'; setTimeout(() => card.classList.remove('flash'), 900); };
     box.append(card);
   }
@@ -759,8 +767,13 @@ document.addEventListener('tab', e => {
 document.addEventListener('closed', () => { camStop(); if (statsOn) { statsOn = false; W.send('stats-on', false); } $('#qr').classList.remove('on'); });
 document.addEventListener('settings', () => { renderMusic(); renderClips(); renderFocus(); renderNotices(); renderWeb(); });
 
-window.addEventListener('wyspa-init', e => {
-  const d = e.detail;
+// Start kart: z sygnału „wyspa-init” albo od razu, jeśli dane przyszły, zanim ten plik się wczytał
+// (wcześniej sygnał wtedy przepadał: pusty schowek, półka i przypomnienia aż do przeładowania wyspy)
+let panelsInited = false;
+window.addEventListener('wyspa-init', e => initPanels(e.detail));
+if (window.__wyspaInit) setTimeout(() => initPanels(window.__wyspaInit), 0);
+function initPanels(d) {
+  if (panelsInited || !d) return; panelsInited = true;
   setFiles(d.files); clips = d.clips || []; renderClips(); renderNotices(); renderAgents();
   reminders = d.reminders || []; renderReminders();
   if (st.thumb) extractColor(st.thumb);
@@ -768,4 +781,4 @@ window.addEventListener('wyspa-init', e => {
   if (d.sys.bright) bright = d.sys.bright;
   W.invoke('calendar').then(c => { st.calendar = c || []; renderToday(); });
   renderWeb();
-});
+}
