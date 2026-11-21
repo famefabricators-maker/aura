@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/aura-logo-horizontal-color-dark.svg">
+    <img src="brand/aura-logo-horizontal-color-light.svg" alt="Aura" width="300">
+  </picture>
+</p>
+
 # Aura
 
 **Aura** to darmowa „wyspa” u góry ekranu Windowsa: muzyka, półka na pliki, schowek, widżety, przypomnienia, komunikaty systemowe i agenci AI w jednej pigułce, która rozwija się po najechaniu kursorem. Szkło jest prawdziwe: wyspa na żywo rozmywa i załamuje to, co jest pod nią.

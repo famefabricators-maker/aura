@@ -1317,7 +1317,8 @@ app.whenReady().then(async () => {
   if ('edgeBottom' in helper) helper.edgeBottom = S().edge === 'bottom' && !(IS_MAC && notch.has); // pomocnik sprawdza zasłonięcie właściwej krawędzi
   helper.start();
   startEndpoint();
-  tray = new Tray(IS_MAC ? nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 18, height: 18 }) : path.join(__dirname, 'icon.ico'));
+  // macOS: obrazek-szablon (czarny znak A z wyspą) — system sam przebarwia go w jasnym i ciemnym pasku menu
+  tray = new Tray(IS_MAC ? (() => { const t = nativeImage.createFromPath(path.join(__dirname, 'trayTemplate.png')); t.setTemplateImage(true); return t; })() : path.join(__dirname, 'icon.ico'));
   tray.setToolTip('Aura');
   if (IS_MAC) tray.on('click', () => tray.popUpContextMenu()); else tray.on('click', () => openSettings());
   updateTray();

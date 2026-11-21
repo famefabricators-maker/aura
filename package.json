@@ -37,6 +37,7 @@
       "!scratch/**",
       "!.impeccable/**",
       "!make-icon.js",
+      "!brand/**",
       "!**/*.md",
       "!build/**",
       "!.github/**",
