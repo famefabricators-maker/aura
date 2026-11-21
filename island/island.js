@@ -342,7 +342,7 @@ async function ensureCapture() {
   capWanted = want;
   try {
     if (!capStream) {
-      capStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 30 } }, audio: !isMac() });
+      capStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 60, max: 60 } }, audio: !isMac() });
       const at = capStream.getAudioTracks()[0];
       if (at) {
         const ctx = new AudioContext();
@@ -366,7 +366,9 @@ async function ensureCapture() {
         const onFrame = () => {
           if (!capVideo) return;
           const now = performance.now();
-          const busy = st.mode === 'card' || animating;
+          // każda klatka ekranu: przewijane obrazy pod szkłem płyną razem z tłem (wcześniej zwinięta wyspa
+          // odświeżała się co 260 ms i kolory pod nią przeskakiwały); rzadko tylko jako cienka linia pod oknem
+          const busy = !(st.covered && !st.open);
           if (busy || now - last > 260) { last = now; WyspaGL.uploadFrame(captureRegion(), recentCursors()); kick(); }
           capVideo.requestVideoFrameCallback(onFrame);
         };
