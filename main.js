@@ -1341,6 +1341,11 @@ app.whenReady().then(async () => {
   if (process.argv.includes('--settings')) openSettings();
   // macOS: Aura nie ma ikony w Docku, a przy notchu w spoczynku jej nie widać — przy pierwszym uruchomieniu
   // pokazujemy ustawienia, żeby było widać, że działa
+  // pierwsza instalacja: wprowadzenie (kilka kart: co robi Aura i jak jej używać); dotychczasowi użytkownicy go nie dostają
+  if (!store.data.welcomed && !process.env.WYSPA_SHOT) {
+    const show = store.fresh; store.data.welcomed = true; store.data.macWelcomed = true; store.saveData();
+    if (show) openSettings('welcome');
+  }
   if (IS_MAC && !store.data.macWelcomed && !process.env.WYSPA_SHOT) { store.data.macWelcomed = true; store.saveData(); openSettings(); }
   readyAt = Date.now();
   if (process.env.WYSPA_SHOT) testShots(process.env.WYSPA_SHOT);

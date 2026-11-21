@@ -178,6 +178,7 @@ const PAGES = [
   ] },
   { id: 'about', icon: 'note', name: 'Informacje', rows: [
     { type: 'about' },
+    { type: 'button', label: 'Wprowadzenie', desc: 'Krótki przewodnik po Aurze: jak otwierać wyspę, co jest w kartach, skróty.', text: 'Pokaż wprowadzenie', fn: () => window.Welcome && Welcome.open() },
     { h: 'Aktualizacje' },
     { type: 'update', label: 'Wersja', desc: 'Aura sprawdza GitHuba przy starcie i co 6 godzin. W wersji z instalatorem nowa wersja pobiera się sama i instaluje po ponownym uruchomieniu.' },
     tog('updateNotify', 'Powiadamiaj o nowych wersjach', 'Okienko na wyspie, gdy pojawi się nowa wersja.'),
@@ -431,7 +432,7 @@ $('#search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('#se
 $('#author').onclick = () => W.send('open-author');
 W.on('settings', s => { S = s; applyTheme(); if (!document.activeElement || document.activeElement.type !== 'range') render(); });
 W.on('hotkey-errors', e => { hkErrors = e || []; if (page === 'keys') render(); });
-W.on('goto', p => { page = p; query = ''; render(); });
+W.on('goto', p => { if (p === 'welcome') { if (window.Welcome) Welcome.open(); return; } page = p; query = ''; render(); });
 W.on('obs', () => { if (page === 'streaming') render(); });
 let updateView = null;
 W.on('update-state', s => { if (updateView && page === 'about') updateView(s); });
@@ -442,5 +443,6 @@ W.on('wallpaper', s => { if (page === 'wallpaper' && s && s.error) { const m = $
   claude = await W.invoke('claude-status');
   codex = await W.invoke('codex-status').catch(() => 'missing');
   W.invoke('update-state').then(s => { $('#ver').textContent = 'v' + ((s && s.current) || ''); });
+  if (page === 'welcome') { page = 'look'; setTimeout(() => window.Welcome && Welcome.open(), 0); }
   applyTheme(); render();
 })();
