@@ -1323,6 +1323,7 @@ app.whenReady().then(async () => {
   screen.on('display-metrics-changed', place);
   screen.on('display-added', place);
   screen.on('display-removed', place);
+  for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(() => { try { if (taskbar) taskbar.wake(); } catch (e) { logError('wake', e); } }, 2500));
   powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
   configureDock();
