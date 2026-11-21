@@ -701,11 +701,20 @@ const RABBIT = {
   blink: '0000000101000|0000000101000|0000000101000|0000000111000|0000001111100|0000011111100|0000111111000|0001111111000|0001111111000',
   sleep: '0000000000000|0000000000000|0000000000000|0000000000000|0000000001100|0000000111111|0011111111110|0111111111110|0011111111100',
 };
+// Robocik: własna pomarańczowa postać Aury (antena, oczy-okienka, krótkie nóżki)
+const BOT = {
+  color: '#e8834a',
+  walk1: '0000001000000|0000001000000|0001111111000|0011011101100|0011111111100|0011111111100|0001111111000|0001000001000|0010000000100',
+  walk2: '0000001000000|0000001000000|0001111111000|0011011101100|0011111111100|0011111111100|0001111111000|0000100010000|0000100010000',
+  sit: '0000000000000|0000001000000|0001111111000|0011011101100|0011111111100|0011111111100|0001111111000|0001111111000|0011111111100',
+  blink: '0000000000000|0000001000000|0001111111000|0011111111100|0011111111100|0011111111100|0001111111000|0001111111000|0011111111100',
+  sleep: '0000000000000|0000000000000|0000000000000|0000000000000|0000000000100|0001111111100|0011111111110|0011111111110|0001111111100',
+};
 function catSvg(frame, flip) {
-  const set = st.S.idlePet === 'dog' ? DOG : st.S.idlePet === 'rabbit' ? RABBIT : CAT;
+  const set = st.S.idlePet === 'dog' ? DOG : st.S.idlePet === 'rabbit' ? RABBIT : st.S.idlePet === 'bot' ? BOT : CAT;
   const rows = set[frame].split('|'); let r = '';
   rows.forEach((row, y) => [...row].forEach((c, x) => { if (c === '1') r += `<rect x="${x}" y="${y}" width="1.02" height="1.02"/>`; }));
-  return `<svg viewBox="0 0 13 9" fill="currentColor" style="${flip ? 'transform:scaleX(-1)' : ''};color:var(--fg)" shape-rendering="crispEdges">${r}</svg>`;
+  return `<svg viewBox="0 0 13 9" fill="currentColor" style="${flip ? 'transform:scaleX(-1)' : ''};color:${set.color || 'var(--fg)'}" shape-rendering="crispEdges">${r}</svg>`;
 }
 const pet = { x: 10, dir: 1, mode: 'walk', t: 0, idle: 0 };
 setInterval(() => {

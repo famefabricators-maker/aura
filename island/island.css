@@ -34,6 +34,12 @@ body.nogl #isl { background: var(--surface); }
 .p-mid { flex: 1; min-width: 0; height: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
 #pText { font-size: 12.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #pText small { color: var(--dim); font-weight: 500; margin-left: 6px; }
+/* przewijany tytuł: postój, przejazd do końca, postój, powrót (wolniej niż czytanie, bez szarpnięć) */
+#pText .pt-run { display: inline-block; white-space: nowrap; }
+#pText.run { text-overflow: clip; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5px, #000 calc(100% - 14px), transparent); }
+#pText.run .pt-run { animation: ptRun var(--pt-t, 6s) cubic-bezier(.45,0,.55,1) .9s infinite; }
+@keyframes ptRun { 0%, 18% { transform: translateX(0); } 50%, 68% { transform: translateX(var(--pt-d)); } 100% { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { #pText.run .pt-run { animation: none; } #pText.run { text-overflow: ellipsis; -webkit-mask-image: none; } }
 .p-right { display: flex; align-items: center; gap: 7px; flex: none; min-width: 24px; justify-content: flex-end; }
 #pTime { font-size: 12px; font-weight: 600; color: var(--accent); }
 #pTime.rec { color: #ff453a; }

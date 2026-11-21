@@ -45,7 +45,7 @@ const PAGES = [
     sld('openSize', 'Rozmiar po otwarciu', 'Tylko otwarta karta.', 70, 150, '%'),
     { h: 'W spoczynku' },
     seg('idleShows', 'W spoczynku pokazuj', 'Gdy nic nie gra i nic się nie dzieje.', [['none', 'Nic'], ['clock', 'Godzina'], ['date', 'Data'], ['weather', 'Pogoda'], ['event', 'Wydarzenie'], ['pet', 'Zwierzak']]),
-    seg('idlePet', 'Zwierzak', 'Chodzi, siada, mruga i ucina drzemkę.', [['cat', 'Kot'], ['dog', 'Pies'], ['rabbit', 'Królik']], { when: s => s.idleShows === 'pet' }),
+    seg('idlePet', 'Zwierzak', 'Chodzi, siada, mruga i ucina drzemkę.', [['cat', 'Kot'], ['dog', 'Pies'], ['rabbit', 'Królik'], ['bot', 'Robocik']], { when: s => s.idleShows === 'pet' }),
     { h: 'Tekst i muzyka' },
     seg('font', 'Czcionka', 'Cyfry zawsze mają osobną czcionkę o stałej szerokości.', T.FONTS.map(f => [f.id, f.name])),
     seg('visualizer', 'Wizualizator', 'Reaguje na prawdziwy dźwięk komputera.', [['pixels', 'Piksele'], ['bars', 'Paski']]),

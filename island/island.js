@@ -268,13 +268,31 @@ function mode2rect(mode) { const t = targetFor(mode); return { x: Math.round(anc
 // ---------- pigułka ----------
 const fmt = sec => { sec = Math.max(0, Math.floor(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
 window.fmt = fmt;
+// Za długi tytuł/wykonawca: po chwili tekst przejeżdża do końca i wraca (całość do przeczytania w 10 s pokazu)
+function buildPillTitle(text, key) {
+  const run = document.createElement('span'); run.className = 'pt-run';
+  run.textContent = st.media.title || '';
+  if (st.media.artist) { const sm = document.createElement('small'); sm.textContent = st.media.artist; run.append(sm); }
+  text.append(run); text.dataset.key = key;
+  requestAnimationFrame(() => {
+    const over = run.scrollWidth - text.clientWidth;
+    if (over <= 2) return;
+    const travel = Math.min(3.6, Math.max(1.4, over / 45)); // s na przejazd w jedną stronę
+    text.style.setProperty('--pt-d', -(over + 14) + 'px');
+    text.style.setProperty('--pt-t', (travel * 2 + 2.4).toFixed(2) + 's');
+    text.classList.add('run');
+  });
+}
 function renderPill() {
   const art = $('#pArt'), icon = $('#pIcon'), text = $('#pText'), time = $('#pTime');
   const play = playing();
-  art.removeAttribute('src'); icon.innerHTML = ''; text.textContent = ''; text.classList.remove('lyric'); time.textContent = ''; time.className = 'mono';
+  // tytuł po zmianie utworu budujemy raz (nie przy każdym odświeżeniu), żeby przewijanie się nie restartowało
+  const tKey = showTitle() ? (st.media.title || '') + '\u0001' + (st.media.artist || '') : '';
+  const keepTitle = tKey && text.dataset.key === tKey && text.querySelector('.pt-run');
+  art.removeAttribute('src'); icon.innerHTML = ''; if (!keepTitle) { text.textContent = ''; text.dataset.key = ''; text.classList.remove('run'); } text.classList.remove('lyric'); time.textContent = ''; time.className = 'mono';
   if (play) { if (st.thumb) art.src = st.thumb; else icon.innerHTML = I.svg('music'); }
   else if (agentWorking()) icon.innerHTML = I.svg('agent');
-  if (showTitle()) { text.textContent = st.media.title || ''; if (st.media.artist) { const sm = document.createElement('small'); sm.textContent = st.media.artist; text.append(sm); } }
+  if (showTitle()) { if (!keepTitle) buildPillTitle(text, tKey); }
   else if (showLyric()) { text.textContent = st.lyricLine; text.classList.add('lyric'); }
   if (obsLive()) {
     const o = st.obs, live = o.live?.active, since = live ? o.live.since : o.rec.since;
