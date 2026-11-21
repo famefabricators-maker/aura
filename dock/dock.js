@@ -53,12 +53,17 @@ function render() {
     }
   }
   // grający utwór
-  const m = S.media, np = $('#np');
-  np.classList.toggle('on', !!(m && m.has));
-  if (m && m.has) {
+  // między utworami odtwarzacz na chwilę zgłasza „nic nie gra”: kafelek zostaje 3 s, żeby pasek nie skakał
+  const m = S.media, np = $('#np'), has = !!(m && m.has);
+  if (has) render.npAt = Date.now();
+  const keep = !has && Date.now() - (render.npAt || 0) < 3000;
+  if (keep) { clearTimeout(render.npT); render.npT = setTimeout(render, 3050 - (Date.now() - render.npAt)); }
+  np.classList.toggle('on', has || keep);
+  if (has) {
     $('#npTitle').textContent = m.title || ''; $('#npArtist').textContent = m.artist || ''; np.title = `${m.title || ''} — ${m.artist || ''}`;
     const art = $('#npArt'); if (m.thumb) { if (art.getAttribute('src') !== m.thumb) art.src = m.thumb; $('#npIco').style.display = 'none'; } else { art.removeAttribute('src'); $('#npIco').style.display = ''; }
-    $('#npPlay').innerHTML = I.svg(m.playing ? 'pause' : 'play');
+    const ico = m.playing ? 'pause' : 'play';
+    if (render.npIco !== ico) { render.npIco = ico; $('#npPlay').innerHTML = I.svg(ico); }
   }
   // minutnik Skupienia
   const f = S.focus, fc = $('#fc');

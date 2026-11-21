@@ -46,12 +46,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: def
 
 .live { display: flex; align-items: center; gap: 6px; }
 .live:empty, .np:not(.on), .fc:not(.on) { display: none; }
-.np { display: flex; align-items: center; gap: 8px; height: calc(var(--bar) - 14px); padding: 0 6px 0 4px; border-radius: 12px; max-width: 230px; }
+.np { display: flex; align-items: center; gap: 8px; height: calc(var(--bar) - 14px); padding: 0 6px 0 4px; border-radius: 12px; width: 230px; flex: none; box-sizing: border-box; } /* stała szerokość: zmiana utworu nie przesuwa paska */
 .np:hover { background: var(--row); }
 .np img { width: calc(var(--bar) - 22px); height: calc(var(--bar) - 22px); border-radius: 8px; object-fit: cover; flex: none; }
 .np img:not([src]) { display: none; }
 #npIco { width: 18px; height: 18px; color: var(--dim); flex: none; }
-.np-txt { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.np-txt { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
 .np-txt b { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .np-txt small { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .np-btn { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; }
