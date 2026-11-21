@@ -8,6 +8,11 @@ name: Test na macOS
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Wydanie do sprawdzenia jako pobrany .dmg (np. v2.1.8); puste = pomiń'
+        required: false
+        default: ''
 
 jobs:
   test:
@@ -64,6 +69,34 @@ jobs:
           if kill -0 $PID 2>/dev/null; then echo "DZIAŁA po 25 s" | tee "$OUT/3-zwykle/wynik.txt"; else echo "WYŁĄCZYŁA SIĘ przed 25 s" | tee "$OUT/3-zwykle/wynik.txt"; fi
           screencapture -x "$OUT/3-zwykle/ekran.png" || true
           kill $PID 2>/dev/null || true; sleep 2
+
+      - name: 4) Pobrany .dmg z wydania — jak u użytkownika
+        if: ${{ inputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          pkill -f "Electron.app" || true; pkill -f "Aura.app" || true; sleep 2
+          mkdir -p "$OUT/4-dmg"; cd "$OUT/4-dmg"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "*mac-arm64.dmg" --dir .
+          DMG="$(ls *.dmg | head -1)"; echo "plik: $DMG" | tee wynik.txt
+          xattr -w com.apple.quarantine "0083;$(printf %x $(date +%s));Safari;" "$DMG"   # jak po pobraniu przeglądarką
+          hdiutil attach "$DMG" -nobrowse -mountpoint /tmp/aura-dmg | tail -1
+          ls -la /tmp/aura-dmg | tee -a wynik.txt
+          rm -rf /Applications/Aura.app; cp -R /tmp/aura-dmg/Aura.app /Applications/ ; hdiutil detach /tmp/aura-dmg || true
+          { echo "--- podpis:"; codesign -dv --verbose=2 /Applications/Aura.app 2>&1; echo "--- weryfikacja podpisu:"; codesign --verify --deep --strict /Applications/Aura.app 2>&1 && echo OK;
+            echo "--- Gatekeeper:"; spctl --assess --type execute -vv /Applications/Aura.app 2>&1;
+            echo "--- kwarantanna:"; xattr -l /Applications/Aura.app | head -5;
+            echo "--- architektura:"; file /Applications/Aura.app/Contents/MacOS/Aura; } >> wynik.txt 2>&1
+          cp "$HOME/Library/Application Support/Aura/aura-bledy.log" "$OUT/aura-bledy-kroki-1-3.log" 2>/dev/null || true
+          rm -rf "$HOME/Library/Application Support/Aura"   # świeża instalacja: pierwsze uruchomienie
+          /Applications/Aura.app/Contents/MacOS/Aura > wyjscie.txt 2>&1 &
+          PID=$!; sleep 25
+          if kill -0 $PID 2>/dev/null; then echo "DZIAŁA po 25 s" | tee -a wynik.txt; else echo "WYŁĄCZYŁA SIĘ przed 25 s" | tee -a wynik.txt; fi
+          screencapture -x ekran.png || true
+          ps aux | grep -i "[A]ura" | head -5 >> wynik.txt
+          kill $PID 2>/dev/null || true; sleep 2
+          cat wynik.txt
 
       - name: Dziennik błędów i ustawienia
         if: always()
