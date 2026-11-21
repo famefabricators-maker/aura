@@ -518,3 +518,17 @@ small, .m-artist { letter-spacing: .005em; }
 .a-step.denied { opacity: .45; text-decoration: line-through; }
 @keyframes stepPulse { 50% { opacity: .35; } }
 body.reduce .a-step.pending .ic { animation: none; }
+
+/* RAM: co zużywa pamięć (klik w wiersz RAM w statystykach) — nakładka na siatkę widżetów */
+.w-mem { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 0; border-radius: 16px;
+  background: rgba(12,12,14,.97); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); opacity: 0; pointer-events: none; transform: translateY(6px); transition: opacity .16s, transform .2s cubic-bezier(.2,.8,.2,1); }
+.w-mem.on { opacity: 1; pointer-events: auto; transform: none; }
+.w-mem .c-pick-h span { margin-left: auto; color: var(--dim); font-size: 11.5px; }
+.mem-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 14px; align-content: start; overflow-y: auto; scrollbar-width: none; }
+.mem-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; font-size: 12px; min-width: 0; }
+.mem-row b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mem-row span { color: var(--dim); font-size: 11px; }
+.mem-row i { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--row); overflow: hidden; position: relative; }
+.mem-row i::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--p, 0%); border-radius: 2px; background: #ff9f0a; transition: width .4s cubic-bezier(.2,.8,.2,1); }
+#wStats .srow[data-k="ram"] { cursor: pointer; border-radius: 8px; transition: background .12s; }
+#wStats .srow[data-k="ram"]:hover { background: var(--row); }

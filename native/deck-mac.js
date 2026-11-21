@@ -6,6 +6,7 @@ ObjC.import('Foundation');
 ObjC.import('CoreGraphics');
 ObjC.import('ApplicationServices');
 ObjC.import('AppKit');
+ObjC.import('stdlib'); // $.exit
 
 const out = s => { $.NSFileHandle.fileHandleWithStandardOutput.writeData($(s + '\n').dataUsingEncoding($.NSUTF8StringEncoding)); };
 

@@ -181,7 +181,7 @@ const PAGES = [
     { type: 'about' },
     { type: 'button', label: 'Wprowadzenie', desc: 'Krótki przewodnik po Aurze: jak otwierać wyspę, co jest w kartach, skróty.', text: 'Pokaż wprowadzenie', fn: () => window.Welcome && Welcome.open() },
     { h: 'Aktualizacje' },
-    { type: 'update', label: 'Wersja', desc: 'Aura sprawdza GitHuba przy starcie i co 6 godzin. W wersji z instalatorem nowa wersja pobiera się sama i instaluje po ponownym uruchomieniu.' },
+    { type: 'update', label: 'Wersja', desc: 'Aura sprawdza GitHuba przy starcie i co 6 godzin. W wersji z instalatorem (Windows) i na Macu w folderze Aplikacje nowa wersja pobiera się sama i instaluje po ponownym uruchomieniu.' },
     tog('updateNotify', 'Powiadamiaj o nowych wersjach', 'Okienko na wyspie, gdy pojawi się nowa wersja.'),
   ] },
 ];

@@ -1005,7 +1005,7 @@ const deck = new Deck({
     const a = cpuSample(); await new Promise(r => setTimeout(r, 250)); const b = cpuSample();
     const cpu = 100 * (1 - (b.idle - a.idle) / Math.max(1, b.total - a.total));
     const g = await gpuSample();
-    return { cpu: Math.round(cpu), gpu: g ? Math.round(g.util) : null, ram: Math.round(100 * (1 - os.freemem() / os.totalmem())), temp: g ? Math.round(g.temp) : null };
+    return { cpu: Math.round(cpu), gpu: g ? Math.round(g.util) : null, ram: Math.round(100 * memUsed() / os.totalmem()), temp: g ? Math.round(g.temp) : null };
   },
   // akcje z telefonu: mikrofon, zrzut i nagrywanie robi Aura; zasilanie robi Deck, a my tylko powiadamiamy
   onAction: (name, info) => {
@@ -1042,6 +1042,51 @@ function gpuSample() {
     });
   });
 }
+// ---------- pamięć RAM ----------
+// macOS: „wolna” pamięć jest prawie zawsze mała (system trzyma tam pamięć podręczną), więc 1 − wolna/całość daje
+// ok. 90%. Liczymy jak Monitor aktywności: pamięć aplikacji (aktywna) + zablokowana + skompresowana.
+let macMem = null;
+function refreshMacMem() {
+  execFile('/usr/bin/vm_stat', (err, out) => {
+    if (err) return;
+    const ps = Number((String(out).match(/page size of (\d+)/) || [])[1]) || 16384;
+    const pg = k => Number((String(out).match(new RegExp(k + ':\\s+(\\d+)')) || [])[1]) || 0;
+    const used = (pg('Pages active') + pg('Pages wired down') + pg('Pages occupied by compressor')) * ps;
+    macMem = Math.min(used, os.totalmem());
+  });
+}
+function memUsed() {
+  if (IS_MAC) { refreshMacMem(); if (macMem != null) return macMem; }
+  return os.totalmem() - os.freemem();
+}
+// Co zużywa najwięcej pamięci: procesy zsumowane po aplikacji (np. wszystkie procesy Chrome razem), w MB
+function topMemory() {
+  return new Promise(resolve => {
+    const done = map => resolve([...map.entries()].map(([name, kb]) => ({ name, mb: Math.round(kb / 1024) })).sort((a, b) => b.mb - a.mb).slice(0, 8));
+    const map = new Map(), add = (n, kb) => { if (n && kb > 0) map.set(n, (map.get(n) || 0) + kb); };
+    if (IS_MAC) {
+      execFile('/bin/ps', ['-axo', 'rss=,comm='], { maxBuffer: 4 << 20 }, (err, out) => {
+        for (const line of String(out || '').split('\n')) {
+          const m = line.trim().match(/^(\d+)\s+(.+)$/); if (!m) continue;
+          const app = (m[2].match(/\/([^/]+)\.app\//) || [])[1]; // pierwsza aplikacja w ścieżce (pomocniki liczą się do niej)
+          add(app || path.basename(m[2]), Number(m[1]));
+        }
+        done(map);
+      });
+    } else {
+      execFile('tasklist', ['/fo', 'csv', '/nh'], { windowsHide: true, maxBuffer: 4 << 20 }, (err, out) => {
+        for (const line of String(out || '').split(/\r?\n/)) {
+          const c = line.match(/"([^"]*)"/g); if (!c || c.length < 5) continue;
+          const name = c[0].slice(1, -1).replace(/\.exe$/i, ''), kb = Number(c[4].slice(1, -1).replace(/[^\d]/g, ''));
+          add(name, kb);
+        }
+        done(map);
+      });
+    }
+  });
+}
+ipcMain.handle('mem-top', async () => ({ total: os.totalmem(), used: memUsed(), list: await topMemory() }));
+if (IS_MAC) refreshMacMem();
 setInterval(async () => {
   if (!statsOn && !gameOn) return;
   helper.send({ c: 'stats' });
@@ -1049,7 +1094,8 @@ setInterval(async () => {
   const cpu = prevCpu ? 100 * (1 - (s.idle - prevCpu.idle) / Math.max(1, s.total - prevCpu.total)) : 0;
   prevCpu = s;
   const gpu = await gpuSample();
-  send('stats', { cpu, ram: 100 * (1 - os.freemem() / os.totalmem()), ramUsed: (os.totalmem() - os.freemem()) / 1073741824, gpu, net: sys.net || { rx: 0, tx: 0 } });
+  const used = memUsed();
+  send('stats', { cpu, ram: 100 * used / os.totalmem(), ramUsed: used / 1073741824, gpu, net: sys.net || { rx: 0, tx: 0 } });
 }, 2000);
 ipcMain.on('stats-on', (_, on) => { statsOn = !!on; });
 
@@ -1472,21 +1518,22 @@ async function testShots(dir) {
     fs.writeFileSync(path.join(dir, 'sec.txt'), out.join('\n'));
     app.quit(); return;
   }
-  if (process.env.WYSPA_UPDATETEST) { // aktualizacje: udajemy starą wersję i sprawdzamy GitHuba
+  if (process.env.WYSPA_UPDATETEST && !process.env.WYSPA_AUTOUPD) { // aktualizacje: udajemy starą wersję i sprawdzamy GitHuba (z AUTOUPD — pełna aktualizacja niżej)
     await wait(4000);
     const s = await updates.check(true); await wait(1200);
     fs.writeFileSync(path.join(dir, 'update.txt'), JSON.stringify(s));
     fs.writeFileSync(path.join(dir, 'update-alert.png'), (await island.webContents.capturePage()).toPNG());
     app.quit(); return;
   }
-  if (process.env.WYSPA_AUTOUPD && updates.updater) { // automatyczna aktualizacja: wykrycie i pobranie, BEZ instalacji
-    updates.updater.autoInstallOnAppQuit = false;
+  if (process.env.WYSPA_AUTOUPD && (updates.updater || updates.macAuto)) { // automatyczna aktualizacja: wykrycie i pobranie (Mac: z WYSPA_AUTOUPD_INSTALL też podmiana)
+    if (updates.updater) updates.updater.autoInstallOnAppQuit = false;
     const log = s => fs.appendFileSync(path.join(dir, 'autoupd.txt'), new Date().toISOString().slice(11, 19) + ' ' + s + '\n');
     updates.on('state', s => log(JSON.stringify(s)));
     await wait(3000); updates.check(true);
-    for (let i = 0; i < 90 && updates.state.status !== 'ready' && updates.state.status !== 'error' && updates.state.status !== 'current'; i++) await wait(2000);
+    for (let i = 0; i < 90 && !['ready', 'error', 'current', 'available'].includes(updates.state.status); i++) await wait(2000);
     await wait(1500);
     fs.writeFileSync(path.join(dir, 'autoupd-alert.png'), (await island.webContents.capturePage()).toPNG());
+    if (process.env.WYSPA_AUTOUPD_INSTALL && updates.macAuto && updates.state.status === 'ready') { log('instaluję'); updates.install(); return; }
     app.exit(0); return;
   }
   if (process.env.WYSPA_DECKE2E) { // udawany telefon: parowanie → WebSocket → ruch myszy → czy kursor się przesunął

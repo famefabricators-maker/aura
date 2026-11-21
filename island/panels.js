@@ -407,7 +407,29 @@ function buildStats() {
   const box = $('#wStats'); box.textContent = '';
   for (const [k, label] of [['cpu', 'CPU'], ['gpu', 'GPU'], ['ram', 'RAM']]) { const r = el('div', 'srow'); r.append(txt('b', '', label), el('canvas'), txt('span', 'v mono', '–')); r.dataset.k = k; box.append(r); }
   const n = el('div', 'snet mono'); n.id = 'sNet'; box.append(n);
+  const ram = box.querySelector('.srow[data-k="ram"]'); ram.title = 'Kliknij: co zużywa pamięć'; ram.onclick = openMem;
 }
+// RAM: lista programów, które zużywają najwięcej pamięci (zsumowane po aplikacji), odświeżana co 3 s
+let memTimer = 0;
+const fmtMem = mb => mb >= 1024 ? (mb / 1024).toFixed(1).replace('.', ',') + ' GB' : mb + ' MB';
+async function loadMem() {
+  let d; try { d = await W.invoke('mem-top'); } catch { return; }
+  if (!d || !$('#wMem').classList.contains('on')) return;
+  const totalMb = d.total / 1048576, list = $('#wMemList');
+  $('#wMemSum').textContent = `${fmtMem(Math.round(d.used / 1048576))} z ${fmtMem(Math.round(totalMb))}`;
+  const rows = d.list || [], top = Math.max(1, ...rows.map(r => r.mb));
+  list.textContent = '';
+  if (!rows.length) { list.append(txt('small', '', 'Nie udało się odczytać listy programów.')); return; }
+  for (const r of rows) {
+    const row = el('div', 'mem-row'); row.title = `${r.name}: ${fmtMem(r.mb)} (${Math.round(100 * r.mb / totalMb)}% pamięci)`;
+    row.append(txt('b', '', r.name), txt('span', 'mono', fmtMem(r.mb)));
+    const bar = el('i'); bar.style.setProperty('--p', Math.round(100 * r.mb / top) + '%'); row.append(bar);
+    list.append(row);
+  }
+}
+function openMem() { $('#wMem').classList.add('on'); $('#wMemList').textContent = ''; $('#wMemList').append(txt('small', '', 'Sprawdzam…')); loadMem(); clearInterval(memTimer); memTimer = setInterval(loadMem, 3000); }
+function closeMem() { $('#wMem').classList.remove('on'); clearInterval(memTimer); }
+$('#wMemBack').onclick = closeMem;
 buildStats();
 W.on('stats', s => {
   // pasek dla graczy nad grą
@@ -758,13 +780,14 @@ document.addEventListener('tab', e => {
   if (id === 'controls') { W.send('controls-refresh'); renderToggles(); renderVSliders(); }
   if (id === 'launcher') renderSlots();
   if (id === 'call') renderCall(); else { camStop(); closePick(); }
+  if (id !== 'widgets') closeMem();
   if (id === 'clips') renderClips();
   if (id === 'music') renderMusic();
   if (id === 'reminders') renderReminders();
   if (id === 'web') renderWeb();
   if (id === 'deck') W.invoke('deck-state').then(s => { if (s) deckState = s; renderDeck(); });
 });
-document.addEventListener('closed', () => { camStop(); if (statsOn) { statsOn = false; W.send('stats-on', false); } $('#qr').classList.remove('on'); });
+document.addEventListener('closed', () => { camStop(); closeMem(); if (statsOn) { statsOn = false; W.send('stats-on', false); } $('#qr').classList.remove('on'); });
 document.addEventListener('settings', () => { renderMusic(); renderClips(); renderFocus(); renderNotices(); renderWeb(); });
 
 // Start kart: z sygnału „wyspa-init” albo od razu, jeśli dane przyszły, zanim ten plik się wczytał

@@ -94,6 +94,23 @@ jobs:
           echo "--- pomocnik Decka:"; cat "$OUT/5-dol-deck/deck.txt"
           ls -la "$OUT/5-dol-deck"
 
+      - name: 6) Aktualizacja na Macu — pobranie, podmiana Aura.app i ponowne uruchomienie
+        if: ${{ !inputs.tylko_dmg }}
+        run: |
+          pkill -f "Electron.app" || true; pkill -f "Aura.app" || true; sleep 2
+          mkdir -p "$OUT/6-aktualizacja"; cd "$OUT/6-aktualizacja"
+          rm -rf /Applications/Aura.app; ditto "$(ls -d $GITHUB_WORKSPACE/dist/mac*/Aura.app | head -1)" /Applications/Aura.app
+          echo "stara paczka" > /Applications/Aura.app/Contents/znacznik-testu.txt
+          WYSPA_SHOT="$PWD" WYSPA_UPDATETEST=1 WYSPA_AUTOUPD=1 WYSPA_AUTOUPD_INSTALL=1 /Applications/Aura.app/Contents/MacOS/Aura > wyjscie.txt 2>&1 &
+          for i in $(seq 1 75); do sleep 2; grep -q "instaluję" autoupd.txt 2>/dev/null && break; done
+          sleep 15
+          { echo "--- stany:"; grep -v '"downloading"' autoupd.txt | tail -8; grep '"downloading"' autoupd.txt | tail -1;
+            echo "--- znacznik starej paczki: $(test -f /Applications/Aura.app/Contents/znacznik-testu.txt && echo JEST — nie podmieniono || echo brak — podmieniono)";
+            echo "--- wersja w Aplikacjach: $(defaults read /Applications/Aura.app/Contents/Info CFBundleShortVersionString)";
+            echo "--- Aura działa po podmianie:"; ps aux | grep "[A]pplications/Aura.app/Contents/MacOS/Aura" | head -2 || true; } | tee wynik.txt
+          pkill -f "Aura.app" || true
+          cd "$GITHUB_WORKSPACE"
+
       - name: 4) Pobrany .dmg z wydania — jak u użytkownika
         if: ${{ inputs.tag != '' }}
         env:
