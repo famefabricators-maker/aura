@@ -167,7 +167,7 @@ kbd { display: inline-block; min-width: 22px; padding: 2px 6px; margin: 0 2px; b
 .wl-skip { justify-self: start; color: var(--dim); padding: 8px 4px; font-size: 13px; }
 .wl-skip:hover { color: var(--fg); }
 .wl-dots { display: flex; gap: 7px; }
-.wl-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--row-hi); transition: width .3s cubic-bezier(.2,.8,.2,1), background .2s; }
+.wl-dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--row-hi); }
 .wl-dots i.on { width: 20px; background: var(--fg); }
 .wl-nav { justify-self: end; display: flex; gap: 8px; }
 .wl-back, .wl-next { padding: 9px 18px; border-radius: 999px; font-weight: 650; font-size: 13.5px; transition: transform .1s, background .15s, opacity .15s; }
