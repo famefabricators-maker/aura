@@ -69,6 +69,7 @@ window.Welcome = (() => {
   function go(d) { const n = i + d; if (n < 0) return; if (n >= list.length) return close(); i = n; draw(d); }
   function close() {
     if (!root) return;
+    W.send('welcome-done'); // przejrzane lub zamknięte — więcej się samo nie pokaże
     root.classList.add('out'); document.removeEventListener('keydown', onKey, true);
     setTimeout(() => { root && root.remove(); root = null; }, 260);
   }
@@ -88,6 +89,7 @@ window.Welcome = (() => {
     root.querySelector('.wl-back').onclick = () => go(-1);
     root.querySelector('.wl-skip').onclick = close;
     document.addEventListener('keydown', onKey, true);
+    addEventListener('beforeunload', () => { if (root) W.send('welcome-done'); }, { once: true }); // zamknięcie okna krzyżykiem też się liczy
     draw(1);
   }
   return { open, close };

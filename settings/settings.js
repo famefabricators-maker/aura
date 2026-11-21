@@ -5,8 +5,8 @@ let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', q
 // opcje, które działają tylko na Windowsie — na Macu ich nie pokazujemy
 const MAC = W.platform === 'darwin';
 const WIN_ONLY = new Set(['appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
-  'privacyDot', 'callTimer', 'tabDeck', 'colorPick', 'liveWallpaper', 'edge', 'position', 'edgeMargin', 'shape', 'topGap']);
-const hiddenRow = r => MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry' || r.h === 'Umiejscowienie');
+  'privacyDot', 'callTimer', 'colorPick', 'liveWallpaper', 'shape', 'topGap']); // krawędź i położenie wyspy działają też na Macu (na dole bez notcha)
+const hiddenRow = r => MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry');
 const hiddenPage = p => MAC && (p.id === 'wallpaper' || p.id === 'taskbar');
 document.body.classList.toggle('mac', MAC);
 W.on('settings-pos', p => GlassBg.setPos(p));
@@ -54,7 +54,7 @@ const PAGES = [
   ] },
   { id: 'island', icon: 'music', name: 'Wyspa', preview: true, rows: [
     { h: 'Umiejscowienie' },
-    seg('edge', 'Krawędź ekranu', 'Na dole wyspa stoi nad paskiem zadań, a karta rozwija się do góry.', [['top', 'Góra'], ['bottom', 'Dół']]),
+    seg('edge', 'Krawędź ekranu', 'Na dole wyspa stoi nad paskiem zadań (na Macu nad Dockiem), a karta rozwija się do góry. Na Macu z notchem wyspa u góry otacza wycięcie.', [['top', 'Góra'], ['bottom', 'Dół']]),
     seg('position', 'Pozycja', '', [['left', 'Lewo'], ['center', 'Środek'], ['right', 'Prawo']]),
     sld('edgeMargin', 'Margines od krawędzi', 'Dla pozycji Lewo i Prawo.', 0, 400, ' px', { when: s => s.position !== 'center' }),
     tog('hiddenUntilHover', 'Ukryta do najechania', 'Nic nie widać, dopóki kursor nie stanie przy krawędzi. Komunikaty i tak się pokażą, a jeśli wybierzesz, co pokazywać w spoczynku (np. zwierzaka), wyspa zostaje z nim widoczna.'),
@@ -85,7 +85,7 @@ const PAGES = [
     tog('tabWeb', 'Web', 'Ulubione strony otwierane w małej przeglądarce pod wyspą (logowanie zostaje zapamiętane).'),
     tog('tabNotices', 'Powiadomienia', 'Ostatnie 24 komunikaty: skrypty, agenci, telefon, zrzuty, przypomnienia.'),
     tog('tabAgents', 'Agenci AI'), tog('tabShelf', 'Półka'), tog('tabClips', 'Schowek'), tog('tabWidgets', 'Widżety'),
-    tog('tabControls', 'Sterowanie'), tog('tabLauncher', 'Launcher'), tog('tabDeck', 'Telefon (PC Deck)', 'Telefon w tej samej sieci Wi-Fi jako gładzik, pilot muzyki i slajdów. Przy pierwszym włączeniu Windows może zapytać o zgodę zapory — kliknij „Zezwól”.'), tog('tabCall', 'Rozmowa'),
+    tog('tabControls', 'Sterowanie'), tog('tabLauncher', 'Launcher'), tog('tabDeck', 'Telefon (PC Deck)', 'Telefon w tej samej sieci Wi-Fi jako gładzik, pilot muzyki i slajdów. Przy pierwszym włączeniu Windows może zapytać o zgodę zapory — kliknij „Zezwól”. Na Macu Aura potrzebuje zgody „Dostępność” (Ustawienia systemowe → Prywatność i ochrona).'), tog('tabCall', 'Rozmowa'),
     { h: 'Powiadomienia' },
     tog('appNotifications', 'Powiadomienia z innych aplikacji', 'WhatsApp, Discord, Messenger, poczta i inne pokazują się na wyspie (także nad grą). Aura czyta je przez systemowy dostęp do powiadomień Windows; nic nie wychodzi z komputera. Klik otwiera aplikację.', { win: true }),
     sld('noticeSeconds', 'Czas powiadomienia', 'Jak długo baner zostaje na wyspie.', 2, 20, ' s'),

@@ -28,6 +28,9 @@ process.env.AURA_CACHE = path.join(app.getPath('userData'), 'native'); // tu pom
 // Dziennik błędów (Windows: %APPDATA%\Aura, macOS: ~/Library/Application Support/Aura) — żeby dało się sprawdzić,
 // czemu Aura nie startuje, bez dostępu do komputera użytkownika.
 const logError = (kind, e) => { try { fs.appendFileSync(path.join(app.getPath('userData'), 'aura-bledy.log'), `${new Date().toISOString()} ${app.getVersion()} ${kind}: ${(e && e.stack) || e}\n`); } catch {} };
+// Ikona pliku/aplikacji. macOS 26: app.getFileIcon w Electronie 45 wywraca całą Aurę (EXC_BREAKPOINT w wątku tła,
+// np. przy ikonie Spotify zaraz po starcie) — na Macu bez ikon systemowych, Aura ma własne zastępcze.
+const fileIcon = (p, opts = { size: 'large' }) => (process.platform === 'darwin' ? Promise.resolve(nativeImage.createEmpty()) : app.getFileIcon(p, opts));
 process.on('uncaughtException', e => logError('wyjątek', e));
 process.on('unhandledRejection', e => logError('obietnica', e));
 app.on('render-process-gone', (_, wc, d) => logError('okno', `${d.reason} (${d.exitCode}) ${wc && wc.getURL().split('/').slice(-2).join('/')}`));
@@ -63,6 +66,8 @@ const S = () => store.settings;
 const IS_MAC = process.platform === 'darwin';
 const helper = IS_MAC ? new (require('./lib/helper-mac').MacHelper)() : new Helper();
 let notch = { has: false, w: 0, h: 0 };
+// notch liczy się tylko przy wyspie u góry; na dole (także na Macu) wyspa to zwykła pigułka nad Dockiem
+const notchActive = () => IS_MAC && notch.has && S().edge !== 'bottom';
 const endpoint = new LocalEndpoint();
 const downloadsDir = () => path.join(app.getPath('downloads'), 'Aura');
 const phone = new PhoneShare(() => store.data.files, downloadsDir());
@@ -83,7 +88,7 @@ function place() {
   const d = screen.getPrimaryDisplay().bounds;
   const m = Number(S().edgeMargin) || 24, pad = 34; // pad = odstęp wyspy od krawędzi okna (renderer)
   let x = d.x + (d.width - WIN_W) / 2;
-  const centered = IS_MAC && notch.has; // na Macu z notchem wyspa zawsze otacza wycięcie
+  const centered = notchActive(); // na Macu z notchem (wyspa u góry) wyspa otacza wycięcie
   if (!centered && S().position === 'left') x = d.x + m - pad;
   if (!centered && S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
   // na dole: okno stoi nad paskiem zadań (obszar roboczy), wyspa przy jego dolnej krawędzi
@@ -100,7 +105,7 @@ function screenInfo() {
   return { w: d.bounds.width, h: d.bounds.height, x: d.bounds.x, y: d.bounds.y, winX: b.x - d.bounds.x, winY: b.y - d.bounds.y, scale: d.scaleFactor,
     // WYSPA_FAKE_NOTCH: podgląd układu macOS z notchem na Windowsie (tylko do testów)
     platform: process.env.WYSPA_FAKE_NOTCH ? 'darwin' : process.platform,
-    notch: process.env.WYSPA_FAKE_NOTCH ? { has: true, w: 200, h: 32 } : notch,
+    notch: S().edge === 'bottom' ? { has: false, w: 0, h: 0 } : process.env.WYSPA_FAKE_NOTCH ? { has: true, w: 200, h: 32 } : notch,
     dockBelow: !!(taskbar && taskbar.active && S().edge === 'bottom'),        // wyspa nad paskiem zadań Aury = pływająca pigułka
     dockShown: !!(taskbar && taskbar.active && !taskbar.isHidden()), dockLift: taskbar && taskbar.active ? taskbar.reserve + 4 : 0 };
 }
@@ -161,7 +166,7 @@ const cursorLoop = setInterval(() => {
   const r = open ? rects.o : rects.c;
   const pad = open ? 10 : 2;
   // u góry liczy się też sama krawędź ekranu nad wyspą; na dole tylko sama wyspa (wcześniej cały pas nad nią otwierał wyspę)
-  const bottom = S().edge === 'bottom' && !(IS_MAC && notch.has);
+  const bottom = S().edge === 'bottom';
   const inside = rx >= r.x - pad && rx <= r.x + r.w + pad && ry >= (bottom ? r.y - pad : -2) && ry <= r.y + r.h + pad;
   const now = Date.now();
   // zamiar: szybki przejazd kursora przez wyspę jej nie otwiera — odliczanie startuje, gdy kursor zwolni
@@ -186,7 +191,7 @@ function applySettings(patch) {
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
   if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
   if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
-  if (k.includes('edge') && helper.setEdge) helper.setEdge(S().edge === 'bottom' && !(IS_MAC && notch.has));
+  if (k.includes('edge') && helper.setEdge) helper.setEdge(S().edge === 'bottom');
   if (k.includes('downloads')) configureDownloads();
   if (k.includes('claudeUsage')) refreshClaudeUsage(true);
   if (k.includes('appNotifications')) configureToasts();
@@ -205,6 +210,7 @@ function applySettings(patch) {
 ipcMain.handle('settings-get', () => S());
 ipcMain.handle('settings-set', (_, patch) => { applySettings(patch || {}); return S(); });
 ipcMain.on('open-settings', (_, page) => openSettings(page));
+ipcMain.on('welcome-done', () => { if (!store.data.welcomeDone) { store.data.welcomeDone = true; store.saveData(); } });
 
 function openSettings(page) {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); if (page) send('goto', page, settingsWin); return; }
@@ -306,14 +312,14 @@ async function resolveAppIcon(id) {
   if (IS_MAC) { // macOS: ikona pakietu .app
     const app_ = ['/Applications/Spotify.app', '/System/Applications/Music.app'].find(p => p.toLowerCase().includes(id.toLowerCase()) && fs.existsSync(p));
     if (!app_) return null;
-    try { const ic = await app.getFileIcon(app_, { size: 'large' }); const url = ic.isEmpty() ? null : ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
+    try { const ic = await fileIcon(app_); const url = ic.isEmpty() ? null : ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
   }
   const exe = await new Promise(r => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
     `(Get-Process -Name '${name}' -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1).Path`],
     { windowsHide: true, timeout: 6000 }, (e, out) => r(e ? '' : String(out).trim())));
   if (!exe) return null;
   appExe.set(id, exe);
-  try { const ic = await app.getFileIcon(exe, { size: 'large' }); if (ic.isEmpty()) return null; const url = ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
+  try { const ic = await fileIcon(exe); if (ic.isEmpty()) return null; const url = ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
 }
 helper.on('media', m => {
   sys.media = m; send('media', m); onTrack(m);
@@ -496,7 +502,7 @@ async function thumbFor(p) {
   if (thumbs.has(p)) return thumbs.get(p);
   let img = null;
   try { img = await nativeImage.createThumbnailFromPath(p, { width: 96, height: 96 }); } catch {}
-  if (!img || img.isEmpty()) { try { img = await app.getFileIcon(p, { size: 'large' }); } catch {} }
+  if (!img || img.isEmpty()) { try { img = await fileIcon(p); } catch {} }
   thumbs.set(p, img);
   return img;
 }
@@ -944,7 +950,7 @@ ipcMain.handle('launch-pick', async (_, i) => {
 });
 const launchInfo = () => Promise.all(S().launchApps.map(async p => {
   if (!p || !fs.existsSync(p)) return null;
-  let icon = null; try { icon = (await app.getFileIcon(p, { size: 'large' })).toDataURL(); } catch {}
+  let icon = null; try { const ic = await fileIcon(p); if (!ic.isEmpty()) icon = ic.toDataURL(); } catch {}
   return { path: p, name: path.basename(p).replace(/\.(lnk|exe|url)$/i, ''), icon };
 }));
 ipcMain.handle('launch-info', launchInfo);
@@ -1013,9 +1019,10 @@ const deck = new Deck({
 });
 let deckState = null;
 deck.on('state', s => { deckState = s; both('deck', s); });
+deck.on('need-accessibility', () => addNotice({ kind: 'phone', title: 'PC Deck: daj Aurze dostęp', body: 'Ustawienia systemowe → Prywatność i ochrona → Dostępność → włącz Aurę. Bez tego Mac ignoruje ruchy z telefonu.' }));
 deck.on('pair-request', r => { alertActive = true; applyVisibility(); send('deck-pair', r); });
 ipcMain.handle('deck-state', () => deckState);
-ipcMain.handle('deck-start', async () => { if (IS_MAC) return { running: false, error: 'PC Deck działa na razie tylko na Windowsie.' }; try { return await deck.start(); } catch (e) { return { running: false, error: e.message }; } });
+ipcMain.handle('deck-start', async () => { try { return await deck.start(); } catch (e) { return { running: false, error: e.message }; } });
 ipcMain.on('deck-stop', () => deck.stop());
 ipcMain.on('deck-forget', (_, id) => deck.forget(id));
 ipcMain.on('deck-reset', () => deck.resetToken());
@@ -1173,7 +1180,7 @@ ipcMain.on('web-open', (_, url) => {
   const w = 480, h = Math.min(760, d.height - 90);
   const b = island.getBounds();
   const x = Math.round(Math.min(Math.max(d.x + 8, b.x + WIN_W / 2 - w / 2), d.x + d.width - w - 8));
-  const webY = S().edge === 'bottom' && !(IS_MAC && notch.has) ? d.y + d.height - h - 70 : d.y + 70; // przy wyspie na dole — nad nią
+  const webY = S().edge === 'bottom' ? d.y + d.height - h - 70 : d.y + 70; // przy wyspie na dole — nad nią
   if (!webWin || webWin.isDestroyed()) {
     webWin = new BrowserWindow({
       width: w, height: h, x, y: webY, frame: false, show: false, resizable: true, minWidth: 340, minHeight: 300,
@@ -1331,7 +1338,7 @@ app.whenReady().then(async () => {
   }
   setupCapture();
   createIsland();
-  if ('edgeBottom' in helper) helper.edgeBottom = S().edge === 'bottom' && !(IS_MAC && notch.has); // pomocnik sprawdza zasłonięcie właściwej krawędzi
+  if ('edgeBottom' in helper) helper.edgeBottom = S().edge === 'bottom'; // pomocnik sprawdza zasłonięcie właściwej krawędzi
   helper.start();
   startEndpoint();
   // macOS: obrazek-szablon (czarny znak A z wyspą) — system sam przebarwia go w jasnym i ciemnym pasku menu
@@ -1362,9 +1369,11 @@ app.whenReady().then(async () => {
   // macOS: Aura nie ma ikony w Docku, a przy notchu w spoczynku jej nie widać — przy pierwszym uruchomieniu
   // pokazujemy ustawienia, żeby było widać, że działa
   // pierwsza instalacja: wprowadzenie (kilka kart: co robi Aura i jak jej używać); dotychczasowi użytkownicy go nie dostają
-  if (!store.data.welcomed && !process.env.WYSPA_SHOT) {
-    const show = store.fresh; store.data.welcomed = true; store.data.macWelcomed = true; store.saveData();
-    if (show) openSettings('welcome');
+  // Wprowadzenie: pokazuje się, dopóki ktoś go nie przejdzie albo nie zamknie (welcomeDone) — wcześniej liczyło się
+  // jako pokazane już przy starcie, więc gdy Aura padła zaraz potem (Mac, macOS 26), okno nigdy się nie pojawiło.
+  if (!store.data.welcomeDone && !process.env.WYSPA_SHOT) {
+    store.data.welcomed = true; store.data.macWelcomed = true; store.saveData();
+    setTimeout(() => openSettings('welcome'), 1500);
   }
   if (IS_MAC && !store.data.macWelcomed && !process.env.WYSPA_SHOT) { store.data.macWelcomed = true; store.saveData(); openSettings(); }
   readyAt = Date.now();
