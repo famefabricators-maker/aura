@@ -167,6 +167,7 @@ function Handle($line) {
     'brightget' { Out-Line (@{ t = 'bright' } + (Get-Bright)) }
     'stats' { Out-Line (@{ t = 'net' } + (Get-Net)) }
     'ownpid' { $script:ownPid = [int]$m.pid }
+    'edge' { $script:edgeBottom = [bool]$m.bottom; $script:lastCov = -1 }
     'toasts' { $on = [bool]$m.on; if ($on -ne $script:toasts) { $script:toasts = $on; $script:toastInit = $false; $script:toastSeen = @{} } }
     'power' { if ($m.g) { [void][WyspaWin]::SetPowerMode([string]$m.g) }; Out-Line @{ t = 'power'; g = [WyspaWin]::PowerMode() } }
     'radios' { Out-Line @{ t = 'radios'; list = @(Get-Radios) } }
@@ -197,7 +198,7 @@ $readTask = $stdin.ReadLineAsync()
 $lastMedia = ''; $lastKey = ''; $thumbTries = 0
 $lastFs = $null; $lastSeq = [WyspaWin]::GetClipboardSequenceNumber()
 $lastVol = ''; $lastMic = ''; $lastKeys = -1; $lastUse = ''; $lastBright = $null
-$tick = 0; $script:force = $true; $script:ownPid = 0; $lastCov = -1; $lastCap = $null
+$tick = 0; $script:force = $true; $script:ownPid = 0; $script:edgeBottom = $false; $script:lastCov = -1; $lastCap = $null
 
 while ($true) {
   while ($readTask.IsCompleted) {
@@ -216,8 +217,8 @@ while ($true) {
   if ($fs -ne $lastFs) { $lastFs = $fs; Out-Line @{ t = 'fs'; on = $fs } }
 
   # okno zasłania górę ekranu -> wyspa zwija się do cienkiej linii
-  $cv = 0; try { $cv = [WyspaWin]::TopCovered($script:ownPid) } catch {}
-  if ($cv -ge 0 -and $cv -ne $lastCov) { $lastCov = $cv; Out-Line @{ t = 'covered'; on = ($cv -eq 1) } }
+  $cv = 0; try { $cv = [WyspaWin]::EdgeCovered($script:ownPid, $script:edgeBottom) } catch {}
+  if ($cv -ge 0 -and $cv -ne $script:lastCov) { $script:lastCov = $cv; Out-Line @{ t = 'covered'; on = ($cv -eq 1) } }
 
   # glosnosc i mikrofon
   $v = [WyspaAudio]::State(0)

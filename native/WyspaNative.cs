@@ -10,6 +10,7 @@ public static class WyspaWin {
   [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr h);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr h, uint f);
+  [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
   [DllImport("user32.dll")] static extern IntPtr MonitorFromPoint(POINT p, uint f);
   [DllImport("user32.dll")] static extern bool GetMonitorInfo(IntPtr m, ref MONITORINFO mi);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
@@ -66,9 +67,17 @@ public static class WyspaWin {
     return r.L <= mi.rcMonitor.L && r.T <= mi.rcMonitor.T && r.R >= mi.rcMonitor.R && r.B >= mi.rcMonitor.B;
   }
 
-  // Czy okno na pierwszym planie zasłania górę głównego ekranu (np. zmaksymalizowana przeglądarka)?
-  // -1 = to okno samej Wyspy (nie zmieniaj stanu), 0 = nie, 1 = tak.
-  public static int TopCovered(int ownPid) {
+  // Czy aplikacja na pierwszym planie zasłania krawędź z wyspą (np. zmaksymalizowana przeglądarka)?
+  // Liczą się WSZYSTKIE widoczne okna tej aplikacji, nie tylko to z fokusem: panel boczny Opery (Messenger)
+  // to osobne, wąskie okienko — gdy dostaje fokus, przeglądarka pod nim dalej zasłania krawędź.
+  // bottom = wyspa na dole ekranu. -1 = to okno samej Wyspy (nie zmieniaj stanu), 0 = nie, 1 = tak.
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr lp);
+  delegate bool EnumProc(IntPtr h, IntPtr lp);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int val, int size);
+  public static int TopCovered(int ownPid) { return EdgeCovered(ownPid, false); }
+  public static int EdgeCovered(int ownPid, bool bottom) {
     IntPtr h = GetForegroundWindow();
     if (h == IntPtr.Zero) return 0;
     uint pid; GetWindowThreadProcessId(h, out pid);
@@ -77,14 +86,24 @@ public static class WyspaWin {
     GetClassName(h, sb, 256);
     string c = sb.ToString();
     if (c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd" || c == "Windows.UI.Core.CoreWindow" || c == "XamlExplorerHostIslandWindow") return 0;
-    RECT r;
-    if (!GetWindowRect(h, out r)) return 0;
-    IntPtr m = MonitorFromWindow(h, 2);
+    // ekran główny (tam jest wyspa)
+    IntPtr m = MonitorFromWindow(GetDesktopWindow(), 1);
     var mi = new MONITORINFO();
     mi.cbSize = Marshal.SizeOf(typeof(MONITORINFO));
-    if (!GetMonitorInfo(m, ref mi) || (mi.dwFlags & 1) == 0) return 0;
+    if (!GetMonitorInfo(m, ref mi)) return 0;
     int cx = (mi.rcMonitor.L + mi.rcMonitor.R) / 2;
-    return (r.T <= mi.rcWork.T + 12 && r.L <= cx - 200 && r.R >= cx + 200 && r.B > mi.rcWork.T + 200) ? 1 : 0;
+    bool hit = false;
+    EnumWindows((w, lp) => {
+      uint wp; GetWindowThreadProcessId(w, out wp);
+      if (wp != pid || !IsWindowVisible(w) || IsIconic(w)) return true;
+      int cloaked; if (DwmGetWindowAttribute(w, 14, out cloaked, 4) == 0 && cloaked != 0) return true; // ukryte karty/pulpity
+      RECT r; if (!GetWindowRect(w, out r)) return true;
+      bool wide = r.L <= cx - 200 && r.R >= cx + 200;
+      bool edge = bottom ? (r.B >= mi.rcWork.B - 12 && r.T < mi.rcWork.B - 200) : (r.T <= mi.rcWork.T + 12 && r.B > mi.rcWork.T + 200);
+      if (wide && edge) { hit = true; return false; }
+      return true;
+    }, IntPtr.Zero);
+    return hit ? 1 : 0;
   }
 
   public static int LockKeys() {

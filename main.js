@@ -186,6 +186,7 @@ function applySettings(patch) {
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
   if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
   if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
+  if (k.includes('edge') && helper.setEdge) helper.setEdge(S().edge === 'bottom' && !(IS_MAC && notch.has));
   if (k.includes('downloads')) configureDownloads();
   if (k.includes('claudeUsage')) refreshClaudeUsage(true);
   if (k.includes('appNotifications')) configureToasts();
@@ -1313,6 +1314,7 @@ app.whenReady().then(async () => {
   }
   setupCapture();
   createIsland();
+  if ('edgeBottom' in helper) helper.edgeBottom = S().edge === 'bottom' && !(IS_MAC && notch.has); // pomocnik sprawdza zasłonięcie właściwej krawędzi
   helper.start();
   startEndpoint();
   tray = new Tray(IS_MAC ? nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 18, height: 18 }) : path.join(__dirname, 'icon.ico'));
