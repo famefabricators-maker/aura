@@ -125,7 +125,8 @@ function closedMode() {
   // nowy utwór: wyspa wysuwa się z tytułem na 10 s także nad oknem, które zasłania górę (np. przeglądarką)
   if (showTitle() && (st.S.pillTitle || 'change') === 'change') return 'pill';
   if (st.S.slimCovered && st.covered) return 'slim';   // okno zasłania górę: cienka linia
-  if (st.S.hiddenUntilHover && !hasLive()) return 'hidden';
+  // schowana w spoczynku — chyba że wybrano, co ma być wtedy widać (zwierzak, godzina, pogoda…): to wygrywa
+  if (st.S.hiddenUntilHover && !hasLive() && (st.S.idleShows || 'none') === 'none') return 'hidden';
   return 'pill';
 }
 // tytuł utworu w zamkniętej wyspie: przez 10 s po zmianie utworu (domyślnie), zawsze albo nigdy

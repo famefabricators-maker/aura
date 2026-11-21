@@ -57,7 +57,7 @@ const PAGES = [
     seg('edge', 'Krawędź ekranu', 'Na dole wyspa stoi nad paskiem zadań, a karta rozwija się do góry.', [['top', 'Góra'], ['bottom', 'Dół']]),
     seg('position', 'Pozycja', '', [['left', 'Lewo'], ['center', 'Środek'], ['right', 'Prawo']]),
     sld('edgeMargin', 'Margines od krawędzi', 'Dla pozycji Lewo i Prawo.', 0, 400, ' px', { when: s => s.position !== 'center' }),
-    tog('hiddenUntilHover', 'Ukryta do najechania', 'Nic nie widać, dopóki kursor nie stanie przy górnej krawędzi. Komunikaty i tak się pokażą.'),
+    tog('hiddenUntilHover', 'Ukryta do najechania', 'Nic nie widać, dopóki kursor nie stanie przy krawędzi. Komunikaty i tak się pokażą, a jeśli wybierzesz, co pokazywać w spoczynku (np. zwierzaka), wyspa zostaje z nim widoczna.'),
     sld('hoverDelay', 'Opóźnienie otwarcia', 'Ile kursor musi stać na wyspie, zanim się otworzy.', 0, 600, ' ms', { step: 10 }),
     tog('reverseScroll', 'Odwrócone przewijanie na wyspie', 'Kółko na pigułce zmienia głośność, na pasku kart przełącza karty.'),
     seg('animationSpeed', 'Szybkość animacji', 'Szybka skraca czas mniej więcej o jedną trzecią.', [['calm', 'Spokojna'], ['normal', 'Normalna'], ['fast', 'Szybka']]),
