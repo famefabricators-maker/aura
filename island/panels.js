@@ -42,27 +42,35 @@ function renderMusic() {
   $('#music').classList.toggle('empty-state', !has);
   $('#mEmpty').classList.toggle('on', !has);
   if (!has) { $('#mBg').classList.remove('on'); $('#card').classList.remove('album'); return; }
-  $('#mTitle').textContent = m.title || 'Bez tytułu';
+  // bez zmian w DOM, gdy nic się nie zmieniło: podmiana elementów pod kursorem co aktualizację dawała migotanie
+  const mTitleKey = (m.title || '') + '|' + st.tab + '|' + !!st.S.lyrics;
+  if (renderMusic.title !== mTitleKey) { renderMusic.title = mTitleKey; $('#mTitle').textContent = m.title || 'Bez tytułu';
   const t = $('.m-title'); t.classList.remove('marquee');
-  requestAnimationFrame(() => { const span = $('#mTitle'); if (span.scrollWidth > t.clientWidth + 2) { t.classList.add('marquee'); if (!span.dataset.dup) { span.textContent = (m.title + '  ').repeat(2); span.dataset.dup = '1'; } } else span.dataset.dup = ''; });
+  requestAnimationFrame(() => { const span = $('#mTitle'); if (span.scrollWidth > t.clientWidth + 2) { t.classList.add('marquee'); if (!span.dataset.dup) { span.textContent = (m.title + '  ').repeat(2); span.dataset.dup = '1'; } } else span.dataset.dup = ''; }); }
   $('#mArtist').textContent = m.artist || prettyApp(m.app);
   const solid = st.S.musicBackground === 'solid';
   $('#mArtist').style.color = solid && albumColor ? albumColor : '';
   const art = $('#mArt');
-  if (st.thumb) { art.src = st.thumb; $('#mArtNote').style.display = 'none'; } else { art.removeAttribute('src'); $('#mArtNote').style.display = ''; }
+  if (st.thumb) { if (art.getAttribute('src') !== st.thumb) art.src = st.thumb; $('#mArtNote').style.display = 'none'; } else { art.removeAttribute('src'); $('#mArtNote').style.display = ''; }
   const bg = $('#mBg');
   bg.classList.toggle('on', !solid && !!st.thumb && T.surface(st.S.surface).id !== 'white');
   $('#card').classList.toggle('album', bg.classList.contains('on') && st.tab === 'music');
-  bg.style.backgroundImage = st.thumb ? `url("${st.thumb}")` : '';
+  const bgImg = st.thumb ? `url("${st.thumb}")` : '';
+  if (renderMusic.bg !== bgImg) { renderMusic.bg = bgImg; bg.style.backgroundImage = bgImg; }
   const app = prettyApp(m.app); const badge = $('#mBadge');
   badge.title = app;
   const icon = appIcons[m.app];
-  badge.classList.toggle('img', !!icon || /spotify/i.test(m.app));
-  if (icon) { badge.innerHTML = ''; const img = el('img'); img.src = icon; img.alt = app; badge.append(img); }
-  else if (/spotify/i.test(m.app)) badge.innerHTML = SPOTIFY_BADGE;
-  else badge.innerHTML = I.svg('music');
+  const badgeKey = icon ? 'i:' + icon : /spotify/i.test(m.app) ? 'spotify' : 'music';
+  if (renderMusic.badge !== badgeKey) {
+    renderMusic.badge = badgeKey;
+    badge.classList.toggle('img', !!icon || /spotify/i.test(m.app));
+    if (icon) { badge.innerHTML = ''; const img = el('img'); img.src = icon; img.alt = app; badge.append(img); }
+    else if (/spotify/i.test(m.app)) badge.innerHTML = SPOTIFY_BADGE;
+    else badge.innerHTML = I.svg('music');
+  }
   if (m.app && !(m.app in appIcons)) { appIcons[m.app] = null; W.invoke('app-icon', m.app).then(u => { if (u) { appIcons[m.app] = u; renderMusic(); } }); }
-  $('#bPlay').innerHTML = I.svg(m.playing ? 'pause' : 'play');
+  const playIco = m.playing ? 'pause' : 'play';
+  if (renderMusic.play !== playIco) { renderMusic.play = playIco; $('#bPlay').innerHTML = I.svg(playIco); }
   $('#bNext').disabled = !m.canNext; $('#bPrev').disabled = !m.canPrev;
   $('#mEnd').textContent = m.end > 1 ? '-' + fmt(m.end - mediaPos()) : (m.playing ? 'na żywo' : '');
 }
@@ -157,7 +165,9 @@ W.on('media', m => {
 let titleKey = '', titleTimer = 0;
 W.on('thumb', d => { st.thumb = d || null; albumColor = null; if (d) extractColor(d); renderMusic(); update(); });
 W.on('vol', v => { st.vol = v; renderVol(); renderCall(); });
-W.on('lyrics', l => { lyrics = l; st.lyricLines = l; $('#mLyric').textContent = ''; st.lyricLine = ''; buildLyrics(); update(); });
+W.on('lyrics', l => {
+  st.lyricsLoading = l === 'loading'; if (st.lyricsLoading) { l = null; clearTimeout(st.lyricsLoadT); st.lyricsLoadT = setTimeout(() => { st.lyricsLoading = false; update(); }, 8000); }
+  lyrics = l; st.lyricLines = l; $('#mLyric').textContent = ''; st.lyricLine = ''; buildLyrics(); update(); });
 // kolumna tekstu: wszystkie linijki, bieżąca na ok. 40% wysokości, klik w linijkę przewija utwór do niej
 let lyrCur = -1;
 function buildLyrics() {

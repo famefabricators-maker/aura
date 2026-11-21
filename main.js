@@ -1055,8 +1055,8 @@ async function onTrack(m) {
   const key = `${m.artist}|${m.title}`;
   if (key === lyricsKey) return;
   lyricsKey = key;
-  send('lyrics', null);
-  if (!m.artist) return;
+  if (!m.artist) { send('lyrics', null); return; }
+  send('lyrics', 'loading'); // karta zostaje szeroka, dopóki szukamy tekstu (wcześniej zwężała się i rozszerzała przy każdej zmianie utworu)
   const H = { headers: { 'User-Agent': 'Aura/2.1 (https://github.com/famefabricators-maker/aura)' } };
   // „Recap (feat. X)”, „Song - Remastered 2011”, „A, B” -> czysty tytuł i pierwszy wykonawca do wyszukiwania
   const clean = s => String(s || '').replace(/\s*[([](feat\.?|ft\.?|with|prod\.?)[^)\]]*[)\]]/ig, '').replace(/\s+-\s+(.*remaster.*|radio edit|live.*|.*version)$/i, '').trim();
@@ -1080,7 +1080,8 @@ async function onTrack(m) {
       }
     }
   } catch {}
-  if (lyricsKey !== key || !synced) return;
+  if (lyricsKey !== key) return;
+  if (!synced) { send('lyrics', null); return; }
   const lines = synced.split('\n').map(l => { const mm = l.match(/^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$/); return mm ? { t: +mm[1] * 60 + +mm[2], text: mm[3] } : null; }).filter(Boolean);
   send('lyrics', lines);
 }

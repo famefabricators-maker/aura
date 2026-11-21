@@ -9,7 +9,15 @@ const WIDGETS_DEFAULT = ['today', 'focus', 'weather', 'stats'];
 const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? st.S.widgets : WIDGETS_DEFAULT);
 const tabH = tab => { if (tab === 'music' && lyricsPanel()) return 196; if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
 // tekst piosenki na żywo: karta muzyki poszerza się o kolumnę tekstu (gdy teksty włączone i utwór ma tekst z czasami)
-const lyricsPanel = () => !!(st.S.lyrics && st.lyricLines && st.lyricLines.length && st.media && st.media.has);
+// kolumna tekstu także w trakcie szukania tekstu nowego utworu i przez 2,5 s przerwy między utworami
+// (bez tego karta zwężała się i rozszerzała przy każdej zmianie utworu)
+const lyricsPanel = () => {
+  const on = !!(st.S.lyrics && st.media && st.media.has && ((st.lyricLines && st.lyricLines.length) || st.lyricsLoading));
+  if (on) { st.lyricsPanelAt = Date.now(); return true; }
+  const left = 2500 - (Date.now() - (st.lyricsPanelAt || 0));
+  if (st.S.lyrics && left > 0) { clearTimeout(st.lyricsHoldT); st.lyricsHoldT = setTimeout(update, left + 30); return true; }
+  return false;
+};
 const cardW = () => (st.tab === 'music' && lyricsPanel() ? 722 : 420);
 const TABS = [
   { id: 'music', icon: 'music', name: 'Muzyka' }, { id: 'web', icon: 'globe', name: 'Web', key: 'tabWeb' },
@@ -214,7 +222,9 @@ function regionUniforms() {
   return { screen: { w: r.w, h: r.h }, win: { x: st.screen.winX - r.x, y: st.screen.winY - r.y } };
 }
 st.cursors = [];
-function recentCursors() { const now = performance.now(); st.cursors = st.cursors.filter(c => now - c.t < 260); return st.cursors; }
+// ślad z ostatnich 260 ms + ZAWSZE ostatnia pozycja: stojący kursor też jest w obrazie ekranu (wcześniej po 260 ms
+// bez ruchu jego rozmyty „duch” wracał pod szkło, a przy ruchu znikał — wyglądało to jak miganie kursora)
+function recentCursors() { const now = performance.now(), last = st.cursors[st.cursors.length - 1]; st.cursors = st.cursors.filter(c => c === last || now - c.t < 260); return st.cursors; }
 W.on('cursor', c => { if (!c) st.cursors = []; else { st.cursors.push({ x: c.x, y: c.y, t: performance.now() }); if (st.cursors.length > 12) st.cursors.shift(); } });
 
 // ---------- tryby i warstwy ----------
