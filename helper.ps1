@@ -170,8 +170,18 @@ function Handle($line) {
     'toasts' { $on = [bool]$m.on; if ($on -ne $script:toasts) { $script:toasts = $on; $script:toastInit = $false; $script:toastSeen = @{} } }
     'power' { if ($m.g) { [void][WyspaWin]::SetPowerMode([string]$m.g) }; Out-Line @{ t = 'power'; g = [WyspaWin]::PowerMode() } }
     'radios' { Out-Line @{ t = 'radios'; list = @(Get-Radios) } }
+    'devices' { Out-Line @{ t = 'devices'; out = @(ConvertTo-Dev ([WyspaAudio]::Devices(0))); in = @(ConvertTo-Dev ([WyspaAudio]::Devices(1))) } }
+    'setdev' {
+      [void][WyspaAudio]::SetDefault([string]$m.id); $script:lastVol = $null; $script:lastMic = $null
+      Out-Line @{ t = 'devices'; out = @(ConvertTo-Dev ([WyspaAudio]::Devices(0))); in = @(ConvertTo-Dev ([WyspaAudio]::Devices(1))) }
+    }
     'radio' { Set-Radio ([string]$m.kind) ([bool]$m.on); Out-Line @{ t = 'radios'; list = @(Get-Radios) } }
   }
+}
+
+# "id\x1fnazwa\x1f1\x1e…" -> obiekty { id, name, def }
+function ConvertTo-Dev([string]$s) {
+  foreach ($r in ($s.Split([char]0x1e) | Where-Object { $_ })) { $f = $r.Split([char]0x1f); @{ id = $f[0]; name = $f[1]; def = ($f[2] -eq '1') } }
 }
 
 # "app*FILETIME|app2*FILETIME" -> obiekty { app, since (ms od 1970) }

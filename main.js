@@ -384,6 +384,13 @@ ipcMain.on('mute', (_, on) => helper.send({ c: 'mute', on }));
 ipcMain.on('mic-toggle', toggleMic);
 ipcMain.on('brightness', (_, v) => helper.send({ c: 'bright', v }));
 ipcMain.on('power-mode', (_, g) => helper.send({ c: 'power', g }));
+// urządzenia dźwięku (karta Rozmowa): lista i przełączanie domyślnych głośników/mikrofonu
+helper.on('devices', m => { sys.devices = { out: m.out || [], in: m.in || [] }; send('devices', sys.devices); });
+ipcMain.on('audio-devices', () => { if (!IS_MAC) helper.send({ c: 'devices' }); });
+ipcMain.on('audio-set', (_, id) => { // tylko id z ostatniej listy od Windows
+  const d = sys.devices; if (IS_MAC || !d || typeof id !== 'string' || ![...d.out, ...d.in].some(x => x.id === id)) return;
+  helper.send({ c: 'setdev', id });
+});
 ipcMain.on('radio', (_, r) => helper.send({ c: 'radio', kind: r.kind, on: r.on }));
 ipcMain.on('controls-refresh', () => { helper.send({ c: 'brightget' }); helper.send({ c: 'power' }); helper.send({ c: 'radios' }); });
 ipcMain.on('open-uri', (_, uri) => { if (/^ms-settings:|^ms-screenclip:/.test(uri)) shell.openExternal(uri); });

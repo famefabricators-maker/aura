@@ -334,9 +334,34 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px;
 .c-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .c-info b { font-size: 14px; }
 .c-info > small { color: var(--dim); font-size: 11.5px; margin-bottom: 4px; }
-.c-dev { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--dim); }
-.c-dev span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.c-dev .ico { width: 13px; height: 13px; }
+/* urządzenie = przycisk: klik otwiera listę do wyboru (bez wchodzenia w ustawienia Windows) */
+.c-dev { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--dim); max-width: 100%; margin: 0 -6px; padding: 3px 6px; border-radius: 8px; text-align: left; transition: background .12s, color .12s, transform .1s; }
+.c-dev:hover { background: var(--row); color: var(--fg); }
+.c-dev:active { transform: scale(.98); }
+.c-dev span:nth-child(2) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-dev .ico { width: 13px; height: 13px; flex: none; }
+.c-chev { width: 6px; height: 6px; flex: none; margin-left: 1px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); opacity: .6; }
+.c-pick { position: absolute; inset: 4px 16px 14px; display: flex; flex-direction: column; gap: 7px; opacity: 0; pointer-events: none; transform: translateY(6px); transition: opacity .16s, transform .2s cubic-bezier(.2,.8,.2,1); background: inherit; }
+#call.picking > :not(.c-pick) { opacity: 0; pointer-events: none; transition: opacity .12s; }
+#call > :not(.c-pick) { transition: opacity .16s; }
+#call.picking .c-pick { opacity: 1; pointer-events: auto; transform: none; }
+.c-pick-h { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.c-back { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--row); flex: none; }
+.c-back:hover { background: var(--row-hi); }
+.c-back::before { content: ''; width: 7px; height: 7px; border-left: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor; transform: translateX(1.5px) rotate(45deg); }
+.c-list { display: grid; grid-template-columns: 1fr; gap: 5px; align-content: start; overflow-y: auto; min-height: 0; flex: 1; scrollbar-width: none; }
+.c-list.two { grid-template-columns: 1fr 1fr; } /* więcej niż 3 urządzenia: dwie kolumny, wszystko widać bez przewijania */
+.c-opt { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 11px; border-radius: 11px; font-size: 12px; text-align: left; background: var(--row); transition: background .12s, transform .1s; }
+.c-opt:hover { background: var(--row-hi); }
+.c-opt:active { transform: scale(.985); }
+.c-opt span { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.c-opt span b, .c-opt span small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-opt span b { font-weight: 600; font-size: 12.5px; }
+.c-opt span small { font-size: 10.5px; color: var(--dim); }
+.c-opt .ok { width: 15px; height: 15px; flex: none; color: var(--accent, #c0a4f8); opacity: 0; }
+.c-opt.on span b { font-weight: 750; }
+.c-opt.on .ok { opacity: 1; }
+.c-opt .ok svg { width: 100%; height: 100%; }
 .c-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 #cVideo { position: absolute; right: 16px; top: 10px; width: 132px; height: 100px; border-radius: 12px; object-fit: cover; transform: scaleX(-1); display: none; background: #000; }
 #cVideo.on { display: block; }

@@ -638,6 +638,40 @@ function renderCall() {
 }
 $('#cMic').onclick = () => W.send('mic-toggle');
 $('#cSound').onclick = () => W.send('open-uri', 'ms-settings:sound');
+// wybór głośników / mikrofonu prosto z karty (Windows); na Macu bez listy — zostaje link do ustawień
+let devices = null, pickFlow = null;
+// „Słuchawki (Arctis 7 Game)” -> [„Arctis 7 Game”, „Słuchawki”]: to, co odróżnia urządzenia, na pierwszym planie
+function devLabel(name) {
+  const m = String(name || 'Urządzenie').match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+  if (!m) return [name || 'Urządzenie', ''];
+  const generic = /^(słuchawki|głośniki|głośnik|zestaw słuchawkowy|mikrofon.*|headphones|speakers?|headset.*|microphone.*|wejście.*|line in.*)$/i;
+  return generic.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
+}
+function renderPick() {
+  const list = $('#cList'); list.innerHTML = '';
+  const items = devices ? devices[pickFlow] || [] : [];
+  list.classList.toggle('two', items.length > 3);
+  $('#cPickT').textContent = pickFlow === 'in' ? 'Mikrofon' : 'Głośniki';
+  if (!items.length) { const s = el('small'); s.style.color = 'var(--dim)'; s.textContent = devices ? 'Brak urządzeń.' : 'Wczytuję urządzenia…'; list.append(s); return; }
+  for (const d of items) {
+    const b = el('button', 'c-opt' + (d.def ? ' on' : '')); const n = el('span'); const [main, sub] = devLabel(d.name);
+    const nb = el('b'); nb.textContent = main; n.append(nb); if (sub) { const ns = el('small'); ns.textContent = sub; n.append(ns); }
+    const ok = el('i', 'ok'); ok.innerHTML = I.svg('check');
+    b.append(n, ok); b.title = d.name;
+    b.onclick = () => { if (!d.def) { for (const x of items) x.def = x === d; renderPick(); W.send('audio-set', d.id); } setTimeout(closePick, 220); };
+    list.append(b);
+  }
+  const on = list.querySelector('.c-opt.on'); if (on) on.scrollIntoView({ block: 'nearest' });
+}
+function openPick(flow) {
+  if (isMac()) return W.send('open-uri', 'ms-settings:sound');
+  pickFlow = flow; $('#call').classList.add('picking'); renderPick(); W.send('audio-devices');
+}
+function closePick() { pickFlow = null; $('#call').classList.remove('picking'); }
+$('#cOutBtn').onclick = () => openPick('out');
+$('#cInBtn').onclick = () => openPick('in');
+$('#cBack').onclick = closePick;
+W.on('devices', d => { devices = d; if (pickFlow) renderPick(); });
 let camStream = null;
 function camStop() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } $('#cVideo').classList.remove('on'); $('#cCam').lastChild.textContent = 'Sprawdź kamerę'; }
 $('#cCam').onclick = async () => {
@@ -706,7 +740,7 @@ document.addEventListener('tab', e => {
   if (id === 'widgets') { renderToday(); renderFocus(); W.send('weather-refresh'); renderReminders(); }
   if (id === 'controls') { W.send('controls-refresh'); renderToggles(); renderVSliders(); }
   if (id === 'launcher') renderSlots();
-  if (id === 'call') renderCall(); else camStop();
+  if (id === 'call') renderCall(); else { camStop(); closePick(); }
   if (id === 'clips') renderClips();
   if (id === 'music') renderMusic();
   if (id === 'reminders') renderReminders();

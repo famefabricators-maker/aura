@@ -254,6 +254,16 @@ interface IMMDeviceEnumerator {
   int GetDefaultAudioEndpoint(int flow, int role, out IMMDevice dev);
 }
 [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorCom { }
+// Ustawienie domyślnego urządzenia (nieudokumentowane, ale stabilne od Windows 7 — używa go m.in. panel dźwięku).
+[ComImport, Guid("f8679f50-850a-41cf-9c72-430f290290c8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IPolicyConfig {
+  int GetMixFormat(); int GetDeviceFormat(); int ResetDeviceFormat(); int SetDeviceFormat();
+  int GetProcessingPeriod(); int SetProcessingPeriod(); int GetShareMode(); int SetShareMode();
+  int GetPropertyValue(); int SetPropertyValue();
+  int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string id, int role);
+  int SetEndpointVisibility();
+}
+[ComImport, Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9")] class PolicyConfigClient { }
 
 public static class WyspaAudio {
   static IMMDeviceEnumerator en;
@@ -283,6 +293,30 @@ public static class WyspaAudio {
       PropVariant pv; store.GetValue(ref key, out pv);
       return pv.vt == 31 ? Marshal.PtrToStringUni(pv.p) : "";
     } catch { return ""; }
+  }
+  // Aktywne urządzenia: rekordy "id\x1fnazwa\x1f1 gdy domyślne", oddzielone \x1e
+  public static string Devices(int flow) {
+    var list = new List<string>();
+    try {
+      if (en == null) en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+      string def = null; IMMDevice d0;
+      if (en.GetDefaultAudioEndpoint(flow, flow == 1 ? 2 : 0, out d0) == 0 && d0 != null) d0.GetId(out def);
+      IMMDeviceCollection col; en.EnumAudioEndpoints(flow, 1, out col);
+      uint n; col.GetCount(out n);
+      for (uint i = 0; i < n; i++) {
+        IMMDevice dev; col.Item(i, out dev); string id; dev.GetId(out id);
+        list.Add(id + "\x1f" + Name(dev) + "\x1f" + (id == def ? "1" : "0"));
+      }
+    } catch { }
+    return string.Join("\x1e", list.ToArray());
+  }
+  // Domyślne urządzenie dla wszystkich ról (konsola, multimedia, komunikacja) — jak wybór w panelu Windows
+  public static bool SetDefault(string id) {
+    try {
+      var pc = (IPolicyConfig)new PolicyConfigClient();
+      for (int role = 0; role < 3; role++) pc.SetDefaultEndpoint(id, role);
+      return true;
+    } catch { return false; }
   }
   public static string State(int flow) {
     try {
