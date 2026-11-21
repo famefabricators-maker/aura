@@ -423,7 +423,7 @@ async function loadMem() {
   for (const r of rows) {
     const row = el('div', 'mem-row'); row.title = `${r.name}: ${fmtMem(r.mb)} (${Math.round(100 * r.mb / totalMb)}% pamięci)`;
     row.append(txt('b', '', r.name), txt('span', 'mono', fmtMem(r.mb)));
-    const bar = el('i'); bar.style.setProperty('--p', Math.round(100 * r.mb / top) + '%'); row.append(bar);
+    const bar = el('i'); bar.style.setProperty('--s', (r.mb / top).toFixed(3)); row.append(bar);
     list.append(row);
   }
 }
