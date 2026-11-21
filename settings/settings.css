@@ -36,6 +36,13 @@ aside { width: 214px; flex: none; padding: 14px 10px; background: var(--side); b
 .search { display: flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; background: var(--row); margin-bottom: 12px; color: var(--dim); }
 .search span { width: 14px; height: 14px; flex: none; }
 .search input { flex: 1; min-width: 0; background: none; border: 0; outline: none; font-size: 12.5px; }
+/* „x” do wyczyszczenia całego wyszukiwania — widoczny tylko, gdy coś wpisano */
+.s-clear { width: 18px; height: 18px; margin: -2px -4px -2px 0; flex: none; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center;
+  background: var(--row-hi); color: var(--fg); cursor: pointer; opacity: 0; transform: scale(.7); pointer-events: none; transition: opacity .15s, transform .15s; }
+.s-clear svg { width: 11px; height: 11px; }
+.search.has .s-clear { opacity: .75; transform: scale(1); pointer-events: auto; }
+.search.has .s-clear:hover { opacity: 1; }
+.s-clear:active { transform: scale(.88); }
 nav button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; color: var(--dim); font-weight: 600; font-size: 13px; text-align: left; position: relative; }
 nav button span { width: 16px; height: 16px; flex: none; }
 nav button:hover { background: var(--row); color: var(--fg); }

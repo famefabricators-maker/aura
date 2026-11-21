@@ -219,7 +219,7 @@ function renderNav() {
     if (hiddenPage(p)) continue;
     const b = el('button'); const ic = el('span'); ic.innerHTML = I.svg(p.icon); b.append(ic, document.createTextNode(p.name));
     if (p.id === page && !query) b.classList.add('on');
-    b.onclick = () => { page = p.id; query = ''; $('#search').value = ''; render(); $('#main').scrollTop = 0; };
+    b.onclick = () => { page = p.id; query = ''; $('#search').value = ''; $('.search').classList.remove('has'); render(); $('#main').scrollTop = 0; };
     nav.append(b);
   }
 }
@@ -423,7 +423,11 @@ function recordHotkey(btn, key) {
 
 // ---------- start ----------
 $('#sIco').innerHTML = '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>';
-$('#search').oninput = e => { query = e.target.value.trim(); render(); };
+const syncClear = () => $('.search').classList.toggle('has', !!$('#search').value);
+$('#search').oninput = e => { query = e.target.value.trim(); syncClear(); render(); };
+$('#sClear').innerHTML = I.svg('x');
+$('#sClear').onclick = () => { $('#search').value = ''; query = ''; syncClear(); render(); $('#search').focus(); };
+$('#search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('#search').value) { e.stopPropagation(); $('#sClear').click(); } });
 $('#author').onclick = () => W.send('open-author');
 W.on('settings', s => { S = s; applyTheme(); if (!document.activeElement || document.activeElement.type !== 'range') render(); });
 W.on('hotkey-errors', e => { hkErrors = e || []; if (page === 'keys') render(); });

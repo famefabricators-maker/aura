@@ -138,7 +138,9 @@ window.WyspaGL = (() => {
       float slope = q / sqrt(max(1.0 - q * q, 0.015));
       float bend = min(slope, 7.0) * 2.4;                 // px przesunięcia próbki
       vec2 c = u_pos + u_size * 0.5;
-      vec2 off = -n * bend + (p - c) * -0.035;           // zagięcie na brzegu + lekkie powiększenie całości
+      // odbicie w fazce: próbka z lustra względem wewnętrznej linii fazki = obraz przy brzegu do góry nogami
+      float mirror = 2.0 * max(bezel - inside, 0.0) * 0.95;
+      vec2 off = -n * (mirror + bend * 0.35) + (p - c) * -0.035; // + lekkie powiększenie całości
       // Pole załamania przy brzegu (krawędź, obręcz, fala, wzmocnienie w rogach) według liquid-glass-js
       // (MIT, © 2025 Armagan Amcalar), opisane w LiquidGlassSkill (MIT, © 2026 Aref Azizian).
       float W0 = min(u_size.x, 420.0);
@@ -153,7 +155,7 @@ window.WyspaGL = (() => {
         vec2 sp = pw + u_win;
         // 0% = czyste szkło (tylko załamanie), 50% = wygląd domyślny, 100% = mocno zmatowione
         // rozmycie rośnie szybko już przy małych wartościach (pierwiastek), a nie dopiero pod koniec suwaka
-        float lod = sqrt(u_blur) * 5.4 + u_open * 0.6 * u_blur;
+        float lod = (sqrt(u_blur) * 5.4 + u_open * 0.6 * u_blur) * (1.0 - edge * 0.6); // fazka mniej rozmyta: widać odbicie
         vec3 g;
         float disp = 0.10 * edge;                          // rozszczepienie barw tylko przy krawędzi
         g.r = sampleBlur((sp + off * (1.0 + disp)) / u_screen, lod).r;
@@ -165,7 +167,9 @@ window.WyspaGL = (() => {
         // przyciemnienie prawie stałe — mocne rozmycie ma dawać matowe szkło, nie szarą plamę
         float tint = mix(0.16, 0.24, u_blur) + u_open * 0.10;
         tint = mix(tint, 0.80, smoothstep(0.32, 0.92, lum) * (0.5 + 0.5 * u_open) * (0.55 + 0.45 * u_blur));
+        tint *= 1.0 - edge * 0.5;                          // jaśniejsza fazka, żeby odbicie było widać
         col = mix(g, u_base, tint);
+        col += g * exp(-inside / 5.0) * 0.40;              // kolorowa poświata z tła wzdłuż boków
       } else col = u_base * 0.9;
       vec2 L = normalize(vec2(-0.55, -0.83));
       float ndl = dot(n, L);

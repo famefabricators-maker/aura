@@ -25,19 +25,27 @@ window.GlassBg = (() => {
     vec3 base = vec3(0.045, 0.045, 0.058);
     vec3 col = base;
     if (u_has > 0.5) {
-      // lekka soczewka przy krawędziach okna
+      // soczewka przy brzegu okna: w pasie R obraz odbity lustrzanie (do góry nogami), mniej rozmyty, z poświatą
       float e = min(min(p.x, sz.x - p.x), min(p.y, sz.y - p.y));
       vec2 n = normalize(vec2(p.x < sz.x * 0.5 ? -1.0 : 1.0, p.y < sz.y * 0.5 ? -1.0 : 1.0) * vec2(step(min(p.x, sz.x - p.x), e + 0.5), step(min(p.y, sz.y - p.y), e + 0.5)) + 1e-4);
-      float q = clamp(1.0 - e / 22.0, 0.0, 1.0);
-      vec2 off = -n * q * q * 14.0;
+      float R = 20.0;
+      float q = clamp(1.0 - e / R, 0.0, 1.0);
+      float rim = smoothstep(0.0, 1.0, q);
+      vec2 off = -n * 2.0 * max(R - e, 0.0) * 0.95;       // odbicie względem wewnętrznej linii pasa
       vec2 uv = (p + u_win + off) / u_screen;
-      float lod = 1.2 + u_blur * 5.6;
-      vec3 g = blur(uv, lod);
+      float lod = (1.2 + u_blur * 5.6) * (1.0 - rim * 0.6);
+      vec3 g;
+      float disp = 0.06 * rim;                            // rozszczepienie barw na samej krawędzi
+      g.r = blur((p + u_win + off * (1.0 + disp)) / u_screen, lod).r;
+      g.g = blur(uv, lod).g;
+      g.b = blur((p + u_win + off * (1.0 - disp)) / u_screen, lod).b;
       float lum = dot(g, vec3(0.299, 0.587, 0.114));
       g = mix(vec3(lum), g, 1.4);                         // żywe kolory tapety
       float tint = mix(0.30, 0.52, u_blur);
       tint = mix(tint, 0.84, smoothstep(0.35, 0.92, lum)); // jasne tło mocniej przyciemnione (czytelność)
+      tint *= 1.0 - rim * 0.55;                           // krawędź jaśniejsza, żeby odbicie było widać
       col = mix(g, base, tint + (1.0 - u_focus) * 0.06);
+      col += g * exp(-e / 7.0) * 0.45;                    // kolorowa poświata z tła wzdłuż boków
       col += vec3(1.0) * q * q * 0.03;
     }
     float edge = min(min(p.x, sz.x - p.x), min(p.y, sz.y - p.y));
@@ -52,7 +60,7 @@ window.GlassBg = (() => {
     // Zapas wokół okna: rozmycie sięga ~100 px poza okno, a w ruchu okno musi zmieścić się w starym wycinku.
     // Wycinek jest przyklejony do stałej siatki 128 px ekranu — wtedy mipmapy (z których liczy się rozmycie)
     // nie przeliczają się inaczej przy każdym przesunięciu okna i tło nie migocze.
-    const M = moving() ? 480 : 200, G = 128 / k;
+    const M = 480, G = 128 / k; // stały zapas: zmiana rozmiaru wycinka przy ruchu dawała przeskoki rozmycia
     const x0 = Math.max(0, Math.floor((pos.x - M) / G) * G), y0 = Math.max(0, Math.floor((pos.y - M) / G) * G);
     const x1 = Math.min(pos.sw, Math.ceil((pos.x + innerWidth + M) / G) * G), y1 = Math.min(pos.sh, Math.ceil((pos.y + innerHeight + M) / G) * G);
     return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0), sw: pos.sw };
@@ -113,7 +121,7 @@ window.GlassBg = (() => {
           const W2 = Math.max(1, Math.round(r.w * k)), H2 = Math.max(1, Math.round(r.h * k));
           if (crop.width !== W2 || crop.height !== H2) { crop.width = W2; crop.height = H2; }
           cctx.drawImage(video, r.x * k, r.y * k, W2, H2, 0, 0, W2, H2);
-          const nowT = performance.now(); cursors = cursors.filter(c => nowT - c.t < 260);
+          const nowT = performance.now(), lastC = cursors[cursors.length - 1]; cursors = cursors.filter(c => c === lastC || nowT - c.t < 260); // stojący kursor też
           if (window.paintOverCursors) window.paintOverCursors(cctx, crop, r, k, cursors);
           gl.bindTexture(gl.TEXTURE_2D, tex);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, crop);
