@@ -123,7 +123,7 @@ window.WyspaGL = (() => {
       vec2 c0 = u_pos + u_size * 0.5;
       float rr = min(u_r, min(u_size.x, u_size.y) * 0.5);
       float ds = sdBox(p - vec2(c0.x, c0.y + 5.0), u_size * 0.5, rr); // cień tylko od korpusu, bez „uszu”
-      sh = (u_glass > 0.5 ? 0.30 : 0.22) * exp(-max(ds, 0.0) / 9.0) * smoothstep(-2.0, 2.0, d) * smoothstep(u_pos.y + 4.0, u_pos.y + 16.0, p.y);
+      sh = (u_glass > 0.5 ? (u_hasTex > 0.5 ? 0.30 : 0.10) : 0.22) * exp(-max(ds, 0.0) / 9.0) * smoothstep(-2.0, 2.0, d) * smoothstep(u_pos.y + 4.0, u_pos.y + 16.0, p.y);
     }
     if (aa <= 0.0) { o = vec4(0.0, 0.0, 0.0, sh); return; }
     vec3 col = u_base;
@@ -170,14 +170,18 @@ window.WyspaGL = (() => {
         tint *= 1.0 - edge * 0.5;                          // jaśniejsza fazka, żeby odbicie było widać
         col = mix(g, u_base, tint);
         col += g * exp(-inside / 5.0) * 0.40;              // kolorowa poświata z tła wzdłuż boków
-      } else col = u_base * 0.9;
+      } else {
+        // bez obrazu pulpitu (macOS): przydymiona tafla — lekki pionowy gradient, jaśniej przy górze
+        float gy = clamp((p.y - u_pos.y) / max(u_size.y, 1.0), 0.0, 1.0);
+        col = mix(u_base + vec3(0.07, 0.07, 0.085), u_base * 0.85, gy);
+      }
       vec2 L = normalize(vec2(-0.55, -0.83));
       float ndl = dot(n, L);
       float rimLine = smoothstep(1.5, 0.0, inside) * (0.22 + 0.78 * pow(abs(ndl), 1.6));
       float rimGlow = exp(-inside / 4.5) * pow(max(ndl, 0.0), 2.0);
       float innerShade = exp(-inside / 6.0) * max(-ndl, 0.0);
       col += vec3(1.0) * rimLine * 0.55;                  // cienki refleks na brzegu (z obu stron)
-      col += vec3(1.0) * rimGlow * 0.10;                  // poświata od strony światła
+      col += vec3(1.0) * rimGlow * (u_hasTex > 0.5 ? 0.10 : 0.04); // poświata od strony światła (bez obrazu pulpitu słabsza)
       col *= 1.0 - innerShade * 0.16;                     // cień wewnętrzny po drugiej stronie
       col += vec3(1.0) * edge * edge * 0.035;             // jaśniejsza fazka
       col += (hash(p * 1.7 + u_time) - 0.5) * 0.012;      // ziarno przeciw pasmom
@@ -186,7 +190,9 @@ window.WyspaGL = (() => {
       col += vec3(1.0) * smoothstep(1.2, 0.0, inside) * 0.035 * u_open; // ledwie widoczna krawędź
     }
     col += particles(pw);
-    o = vec4(col * aa, aa) + vec4(0.0, 0.0, 0.0, sh) * (1.0 - aa);
+    // szkło bez obrazu pulpitu: lekko przezroczyste i z mniejszym cieniem (przy notchu cień wyglądał jak poświata dookoła)
+    float al = (u_glass > 0.5 && u_hasTex < 0.5) ? 0.88 : 1.0;
+    o = vec4(col * aa * al, aa * al) + vec4(0.0, 0.0, 0.0, sh) * (1.0 - aa);
   }`;
 
   let gl, prog, loc = {}, tex, canvas, video = null, hasTex = false, texSize = [1, 1];

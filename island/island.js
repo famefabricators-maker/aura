@@ -354,8 +354,9 @@ let capStream = null, capVideo = null, capWanted = '';
 function glassLive() { return capVideo && T.surface(st.S.surface).glass; }
 async function ensureCapture() {
   const glass = !!T.surface(st.S.surface).glass;
-  // macOS: Electron nie daje dźwięku systemu, a przechwytywanie ekranu wymaga zgody — tylko dla szkła
-  if (isMac() && !glass) return;
+  // macOS: bez przechwytywania ekranu w ogóle — nagrywanie ekranu na Macu zapala wskaźnik nagrywania, pyta o zgodę
+  // i mocno obciąża procesor; szkło rysujemy tam bez obrazu pulpitu (przydymiona tafla), a dźwięku systemu Electron i tak nie daje
+  if (isMac()) return;
   const want = glass ? 'glass' : 'audio';
   if (capWanted === want && capStream) return;
   capWanted = want;

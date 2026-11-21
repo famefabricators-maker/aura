@@ -199,7 +199,7 @@ function applyTheme() {
   if (surf.glass) { // tło rysuje GlassBg: rozmyty obraz pulpitu pod oknem
     Object.assign(vars, { '--bg': 'rgba(10,10,14,0)', '--side': 'rgba(0,0,0,.16)', '--row': 'rgba(255,255,255,.075)', '--row-hi': 'rgba(255,255,255,.14)', '--line': 'rgba(255,255,255,.10)' });
     if (!glassReady) glassReady = GlassBg.init($('#glassbg')) ? 'ok' : 'fail';
-    if (glassReady === 'ok') { GlassBg.setBlur((S.glassBlur ?? 50) / 100); if (!GlassBg.running) { W.invoke('settings-pos'); GlassBg.start(); } }
+    if (glassReady === 'ok') { GlassBg.setBlur((S.glassBlur ?? 50) / 100); if (!GlassBg.running && !MAC) { W.invoke('settings-pos'); GlassBg.start(); } }
   } else if (glassReady === 'ok' && GlassBg.running) GlassBg.stop();
   for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
   document.body.classList.toggle('glass', !!surf.glass);
