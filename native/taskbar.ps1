@@ -4,7 +4,7 @@
 #   {"c":"act","h":123} {"c":"focus","h":123} {"c":"close","h":123} {"c":"keys","k":"start|quick|notif"} {"c":"pid","pid":1}
 #   {"c":"quit"}
 # Wysyła: {"t":"state","s":N} raz na starcie oraz {"t":"windows","list":"..."} przy każdej zmianie okien.
-param([int]$Orig = -1, [string]$Marker = '')
+param([int]$Orig = -1, [string]$Marker = '', [int]$AuraPid = 0)
 $ErrorActionPreference = 'Stop'
 # proces odłączony (bez konsoli): ustawienie kodowania konsoli może rzucić błąd — wtedy zostaje domyślne
 try { [Console]::InputEncoding = New-Object System.Text.UTF8Encoding $false } catch {}
@@ -52,7 +52,8 @@ $state = if ($Orig -ge 0) { $Orig } else { [AuraTaskbar]::GetState() }
 Out-Line @{ t = 'state'; s = $state }
 [AuraTaskbar]::Hide()
 # znacznik: „pasek Windows schowany, oryginalny stan = N” — stróż przywróci go, gdyby Aura padła
-if ($Marker) { try { [IO.File]::WriteAllText($Marker, [string]$state) } catch {} }
+# „stan pid”: stróż innej kopii Aury nie ruszy cudzego znacznika (wcześniej kasował go przy szybkim restarcie)
+if ($Marker) { try { [IO.File]::WriteAllText($Marker, "$state $AuraPid") } catch {} }
 
 $ownPid = 0; $last = ''; $tick = 0; $lastTray = ''
 $stdin = New-Object System.IO.StreamReader ([Console]::OpenStandardInput()), ([System.Text.Encoding]::UTF8)
@@ -95,5 +96,6 @@ try {
 } finally {
   try { [AuraTaskbar]::Unreserve() } catch {}
   [AuraTaskbar]::Restore($state)
-  if ($Marker) { try { [IO.File]::Delete($Marker) } catch {} }
+  # kasujemy tylko własny znacznik (nowsza kopia Aury mogła już zapisać swój)
+  if ($Marker) { try { $mk = ([IO.File]::ReadAllText($Marker)).Trim().Split(' '); if ($mk.Count -lt 2 -or [int]$mk[1] -eq $AuraPid) { [IO.File]::Delete($Marker) } } catch {} }
 }

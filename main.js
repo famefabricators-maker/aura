@@ -1307,6 +1307,9 @@ function configureDock() {
   if (IS_MAC) return;
   if (!taskbar) {
     taskbar = new Taskbar({ S, set: p => applySettings(p), preload: path.join(__dirname, 'preload.js'),
+      // pierwotny stan paska Windows: zapisany raz (nie nadpisujemy go stanem, który ustawiła sama Aura)
+      getOrig: () => store.data.taskbarOrig, saveOrig: v => { if (!Number.isFinite(store.data.taskbarOrig) && Number.isFinite(v)) { store.data.taskbarOrig = v; store.saveData(); } },
+      clearOrig: () => { if ('taskbarOrig' in store.data) { delete store.data.taskbarOrig; store.saveData(); } },
       mediaProc: id => mediaProcName(id), mediaExe: id => appExe.get(id) || null });
     taskbar.on('change', place);
     taskbar.on('visibility', () => send('screen', screenInfo())); // pasek wysunięty/schowany: wyspa na dole podjeżdża razem z nim
