@@ -47,7 +47,7 @@
 
 1. Wejdź w **[Releases](../../releases/latest)** i pobierz `Aura-Setup-x.y.z.exe`.
 2. Uruchom instalator. Windows może pokazać „System Windows ochronił ten komputer”, bo aplikacja nie ma płatnego podpisu cyfrowego. Kliknij **Więcej informacji → Uruchom mimo to**.
-3. Aura pojawi się u góry ekranu, a jej ikona w zasobniku obok zegara. Kliknięcie ikony otwiera ustawienia.
+3. Aura pojawi się u góry ekranu i pokaże krótkie wprowadzenie. Jej ikona (litera A z fioletową wyspą) jest w zasobniku obok zegara — kliknięcie otwiera ustawienia.
 
 **Mało miejsca na dysku C:?** Instalator zawsze rozpakowuje się najpierw do folderu tymczasowego na C: (ok. 120 MB), nawet gdy wybierzesz inny dysk. Pobierz wtedy wersję przenośną `Aura-x.y.z-portable.zip`: rozpakuj ją np. na `D:\Aura` i uruchom `Aura.exe`. Bez instalacji, a wszystkie dane trzyma w folderze `dane` obok programu, więc na C: nie zapisuje nic swojego.
 
@@ -78,6 +78,9 @@ Na macOS działają: muzyka (Spotify i Apple Music), głośność i mikrofon, p�
 - **Widżety** — dzień i kalendarz (.ics), minutnik skupienia, pogoda (Open-Meteo), CPU / GPU / RAM / sieć.
 - **Przypomnienia** — z drzemką i powtarzaniem.
 - **Sterowanie** — głośność, jasność, Wi-Fi, Bluetooth, mikrofon dla wszystkich aplikacji, tryb zasilania.
+- **Rozmowa** — duży przycisk wyciszania mikrofonu wszędzie, minutnik rozmowy (Discord, Teams, Zoom, przeglądarki…) i wybór głośników oraz mikrofonu prosto z wyspy, bez wchodzenia w ustawienia Windows.
+- **Pasek zadań w stylu Maca** (Windows, opcjonalnie) — ciemny dok z aplikacjami, ikonami przy zegarze i grającą muzyką; chowa się pod oknami i wysuwa przy dolnej krawędzi. Pasek Windows wraca sam po wyłączeniu lub zamknięciu Aury.
+- **Wyspa u góry albo na dole** ekranu — na dole jeździ razem z paskiem zadań.
 - **Launcher** — zrzut ekranu, wycinek, nagrywanie ekranu i sześć miejsc na aplikacje.
 - **Web** — ulubione strony w małej przeglądarce pod wyspą.
 - **Telefon (PC Deck)** — telefon jako gładzik i pilot (muzyka, slajdy, aplikacje); każdy telefon zatwierdzasz na komputerze.
@@ -90,7 +93,8 @@ Na macOS działają: muzyka (Spotify i Apple Music), głośność i mikrofon, p�
   curl -X POST http://127.0.0.1:47900/notify -d "{\"title\":\"Build\",\"body\":\"gotowy\"}"
   ```
 
-- **Zwierzak** w spoczynku (kot, pies, królik), wąski pasek pod zmaksymalizowanymi oknami, skróty klawiszowe do wszystkiego.
+- **Zwierzak** w spoczynku (kot, pies, królik, Robocik), wąski pasek pod zmaksymalizowanymi oknami, skróty klawiszowe do wszystkiego.
+- **Wprowadzenie** przy pierwszym uruchomieniu — kilka kart o tym, jak korzystać z Aury (później: Ustawienia → Informacje).
 
 ## Domyślne skróty
 
