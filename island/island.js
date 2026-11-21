@@ -436,7 +436,7 @@ function showHud(h) {
 }
 
 // ---------- baner i alert ----------
-const NOTICE_ICON = { script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell' };
+const NOTICE_ICON = { script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell', web: 'globe' };
 let bannerTimer = null;
 function showBanner(n) {
   if (st.alert) return;

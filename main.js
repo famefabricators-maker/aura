@@ -672,6 +672,7 @@ ipcMain.on('notices-clear', () => { store.data.notices = []; store.saveData(); s
 const RUNNABLE = /\.(exe|com|scr|pif|msi|msix|msp|appx|appxbundle|bat|cmd|ps1|psm1|psd1|vbs|vbe|js|jse|wsf|wsh|hta|lnk|url|reg|cpl|inf|jar|chm|scf|application|appref-ms|settingcontent-ms|library-ms|iso|img|vhd|vhdx|xll|docm|xlsm|pptm|dll|sys|gadget|msc)$/i;
 ipcMain.on('notice-open', (_, id) => {
   const n = (store.data.notices || []).find(x => x.id === id);
+  if (n && n.kind === 'web') { if (webWin && !webWin.isDestroyed()) { if (webWin.isMinimized()) webWin.restore(); webWin.show(); webWin.focus(); } return; } // powiadomienie ze strony: pokaż okno Web
   if (n && n.kind === 'app' && n.aumid) { execFile('explorer.exe', ['shell:AppsFolder\\' + n.aumid], () => {}); return; } // otwórz program, od którego było powiadomienie
   if (!n || !n.path || !fs.existsSync(n.path)) return;
   if ((n.kind === 'phone' || n.kind === 'download') && RUNNABLE.test(n.path)) shell.showItemInFolder(n.path); else shell.openPath(n.path);
@@ -1190,7 +1191,8 @@ ipcMain.on('web-open', (_, url) => {
     });
     webWin.setMenu(null);
     webWin.loadFile(path.join('web', 'index.html'));
-    webView = new WebContentsView({ webPreferences: { partition: 'persist:wyspa-web', contextIsolation: true, sandbox: true } });
+    webView = new WebContentsView({ webPreferences: { partition: 'persist:wyspa-web', contextIsolation: true, sandbox: true, backgroundThrottling: false,
+      preload: path.join(__dirname, 'web', 'page-preload.js') } }); // powiadomienia stron -> wyspa; bez dławienia w tle (np. Messenger)
     webView.setBorderRadius(12);
     webView.setBackgroundColor('#0b0b0c');
     webWin.contentView.addChildView(webView);
@@ -1203,10 +1205,18 @@ ipcMain.on('web-open', (_, url) => {
     wc.on('before-input-event', esc);
     webWin.webContents.on('before-input-event', esc);
     webWin.on('resize', layoutWeb);
+    // położenie i rozmiar zapamiętane (po zamknięciu i ponownym otwarciu okno wraca na swoje miejsce)
+    let saveT = null;
+    const saveBounds = () => { clearTimeout(saveT); saveT = setTimeout(() => { if (!webWin || webWin.isDestroyed() || webWin.isMinimized()) return; store.data.webBounds = webWin.getBounds(); store.saveData(); }, 400); };
+    for (const ev of ['moved', 'resized', 'move', 'resize']) webWin.on(ev, saveBounds);
     webWin.on('close', e => { if (!quitting) { e.preventDefault(); hideWeb(); } });
     webWin.on('closed', () => { webWin = null; webView = null; });
   }
-  webWin.setBounds({ x, y: webY, width: w, height: h });
+  // zapamiętane położenie, o ile ekran nadal istnieje; inaczej domyślnie przy wyspie
+  const sb = store.data.webBounds;
+  const onScreen = sb && screen.getAllDisplays().some(dd => { const a = dd.workArea; return sb.x + 60 < a.x + a.width && sb.x + sb.width - 60 > a.x && sb.y >= a.y - 10 && sb.y + 40 < a.y + a.height; });
+  if (!webWin.isVisible() && !webWin.isMinimized()) webWin.setBounds(onScreen ? sb : { x, y: webY, width: w, height: h });
+  if (webWin.isMinimized()) webWin.restore();
   layoutWeb();
   if (webView.webContents.getURL() !== url) webView.webContents.loadURL(url);
   webWin.show(); webWin.focus();
@@ -1220,6 +1230,19 @@ ipcMain.on('web-cmd', (_, cmd) => {
   if (cmd === 'reload') wc.reload();
   if (cmd === 'external' && /^https?:\/\//i.test(wc.getURL())) shell.openExternal(wc.getURL());
   if (cmd === 'close') hideWeb();
+  if (cmd === 'min' && webWin && !webWin.isDestroyed()) webWin.minimize();
+});
+// powiadomienia stron z karty Web (np. Messenger: kto i co napisał) -> wyspa; tylko z naszego widoku, z limitem
+const webNotifyLog = [];
+ipcMain.on('web-notify', (e, n) => {
+  if (!webView || e.sender !== webView.webContents || !S().webNotifications || !n) return;
+  const now = Date.now(); while (webNotifyLog.length && now - webNotifyLog[0] > 60000) webNotifyLog.shift();
+  if (webNotifyLog.length >= 20 || (webNotifyLog.length && now - webNotifyLog[webNotifyLog.length - 1] < 800)) return; // najwyżej 20/min
+  webNotifyLog.push(now);
+  let site = ''; try { site = new URL(webView.webContents.getURL()).hostname.replace(/^www\./, ''); } catch {}
+  const title = String(n.title || '').trim(), body = String(n.body || '').trim();
+  if (!title && !body) return;
+  addNotice({ kind: 'web', title: title || site, body: body ? body : site, site });
 });
 ipcMain.on('web-pins', (_, pins) => { if (Array.isArray(pins)) applySettings({ webPins: pins.filter(p => p && /^https?:\/\//i.test(p.url)).slice(0, 12) }); });
 

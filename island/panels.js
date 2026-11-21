@@ -232,7 +232,7 @@ function renderNotices() {
   const list = $('#nList'); list.textContent = '';
   for (const n of st.notices) {
     const row = el('div', 'row');
-    row.append(el('div', 'tile', I.svg({ script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell' }[n.kind] || 'bell')));
+    row.append(el('div', 'tile', I.svg({ script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell', web: 'globe' }[n.kind] || 'bell')));
     const t = el('div', 'txt'); t.append(txt('b', '', n.title)); if (n.body) t.append(txt('span', '', n.body)); row.append(t);
     row.append(txt('span', 'when mono', st.S.noticeClockTime ? clock(new Date(n.ts)) : ago(n.ts)));
     const x = el('button', 'x', I.svg('x')); x.title = 'Usuń'; x.onclick = e => { e.stopPropagation(); W.send('notice-remove', n.id); }; row.append(x);

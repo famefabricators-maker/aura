@@ -83,6 +83,7 @@ const PAGES = [
   { id: 'cards', icon: 'widgets', name: 'Karty', rows: [
     { h: 'Karty na wyspie' },
     tog('tabWeb', 'Web', 'Ulubione strony otwierane w małej przeglądarce pod wyspą (logowanie zostaje zapamiętane).'),
+    tog('webNotifications', 'Powiadomienia ze stron Web na wyspie', 'Np. Messenger w karcie Web: kto i co napisał pokaże się na wyspie zamiast okienka systemowego. Strona musi być otwarta (może być schowana).'),
     tog('tabNotices', 'Powiadomienia', 'Ostatnie 24 komunikaty: skrypty, agenci, telefon, zrzuty, przypomnienia.'),
     tog('tabAgents', 'Agenci AI'), tog('tabShelf', 'Półka'), tog('tabClips', 'Schowek'), tog('tabWidgets', 'Widżety'),
     tog('tabControls', 'Sterowanie'), tog('tabLauncher', 'Launcher'), tog('tabDeck', 'Telefon (PC Deck)', 'Telefon w tej samej sieci Wi-Fi jako gładzik, pilot muzyki i slajdów. Przy pierwszym włączeniu Windows może zapytać o zgodę zapory — kliknij „Zezwól”. Na Macu Aura potrzebuje zgody „Dostępność” (Ustawienia systemowe → Prywatność i ochrona).'), tog('tabCall', 'Rozmowa'),

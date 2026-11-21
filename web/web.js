@@ -1,6 +1,6 @@
 // Pasek okna Web: wstecz, dalej, odśwież, otwórz w przeglądarce, zamknij.
 const W = window.wyspa, $ = s => document.querySelector(s);
-for (const id of ['back', 'fwd', 'reload', 'close']) $('#' + id).onclick = () => W.send('web-cmd', id);
+for (const id of ['back', 'fwd', 'reload', 'close', 'min']) $('#' + id).onclick = () => W.send('web-cmd', id);
 $('#ext').onclick = () => W.send('web-cmd', 'external');
 document.addEventListener('keydown', e => { if (e.key === 'Escape') W.send('web-cmd', 'close'); });
 W.on('web-info', i => {
