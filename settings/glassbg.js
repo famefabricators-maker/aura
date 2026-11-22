@@ -104,7 +104,8 @@ window.GlassBg = (() => {
   async function start() {
     if (stream) return;
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 60, max: 60 } }, audio: false });
+      const mac = /mac/i.test(navigator.platform); // Mac: lżej — obraz pomniejszony i 30 kl/s
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: mac ? { frameRate: { ideal: 30, max: 30 }, width: { max: 1440 }, height: { max: 960 } } : { frameRate: { ideal: 60, max: 60 } }, audio: false });
       video = document.createElement('video'); video.muted = true; video.playsInline = true;
       video.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
       document.body.append(video);

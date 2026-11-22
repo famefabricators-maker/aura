@@ -41,7 +41,7 @@ window.WyspaGL = (() => {
   uniform vec2 u_pos; uniform vec2 u_size; uniform float u_r; uniform float u_ear; uniform float u_island;
   uniform vec3 u_base; uniform float u_glass; uniform float u_blur; uniform float u_tint;
   uniform vec2 u_screen; uniform vec2 u_win; uniform sampler2D u_tex; uniform float u_hasTex; uniform vec2 u_texSize;
-  uniform vec3 u_accent; uniform float u_time; uniform float u_open; uniform int u_fx; uniform float u_light; uniform float u_flip;
+  uniform vec3 u_accent; uniform float u_time; uniform float u_open; uniform int u_fx; uniform float u_light; uniform float u_flip; uniform float u_soft;
   out vec4 o;
 
   float sdBox(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
@@ -169,7 +169,7 @@ window.WyspaGL = (() => {
         tint = mix(tint, 0.80, smoothstep(0.32, 0.92, lum) * (0.5 + 0.5 * u_open) * (0.55 + 0.45 * u_blur));
         tint *= 1.0 - edge * 0.5;                          // jaśniejsza fazka, żeby odbicie było widać
         col = mix(g, u_base, tint);
-        col += g * exp(-inside / 5.0) * 0.40;              // kolorowa poświata z tła wzdłuż boków
+        col += g * exp(-inside / 5.0) * mix(0.40, 0.14, u_soft);             // kolorowa poświata z tła wzdłuż boków
       } else {
         // bez obrazu pulpitu (macOS): przydymiona tafla — lekki pionowy gradient, jaśniej przy górze
         float gy = clamp((p.y - u_pos.y) / max(u_size.y, 1.0), 0.0, 1.0);
@@ -181,7 +181,7 @@ window.WyspaGL = (() => {
       float rimGlow = exp(-inside / 4.5) * pow(max(ndl, 0.0), 2.0);
       float innerShade = exp(-inside / 6.0) * max(-ndl, 0.0);
       col += vec3(1.0) * rimLine * 0.55;                  // cienki refleks na brzegu (z obu stron)
-      col += vec3(1.0) * rimGlow * (u_hasTex > 0.5 ? 0.10 : 0.04); // poświata od strony światła (bez obrazu pulpitu słabsza)
+      col += vec3(1.0) * rimGlow * (u_hasTex > 0.5 ? mix(0.10, 0.05, u_soft) : 0.04); // poświata od strony światła (bez obrazu pulpitu słabsza)
       col *= 1.0 - innerShade * 0.16;                     // cień wewnętrzny po drugiej stronie
       col += vec3(1.0) * edge * edge * 0.035;             // jaśniejsza fazka
       col += (hash(p * 1.7 + u_time) - 0.5) * 0.012;      // ziarno przeciw pasmom
@@ -211,7 +211,7 @@ window.WyspaGL = (() => {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const a = gl.getAttribLocation(prog, 'a');
     gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light', 'u_flip'])
+    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light', 'u_flip', 'u_soft'])
       loc[n] = gl.getUniformLocation(prog, n);
     tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -272,7 +272,7 @@ window.WyspaGL = (() => {
     gl.uniform1f(loc.u_open, st.open);
     gl.uniform1i(loc.u_fx, st.fx || 0);
     gl.uniform1f(loc.u_light, st.light ? 1 : 0);
-    gl.uniform1f(loc.u_flip, st.flip ? 1 : 0);
+    gl.uniform1f(loc.u_flip, st.flip ? 1 : 0); gl.uniform1f(loc.u_soft, st.soft ? 1 : 0); // Mac: słabsza poświata (przy pasku menu wyglądała jak obwódka)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   return { init, draw, setVideo, uploadFrame, get ok() { return !!gl; } };

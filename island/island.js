@@ -204,7 +204,7 @@ function drawGL(now) {
   const w = spring.w.x, h = Math.max(0, spring.h.x);
   const openness = Math.max(0, Math.min(1, (h - 36) / 140));
   WyspaGL.draw({
-    x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(),
+    x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(), soft: isMac(),
     base: T.hexToRgb(surf.base), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
     accent: T.hexToRgb(st.accent), time: (now - t0) / 1000, open: openness, fx: surf.fx || 0, light: surf.light,
@@ -356,13 +356,20 @@ async function ensureCapture() {
   const glass = !!T.surface(st.S.surface).glass;
   // macOS: bez przechwytywania ekranu w ogóle — nagrywanie ekranu na Macu zapala wskaźnik nagrywania, pyta o zgodę
   // i mocno obciąża procesor; szkło rysujemy tam bez obrazu pulpitu (przydymiona tafla), a dźwięku systemu Electron i tak nie daje
-  if (isMac()) return;
+  // Wyjątek: opcja „Prawdziwe szkło na Macu” — świadomie włączona, z lekkim przechwytywaniem (niżej)
+  if (isMac() && !(glass && st.S.macRealGlass)) {
+    if (capStream) { capStream.getTracks().forEach(t => t.stop()); capStream = null; capWanted = ''; }
+    if (capVideo) { capVideo.remove(); capVideo = null; WyspaGL.setVideo(null); }
+    return;
+  }
   const want = glass ? 'glass' : 'audio';
   if (capWanted === want && capStream) return;
   capWanted = want;
   try {
     if (!capStream) {
-      capStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 60, max: 60 } }, audio: !isMac() });
+      // Mac: obraz pomniejszony i 30 kl/s — pełna Retina 60 razy na sekundę dawała przycięcia, a rozmycie i tak nie potrzebuje ostrości
+      const video = isMac() ? { frameRate: { ideal: 30, max: 30 }, width: { max: 1440 }, height: { max: 960 } } : { frameRate: { ideal: 60, max: 60 } };
+      capStream = await navigator.mediaDevices.getDisplayMedia({ video, audio: !isMac() });
       const at = capStream.getAudioTracks()[0];
       if (at) {
         const ctx = new AudioContext();
@@ -555,7 +562,7 @@ isl.addEventListener('wheel', e => {
 }, { passive: false });
 
 // ---------- zdarzenia z procesu głównego ----------
-W.on('settings', s => { const prevSurf = st.S.surface; st.S = s; if (prevSurf !== s.surface) resetCaptureIfNeeded(); applyTheme(); update(); document.dispatchEvent(new CustomEvent('settings')); });
+W.on('settings', s => { const prevSurf = st.S.surface, prevReal = st.S.macRealGlass; st.S = s; if (prevSurf !== s.surface) resetCaptureIfNeeded(); if (prevReal !== s.macRealGlass) ensureCapture(); applyTheme(); update(); document.dispatchEvent(new CustomEvent('settings')); });
 W.on('screen', s => { st.screen = s; if (st.S && st.S.surface) update(); else kick(); });
 W.on('hud', h => showHud(h));
 W.on('banner', n => showBanner(n));

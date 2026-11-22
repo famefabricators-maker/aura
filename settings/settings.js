@@ -6,7 +6,7 @@ let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', q
 const MAC = W.platform === 'darwin';
 const WIN_ONLY = new Set(['appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
   'privacyDot', 'callTimer', 'colorPick', 'liveWallpaper', 'shape', 'topGap']); // krawędź i położenie wyspy działają też na Macu (na dole bez notcha)
-const hiddenRow = r => MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry');
+const hiddenRow = r => (MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry')) || (!MAC && r.key === 'macRealGlass'); // opcje tylko dla Maca
 const hiddenPage = p => MAC && (p.id === 'wallpaper' || p.id === 'taskbar');
 document.body.classList.toggle('mac', MAC);
 W.on('settings-pos', p => GlassBg.setPos(p));
@@ -36,6 +36,7 @@ const PAGES = [
     { h: 'Powierzchnia' },
     { type: 'surfaces', key: 'surface', label: 'Powierzchnia', desc: 'Szkło na żywo rozmywa i załamuje to, co jest za wyspą. Motywy Tatry, Noc i Bursztyn mają własny akcent i delikatną animację.' },
     sld('glassBlur', 'Rozmycie szkła', 'Środek to wygląd domyślny.', 0, 100, '%', { when: s => s.surface === 'glass' }),
+    tog('macRealGlass', 'Prawdziwe szkło na Macu', 'Szkło rozmywa to, co jest pod wyspą, jak na Windowsie. Wymaga zgody na nagrywanie ekranu (Ustawienia systemowe → Prywatność i ochrona → Nagrywanie ekranu) — macOS pokazuje wtedy ikonę nagrywania na pasku menu. Aura pobiera obraz w niskiej rozdzielczości, tylko do rozmycia, i nigdzie go nie zapisuje. Wyłączone: przydymiona tafla bez nagrywania.', { when: s => s.surface === 'glass' }),
     { type: 'accents', key: 'accent', label: 'Kolor akcentu', desc: 'Wizualizator, paski, kropki stanu, przyciski.' },
     { h: 'Kształt' },
     seg('shape', 'Kształt', 'Notch zwisa z górnej krawędzi. Wyspa unosi się tuż pod nią.', [['island', 'Wyspa'], ['notch', 'Notch']]),
@@ -200,7 +201,11 @@ function applyTheme() {
   if (surf.glass) { // tło rysuje GlassBg: rozmyty obraz pulpitu pod oknem
     Object.assign(vars, { '--bg': 'rgba(10,10,14,0)', '--side': 'rgba(0,0,0,.16)', '--row': 'rgba(255,255,255,.075)', '--row-hi': 'rgba(255,255,255,.14)', '--line': 'rgba(255,255,255,.10)' });
     if (!glassReady) glassReady = GlassBg.init($('#glassbg')) ? 'ok' : 'fail';
-    if (glassReady === 'ok') { GlassBg.setBlur((S.glassBlur ?? 50) / 100); if (!GlassBg.running && !MAC) { W.invoke('settings-pos'); GlassBg.start(); } }
+    if (glassReady === 'ok') {
+      GlassBg.setBlur((S.glassBlur ?? 50) / 100);
+      const live = !MAC || S.macRealGlass; // Mac: obraz pulpitu tylko przy włączonym „Prawdziwym szkle”
+      if (live && !GlassBg.running) { W.invoke('settings-pos'); GlassBg.start(); } else if (!live && GlassBg.running) GlassBg.stop();
+    }
   } else if (glassReady === 'ok' && GlassBg.running) GlassBg.stop();
   for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
   document.body.classList.toggle('glass', !!surf.glass);
