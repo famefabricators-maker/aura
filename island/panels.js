@@ -31,8 +31,13 @@ function extractColor(src) {
     const c = document.createElement('canvas'); c.width = c.height = 16;
     const x = c.getContext('2d'); x.drawImage(img, 0, 0, 16, 16);
     const d = x.getImageData(0, 0, 16, 16).data; let best = null, bs = -1;
-    for (let i = 0; i < d.length; i += 4) { const [r, g, b] = [d[i], d[i + 1], d[i + 2]]; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); const s = (mx - mn) * (mx / 255); if (s > bs) { bs = s; best = [r, g, b]; } }
-    albumColor = best && bs > 25 ? `rgb(${best.join(',')})` : null; renderMusic();
+    let lum = 0;
+    for (let i = 0; i < d.length; i += 4) { const [r, g, b] = [d[i], d[i + 1], d[i + 2]]; lum += 0.2126 * r + 0.7152 * g + 0.0722 * b; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); const s = (mx - mn) * (mx / 255); if (s > bs) { bs = s; best = [r, g, b]; } }
+    albumColor = best && bs > 25 ? `rgb(${best.join(',')})` : null;
+    // jasność okładki 0–1: jasne okładki przyciemniamy mocniej, żeby biały tekst był czytelny na żywym tle
+    lum = lum / (d.length / 4) / 255;
+    $('#music').style.setProperty('--mbg-dim', Math.max(0, Math.min(0.5, (lum - 0.35) * 0.9)).toFixed(2));
+    renderMusic();
   };
   img.src = src;
 }
