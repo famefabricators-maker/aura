@@ -41,6 +41,7 @@ jobs:
         run: |
           mkdir -p "$OUT"
           { sw_vers; uname -m; system_profiler SPDisplaysDataType | grep -E "Resolution|Retina" || true; } | tee "$OUT/system.txt"
+          { echo "--- pamięć (sysctl, vm_stat, top):"; sysctl hw.memsize; vm_stat; top -l 1 -s 0 | grep PhysMem; } | tee "$OUT/pamiec.txt" || true
 
       - name: 1) Z kodu, symulowany notch — zrzuty
         if: ${{ !inputs.tylko_dmg }}

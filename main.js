@@ -115,12 +115,14 @@ function createIsland() {
     width: WIN_W, height: WIN_H, frame: false, transparent: true, resizable: false, movable: false,
     minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, hasShadow: false,
     alwaysOnTop: true, show: false, backgroundColor: '#00000000', title: 'Aura',
-    ...(IS_MAC ? { type: 'panel', enableLargerThanScreen: true, focusable: true } : {}),
+    // macOS: hiddenInMissionControl — w Mission Control / widoku wszystkich okien wyspa nie jest układana razem
+    // z innymi oknami (wcześniej odjeżdżała w lewo)
+    ...(IS_MAC ? { type: 'panel', enableLargerThanScreen: true, focusable: true, hiddenInMissionControl: true } : {}),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
   });
   place();
   island.setAlwaysOnTop(true, 'screen-saver');
-  if (IS_MAC) island.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+  if (IS_MAC) { island.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true }); island.setHiddenInMissionControl(true); }
   island.setIgnoreMouseEvents(true, { forward: true });
   applyGlassProtection();
   island.loadFile(path.join('island', 'index.html'));
@@ -1051,7 +1053,10 @@ function refreshMacMem() {
     if (err) return;
     const ps = Number((String(out).match(/page size of (\d+)/) || [])[1]) || 16384;
     const pg = k => Number((String(out).match(new RegExp(k + ':\\s+(\\d+)')) || [])[1]) || 0;
-    const used = (pg('Pages active') + pg('Pages wired down') + pg('Pages occupied by compressor')) * ps;
+    // „Pamięć aplikacji” jak w Monitorze aktywności: strony anonimowe bez możliwych do zwolnienia (bez pamięci
+    // podręcznej plików, którą macOS zalicza do „aktywnej”); starsze systemy bez tej linii — aktywna
+    const anon = pg('Anonymous pages'), appMem = anon ? Math.max(0, anon - pg('Pages purgeable')) : pg('Pages active');
+    const used = (appMem + pg('Pages wired down') + pg('Pages occupied by compressor')) * ps;
     macMem = Math.min(used, os.totalmem());
   });
 }
