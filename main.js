@@ -1418,8 +1418,8 @@ function configureDock() {
     taskbar.on('change', place);
     taskbar.on('visibility', () => send('screen', screenInfo())); // pasek wysunięty/schowany: wyspa na dole podjeżdża razem z nim
     if (process.env.WYSPA_WAKETEST) setInterval(() => { // test odświeżania paska po uśpieniu: stan co sekundę do pliku
-      const t = taskbar; try { fs.writeFileSync(process.env.WYSPA_WAKETEST, JSON.stringify({ helper: t.proc && t.proc.pid, win: t.win && t.win.id, heard: t.heard, pong: t.lastPong ? Date.now() - t.lastPong : null, woke: t.wokeAt || 0, okna: t.windows.length, ignoring: t.ignoring })); } catch {}
-    }, 1000);
+      const t = taskbar; try { fs.writeFileSync(process.env.WYSPA_WAKETEST, JSON.stringify({ helper: t.proc && t.proc.pid, win: t.win && t.win.id, heard: t.heard, pong: t.lastPong ? Date.now() - t.lastPong : null, woke: t.wokeAt || 0, okna: t.windows.length, ignoring: t.ignoring, hover: t.hover, reveal: t.reveal, covered: t.covered, fullscreen: t.fullscreen, hidden: t.isHidden() })); } catch {}
+    }, 250);
   }
   if (S().dock && !taskbar.active) { taskbar.start(); taskbar.setMedia(dockMedia()); }
   else if (!S().dock && taskbar.active) taskbar.stop();
