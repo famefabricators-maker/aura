@@ -28,8 +28,16 @@ function run(argv) {
   const delegate = $.AuraAirDropDelegate.alloc.init;
   svc.delegate = delegate;
   app.activateIgnoringOtherApps(true);
+  if (app.activate) { try { app.activate; } catch (e) {} } // macOS 14+: nowe API aktywacji
   svc.performWithItems(items);
   out('ok');
+  // Uruchomiony przez Aurę (aplikację w tle) nie dostaje pierwszego planu, więc okno AirDrop zostawało ukryte za innymi.
+  // Przez pierwsze 3 s wysuwamy wszystkie nasze okna na wierzch (poziom paneli modalnych, nad zwykłymi oknami).
+  for (let i = 0; i < 15; i++) {
+    $.NSRunLoop.currentRunLoop.runModeBeforeDate($.NSDefaultRunLoopMode, $.NSDate.dateWithTimeIntervalSinceNow(0.2));
+    const wins = app.windows;
+    for (let k = 0; k < wins.count; k++) { const w = wins.objectAtIndex(k); try { w.setLevel(8); w.orderFrontRegardless; w.makeKeyWindow; } catch (e) {} }
+  }
   // czekamy na decyzję (najwyżej 10 minut)
   const until = $.NSDate.dateWithTimeIntervalSinceNow(600);
   while ($.NSDate.date.compare(until) < 0) $.NSRunLoop.currentRunLoop.runModeBeforeDate($.NSDefaultRunLoopMode, $.NSDate.dateWithTimeIntervalSinceNow(0.5));
