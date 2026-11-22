@@ -295,6 +295,7 @@ while ($true) {
   }
 
   if ($script:toasts -and $tick % 8 -eq 0) { try { Poll-Toasts } catch {} }  # ok. co 1,6 s
+  if ($tick % 300 -eq 150) { [WyspaWin]::Trim() }  # ok. co minutę: oddaj systemowi nieużywaną pamięć
   $tick++
   # czekaj do 200 ms, ale obudź się od razu, gdy przyjdzie komenda (płynna głośność i przewijanie)
   [void]$readTask.Wait(200)

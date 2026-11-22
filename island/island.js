@@ -185,7 +185,7 @@ function frame(now) {
   for (let i = 0; i < 2; i++) moving = stepSpring(dt / 2) || moving;
   const lt = liftTarget();
   if (Math.abs(lt - liftX) > 0.4) { liftX += (lt - liftX) * Math.min(1, dt * 13); moving = true; } else if (liftX !== lt) { liftX = lt; sendRects(); }
-  animating = moving;
+  if (animating !== moving) { animating = moving; tuneCapture(); } // koniec animacji: mniej klatek szkła
   layoutBox();
   drawGL(now);
   const surf = T.surface(st.S.surface);
@@ -234,6 +234,7 @@ let lastRects = '';
 function update() {
   const mode = currentMode();
   st.mode = mode;
+  tuneCapture(); // liczba klatek szkła zależna od stanu wyspy
   target = targetFor(mode);
   $$('.layer').forEach(l => l.classList.remove('on'));
   const layer = { pill: '#pill', hud: '#hud', banner: '#banner', alert: '#banner', card: '#card', strip: '#strip', hidden: null, slim: null }[mode];
@@ -351,7 +352,24 @@ function vizLoop() {
 requestAnimationFrame(vizLoop);
 
 // ---------- przechwytywanie ekranu: szkło + dźwięk ----------
-let capStream = null, capVideo = null, capWanted = '';
+let capStream = null, capVideo = null, capWanted = '', capApplied = '';
+// szerokość obrazu ekranu: 1280 px wystarcza do rozmycia; przy prawie przezroczystym szkle 1920 (bez mydła)
+const capWidth = () => Math.min((st.screen && st.screen.w) || 1920, (st.S.glassBlur ?? 50) < 12 ? 1920 : 1280);
+// klatki: otwarta wyspa / animacja 30, zwinięta 15, cienka linia pod oknem albo schowana 2
+const capFps = () => (st.open || animating) ? 30 : ((st.covered && !st.open) || st.mode === 'hidden' || st.mode === 'slim') ? 2 : 15;
+function capConstraints() { return { width: { max: capWidth() }, frameRate: { ideal: capFps(), max: 30 } }; }
+// dopasowanie w locie (bez nowego strumienia), tylko gdy coś się zmieniło
+// więcej klatek od razu (otwieranie wyspy bez przycięć), mniej — dopiero po 1,5 s spokoju (okno przesuwane nad wyspą
+// przełączało stan zasłonięcia kilka razy na sekundę, a każda zmiana przestawia przechwytywanie)
+let capTuneT = 0;
+function tuneCapture() {
+  const vt = capStream && capStream.getVideoTracks()[0]; if (!vt || vt.readyState !== 'live') return;
+  const key = capWidth() + 'x' + capFps(); if (key === capApplied) return;
+  const apply = () => { const k = capWidth() + 'x' + capFps(); if (k === capApplied) return; capApplied = k; vt.applyConstraints(capConstraints()).catch(() => { capApplied = ''; }); };
+  const cur = Number(String(capApplied).split('x')[1]) || 0;
+  clearTimeout(capTuneT);
+  if (capFps() > cur) apply(); else capTuneT = setTimeout(apply, 1500);
+}
 function glassLive() { return capVideo && T.surface(st.S.surface).glass; }
 async function ensureCapture() {
   const glass = !!T.surface(st.S.surface).glass;
@@ -368,9 +386,10 @@ async function ensureCapture() {
   capWanted = want;
   try {
     if (!capStream) {
-      // Mac: obraz pomniejszony i 30 kl/s — pełna Retina 60 razy na sekundę dawała przycięcia, a rozmycie i tak nie potrzebuje ostrości
-      const video = isMac() ? { frameRate: { ideal: 30, max: 30 }, width: { max: 1440 }, height: { max: 960 } } : { frameRate: { ideal: 60, max: 60 } };
-      capStream = await navigator.mediaDevices.getDisplayMedia({ video, audio: !isMac() });
+      // obraz pomniejszony i najwyżej 30 kl/s (a mniej, gdy wyspa zwinięta) — pełne 4K 60 razy na sekundę zjadało
+      // ok. 1,5 rdzenia przy przeciąganiu okien i ekran przestawał być płynny; rozmycie i tak nie potrzebuje ostrości
+      capStream = await navigator.mediaDevices.getDisplayMedia({ video: capConstraints(), audio: !isMac() });
+      capApplied = '';
       const at = capStream.getAudioTracks()[0];
       if (at) {
         const ctx = new AudioContext();

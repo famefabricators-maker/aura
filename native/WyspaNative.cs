@@ -6,6 +6,9 @@ using System.Text;
 using Microsoft.Win32;
 
 public static class WyspaWin {
+  // Oddanie systemowi nieużywanej pamięci pomocnika (sprzątanie .NET + przycięcie zestawu roboczego); wołane co minutę
+  [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr p, IntPtr min, IntPtr max);
+  public static void Trim() { try { GC.Collect(); GC.WaitForPendingFinalizers(); SetProcessWorkingSetSize(System.Diagnostics.Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1)); } catch { } }
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr h);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);

@@ -5,6 +5,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 
 public static class AuraTaskbar {
+  // Oddanie systemowi nieużywanej pamięci pomocnika paska; wołane co minutę
+  [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr p, IntPtr min, IntPtr max);
+  public static void Trim() { try { GC.Collect(); GC.WaitForPendingFinalizers(); SetProcessWorkingSetSize(System.Diagnostics.Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1)); } catch { } }
   delegate bool EnumProc(IntPtr h, IntPtr l);
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);

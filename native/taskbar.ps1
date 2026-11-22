@@ -91,6 +91,7 @@ try {
       } catch {}
     }
     [void]$read.Wait(150)
+    if ($tick % 400 -eq 200) { [AuraTaskbar]::Trim() }  # ok. co minutę: oddaj systemowi nieużywaną pamięć
     $tick++
   }
 } finally {
