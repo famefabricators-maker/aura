@@ -136,6 +136,13 @@ jobs:
           PID=$!; sleep 8; screencapture -x "$OUT/8-airdrop/menu.png" || true
           for i in $(seq 1 20); do sleep 1; kill -0 $PID 2>/dev/null || break; done
           kill $PID 2>/dev/null || true
+          pkill -f airdrop-mac.js || true
+          echo "--- pomocnik AirDrop wprost (12 s):"
+          echo test > /tmp/aura-airdrop.txt
+          ( /usr/bin/osascript -l JavaScript native/airdrop-mac.js /tmp/aura-airdrop.txt > "$OUT/8-airdrop/pomocnik.txt" 2>&1 & echo $! > /tmp/adpid )
+          sleep 6; screencapture -x "$OUT/8-airdrop/pomocnik.png" || true; sleep 6
+          kill "$(cat /tmp/adpid)" 2>/dev/null || true
+          cat "$OUT/8-airdrop/pomocnik.txt"; system_profiler SPBluetoothDataType 2>/dev/null | head -5 || true
 
       - name: 4) Pobrany .dmg z wydania — jak u użytkownika
         if: ${{ inputs.tag != '' }}
