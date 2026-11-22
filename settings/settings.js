@@ -6,7 +6,7 @@ let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', q
 const MAC = W.platform === 'darwin';
 const WIN_ONLY = new Set(['appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
   'privacyDot', 'callTimer', 'colorPick', 'liveWallpaper', 'shape', 'topGap']); // krawędź i położenie wyspy działają też na Macu (na dole bez notcha)
-const hiddenRow = r => (MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry')) || (!MAC && r.key === 'macRealGlass'); // opcje tylko dla Maca
+const hiddenRow = r => (MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry')) || (!MAC && (r.key === 'macRealGlass' || r.key === 'tabAirdrop')); // opcje tylko dla Maca
 const hiddenPage = p => MAC && (p.id === 'wallpaper' || p.id === 'taskbar');
 document.body.classList.toggle('mac', MAC);
 W.on('settings-pos', p => GlassBg.setPos(p));
@@ -87,7 +87,7 @@ const PAGES = [
     tog('webNotifications', 'Powiadomienia ze stron Web na wyspie', 'Np. Messenger w karcie Web: kto i co napisał pokaże się na wyspie zamiast okienka systemowego. Strona musi być otwarta (może być schowana).'),
     tog('tabNotices', 'Powiadomienia', 'Ostatnie 24 komunikaty: skrypty, agenci, telefon, zrzuty, przypomnienia.'),
     tog('tabAgents', 'Agenci AI'), tog('tabShelf', 'Półka'), tog('tabClips', 'Schowek'), tog('tabWidgets', 'Widżety'),
-    tog('tabControls', 'Sterowanie'), tog('tabLauncher', 'Launcher'), tog('tabDeck', 'Telefon (PC Deck)', 'Telefon w tej samej sieci Wi-Fi jako gładzik, pilot muzyki i slajdów. Przy pierwszym włączeniu Windows może zapytać o zgodę zapory — kliknij „Zezwól”. Na Macu Aura potrzebuje zgody „Dostępność” (Ustawienia systemowe → Prywatność i ochrona).'), tog('tabCall', 'Rozmowa'),
+    tog('tabControls', 'Sterowanie'), tog('tabLauncher', 'Launcher'), tog('tabDeck', 'Telefon (PC Deck)', 'Telefon w tej samej sieci Wi-Fi jako gładzik, pilot muzyki i slajdów. Przy pierwszym włączeniu Windows może zapytać o zgodę zapory — kliknij „Zezwól”. Na Macu Aura potrzebuje zgody „Dostępność” (Ustawienia systemowe → Prywatność i ochrona).'), tog('tabCall', 'Rozmowa'), tog('tabAirdrop', 'AirDrop', 'Przeciągnij plik na kartę — otworzy się okno AirDrop z wyborem iPhone’a lub Maca.'),
     { h: 'Powiadomienia' },
     tog('appNotifications', 'Powiadomienia z innych aplikacji', 'WhatsApp, Discord, Messenger, poczta i inne pokazują się na wyspie (także nad grą). Aura czyta je przez systemowy dostęp do powiadomień Windows; nic nie wychodzi z komputera. Klik otwiera aplikację.', { win: true }),
     sld('noticeSeconds', 'Czas powiadomienia', 'Jak długo baner zostaje na wyspie.', 2, 20, ' s'),

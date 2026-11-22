@@ -3,7 +3,7 @@ const W = window.wyspa, T = window.WYSPA_THEME, I = window.ICONS;
 const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySelectorAll(s));
 const isl = $('#isl');
 
-const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 268, shelf: 178, clips: 210, widgets: 262, reminders: 268, controls: 244, launcher: 168, call: 176 };
+const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 268, shelf: 178, clips: 210, widgets: 262, reminders: 268, controls: 244, launcher: 168, call: 176, airdrop: 176 };
 // widżety: własny układ (Ustawienia albo prawy przycisk na widżecie); karta rośnie o kolejne rzędy
 const WIDGETS_DEFAULT = ['today', 'focus', 'weather', 'stats'];
 const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? st.S.widgets : WIDGETS_DEFAULT);
@@ -27,6 +27,7 @@ const TABS = [
   { id: 'controls', icon: 'controls', name: 'Sterowanie', key: 'tabControls' }, { id: 'launcher', icon: 'launcher', name: 'Launcher', key: 'tabLauncher' },
   { id: 'deck', icon: 'phone', name: 'Telefon (PC Deck)', key: 'tabDeck' },
   { id: 'call', icon: 'call', name: 'Rozmowa', key: 'tabCall' },
+  { id: 'airdrop', icon: 'airdrop', name: 'AirDrop', key: 'tabAirdrop', mac: true }, // tylko macOS
 ];
 
 const st = {
@@ -491,7 +492,7 @@ function chime() {
 window.showAlert = showAlert; window.closeAlert = closeAlert;
 
 // ---------- karty ----------
-function enabledTabs() { return TABS.filter(t => !t.key || st.S[t.key] !== false); }
+function enabledTabs() { return TABS.filter(t => (!t.key || st.S[t.key] !== false) && (!t.mac || isMac())); }
 function buildTabs() {
   const nav = $('#tabs'); nav.textContent = '';
   for (const t of enabledTabs()) {

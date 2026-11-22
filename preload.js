@@ -14,7 +14,7 @@ const SEND = ['open-settings', 'welcome-done', 'settings-titlebar', 'hotkeys-pau
 const ON = ['open', 'settings', 'screen', 'media', 'thumb', 'vol', 'mic', 'hud', 'inuse', 'bright', 'power', 'radios', 'devices',
   'clips', 'files', 'phone', 'notices', 'banner', 'agents', 'reminders', 'reminder-fire', 'stats', 'weather', 'lyrics',
   'focus-toggle', 'record-toggle', 'hotkey-errors', 'goto', 'calendar', 'game', 'obs', 'web-info', 'covered', 'app-icon', 'cursor', 'settings-pos', 'settings-focus',
-  'chat', 'chat-state', 'wallpaper', 'deck', 'deck-pair', 'capture', 'capture-since','update-state', 'update-alert', 'dock', 'goto-tab', 'download', 'agent-ask', 'agent-ask-done', 'ai-usage'];
+  'chat', 'chat-state', 'wallpaper', 'deck', 'deck-pair', 'capture', 'capture-since', 'airdrop-state','update-state', 'update-alert', 'dock', 'goto-tab', 'download', 'agent-ask', 'agent-ask-done', 'ai-usage'];
 
 contextBridge.exposeInMainWorld('wyspa', {
   invoke: (ch, ...a) => INVOKE.includes(ch) ? ipcRenderer.invoke(ch, ...a) : Promise.reject(new Error('kanał ' + ch)),

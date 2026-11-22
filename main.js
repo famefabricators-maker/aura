@@ -628,8 +628,19 @@ ipcMain.on('airdrop', (e, paths) => {
   if (!IS_MAC) return;
   const list = (Array.isArray(paths) ? paths : []).filter(p => typeof p === 'string' && path.isAbsolute(p) && fs.existsSync(p)).slice(0, 20);
   if (!list.length) return;
-  try { const { ShareMenu } = require('electron'); new ShareMenu({ filePaths: list }).popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined }); }
-  catch (err) { logError('airdrop', err); }
+  const win = BrowserWindow.fromWebContents(e.sender) || undefined;
+  const shareMenu = () => { try { const { ShareMenu } = require('electron'); new ShareMenu({ filePaths: list }).popup({ window: win }); } catch (err) { logError('airdrop', err); } };
+  // najpierw prosto okno AirDrop (wybór telefonu); gdy AirDrop niedostępny — menu „Udostępnij”
+  const name = list.length === 1 ? path.basename(list[0]) : `${list.length} pliki`;
+  send('airdrop-state', { state: 'opening', name });
+  execFile('/usr/bin/osascript', ['-l', 'JavaScript', path.join(__dirname, 'native', 'airdrop-mac.js'), ...list], { timeout: 11 * 60e3 }, (err, out) => {
+    const o = String(out || '');
+    if (/niedostępny/.test(o)) { send('airdrop-state', { state: 'fallback', name }); shareMenu(); return; }
+    if (/wysłano/.test(o)) { send('airdrop-state', { state: 'sent', name }); addNotice({ kind: 'phone', title: 'Wysłano przez AirDrop', body: name }); return; }
+    if (/anulowano/.test(o)) { send('airdrop-state', { state: 'cancel', name }); return; }
+    if (err && !/ok/.test(o)) { logError('airdrop', err); send('airdrop-state', { state: 'fallback', name }); shareMenu(); return; }
+    send('airdrop-state', { state: 'idle', name });
+  });
 });
 ipcMain.on('file-menu', (e, p) => {
   if (!store.data.files.includes(p)) return;
@@ -1534,9 +1545,12 @@ async function testShots(dir) {
   }
   if (process.env.WYSPA_AIRDROPTEST && IS_MAC) { // AirDrop: menu „Udostępnij” dla pliku z półki (zrzut ekranu robi test)
     const f = path.join(dir, 'plik-do-airdrop.txt'); fs.writeFileSync(f, 'Aura AirDrop test');
-    await wait(4000); pin = true; pinEntered = false; open = true; send('open', true); send('goto-tab', 'shelf');
-    await wait(1200); ipcMain.emit('airdrop', { sender: island.webContents }, [f]);
-    await wait(9000); app.quit(); return;
+    await wait(4000); pin = true; pinEntered = false; open = true; send('open', true);
+    await wait(900); await island.webContents.executeJavaScript(`setTab('airdrop')`); await wait(1500);
+    fs.writeFileSync(path.join(dir, 'karta-airdrop.png'), (await island.webContents.capturePage()).toPNG());
+    ipcMain.emit('airdrop', { sender: island.webContents }, [f]);
+    await wait(4000); fs.writeFileSync(path.join(dir, 'karta-po-upuszczeniu.png'), (await island.webContents.capturePage()).toPNG());
+    await wait(5000); app.quit(); return;
   }
   if (process.env.WYSPA_UPDATETEST && !process.env.WYSPA_AUTOUPD) { // aktualizacje: udajemy starą wersję i sprawdzamy GitHuba (z AUTOUPD — pełna aktualizacja niżej)
     await wait(4000);
