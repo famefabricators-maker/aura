@@ -532,3 +532,10 @@ body.reduce .a-step.pending .ic { animation: none; }
 .mem-row i::after { content: ''; position: absolute; inset: 0; border-radius: 2px; background: #ff9f0a; transform-origin: left center; transform: scaleX(var(--s, 0)); transition: transform .4s cubic-bezier(.2,.8,.2,1); }
 #wStats .srow[data-k="ram"] { cursor: pointer; border-radius: 8px; transition: background .12s; }
 #wStats .srow[data-k="ram"]:hover { background: var(--row); }
+
+/* AirDrop na półce (tylko macOS): upuść plik albo kliknij — systemowe menu „Udostępnij” z AirDropem */
+.pillbtn.airdrop { display: none; background: var(--row-hi); color: var(--fg); transition: background .15s, transform .1s, box-shadow .15s; }
+body.mac .pillbtn.airdrop { display: inline-flex; }
+.pillbtn.airdrop:hover { background: color-mix(in srgb, #0a84ff 30%, var(--row-hi)); }
+.pillbtn.airdrop:active { transform: scale(.96); }
+.pillbtn.airdrop.over { background: #0a84ff; color: #fff; box-shadow: 0 0 0 3px color-mix(in srgb, #0a84ff 35%, transparent); }

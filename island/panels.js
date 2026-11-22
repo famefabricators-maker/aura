@@ -326,8 +326,14 @@ document.addEventListener('dragover', e => {
   $('#shelf').classList.add('dropping');
   clearTimeout(dropT); dropT = setTimeout(() => $('#shelf').classList.remove('dropping'), 250);
 });
+// AirDrop (macOS): plik upuszczony na przycisk idzie prosto do menu „Udostępnij”; klik — wszystkie pliki z półki
+$('#shAirdropIco').innerHTML = I.svg('airdrop');
+$('#shAirdrop').onclick = () => { if (files.length) W.send('airdrop', files.map(f => f.path)); else { $('#shAirdrop').classList.add('over'); setTimeout(() => $('#shAirdrop').classList.remove('over'), 600); } };
+$('#shAirdrop').addEventListener('dragover', e => { if (hasFiles(e)) $('#shAirdrop').classList.add('over'); });
+$('#shAirdrop').addEventListener('dragleave', () => $('#shAirdrop').classList.remove('over'));
 document.addEventListener('drop', async e => {
   e.preventDefault(); $('#shelf').classList.remove('dropping');
+  if (e.target.closest && e.target.closest('#shAirdrop')) { $('#shAirdrop').classList.remove('over'); if (e.dataTransfer.files.length) W.send('airdrop', W.pathsFor(e.dataTransfer.files)); return; }
   if (e.dataTransfer.files.length) { setFiles(await W.invoke('files-add', W.pathsFor(e.dataTransfer.files))); if (st.open) setTab('shelf'); }
 });
 
@@ -797,6 +803,7 @@ window.addEventListener('wyspa-init', e => initPanels(e.detail));
 if (window.__wyspaInit) setTimeout(() => initPanels(window.__wyspaInit), 0);
 function initPanels(d) {
   if (panelsInited || !d) return; panelsInited = true;
+  document.body.classList.toggle('mac', isMac()); // np. przycisk AirDrop na półce
   setFiles(d.files); clips = d.clips || []; renderClips(); renderNotices(); renderAgents();
   reminders = d.reminders || []; renderReminders();
   if (st.thumb) extractColor(st.thumb);

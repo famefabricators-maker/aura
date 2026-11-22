@@ -623,11 +623,20 @@ async function convertImage(p, fmt, opts = {}) {
   addNotice({ kind: 'tool', title: `Zapisano ${path.basename(out)}`, body: `${res.w} × ${res.h} · ${kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB'}`, path: out });
   return out;
 }
+// macOS: AirDrop — systemowe menu „Udostępnij” (AirDrop, Wiadomości, Mail…) dla upuszczonych plików albo plików z półki
+ipcMain.on('airdrop', (e, paths) => {
+  if (!IS_MAC) return;
+  const list = (Array.isArray(paths) ? paths : []).filter(p => typeof p === 'string' && path.isAbsolute(p) && fs.existsSync(p)).slice(0, 20);
+  if (!list.length) return;
+  try { const { ShareMenu } = require('electron'); new ShareMenu({ filePaths: list }).popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined }); }
+  catch (err) { logError('airdrop', err); }
+});
 ipcMain.on('file-menu', (e, p) => {
   if (!store.data.files.includes(p)) return;
   const conv = (fmt, o) => () => convertImage(p, fmt, o).catch(err => addNotice({ kind: 'tool', title: 'Konwersja się nie udała', body: err.message }));
   const ext = path.extname(p).slice(1).toLowerCase();
-  const tpl = [{ label: 'Pokaż w folderze', click: () => shell.showItemInFolder(p) }];
+  const tpl = [{ label: IS_MAC ? 'Pokaż w Finderze' : 'Pokaż w folderze', click: () => shell.showItemInFolder(p) }];
+  if (IS_MAC) tpl.push({ label: 'Udostępnij (AirDrop…)', role: 'shareMenu', sharingItem: { filePaths: [p] } }); // AirDrop na telefon
   if (IMG_MIME[ext]) {
     const same = ext === 'jpeg' ? 'jpg' : ['png', 'jpg', 'webp'].includes(ext) ? ext : 'png';
     tpl.push({ type: 'separator' },
@@ -1522,6 +1531,12 @@ async function testShots(dir) {
     log('Web: przejście na plik z dysku', w.getURL().startsWith('file:') ? 'PRZESZŁA' : 'zablokowane (' + w.getURL() + ')');
     fs.writeFileSync(path.join(dir, 'sec.txt'), out.join('\n'));
     app.quit(); return;
+  }
+  if (process.env.WYSPA_AIRDROPTEST && IS_MAC) { // AirDrop: menu „Udostępnij” dla pliku z półki (zrzut ekranu robi test)
+    const f = path.join(dir, 'plik-do-airdrop.txt'); fs.writeFileSync(f, 'Aura AirDrop test');
+    await wait(4000); pin = true; pinEntered = false; open = true; send('open', true); send('goto-tab', 'shelf');
+    await wait(1200); ipcMain.emit('airdrop', { sender: island.webContents }, [f]);
+    await wait(9000); app.quit(); return;
   }
   if (process.env.WYSPA_UPDATETEST && !process.env.WYSPA_AUTOUPD) { // aktualizacje: udajemy starą wersję i sprawdzamy GitHuba (z AUTOUPD — pełna aktualizacja niżej)
     await wait(4000);

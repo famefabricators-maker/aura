@@ -27,6 +27,7 @@ window.ICONS = (() => {
     battery: '<rect x="3" y="7" width="16" height="10" rx="2.5"/><path d="M21.5 10.5v3"/><path d="M6 10v4" stroke-width="2.6"/>',
     plug: '<path d="M9 3v5M15 3v5M6.5 8h11v3a5.5 5.5 0 0 1-11 0zM12 16.5V21"/>',
     drop: '<path d="M12 3.5s6 6.5 6 10.5a6 6 0 0 1-12 0c0-4 6-10.5 6-10.5z"/>',
+    airdrop: '<path d="M8.6 15.4a4.8 4.8 0 1 1 6.8 0"/><path d="M5.8 18.2a8.8 8.8 0 1 1 12.4 0"/><path d="M12 13.5l2.6 6.5H9.4z"/>',
     phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
     trash: '<path d="M4.5 6.5h15M9.5 6.5V4h5v2.5M6.5 6.5l1 13h9l1-13"/>',
     x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
