@@ -341,7 +341,7 @@ const AD_HINT = 'Przeciągnij tu plik — wybierzesz iPhone’a albo Maca, na kt
 W.on('airdrop-state', s => {
   const z = $('#adZone'), h = $('#adHint'); if (!s) return;
   z.classList.toggle('sent', s.state === 'sent');
-  h.textContent = s.state === 'opening' ? `Otwieram AirDrop: ${s.name}…` : s.state === 'sent' ? `Wysłano: ${s.name}` : s.state === 'cancel' ? 'Anulowano — przeciągnij plik jeszcze raz.'
+  h.textContent = s.state === 'opening' ? `Wybierz urządzenie w oknie AirDrop: ${s.name}` : s.state === 'sent' ? `Wysłano: ${s.name}` : s.state === 'cancel' ? 'Anulowano — przeciągnij plik jeszcze raz.'
     : s.state === 'fallback' ? 'AirDrop niedostępny (włącz Bluetooth i Wi-Fi) — wybierz sposób wysłania z menu.' : AD_HINT;
   clearTimeout(z._t); if (s.state !== 'opening') z._t = setTimeout(() => { h.textContent = AD_HINT; z.classList.remove('sent'); }, 6000);
 });
