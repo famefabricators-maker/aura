@@ -633,7 +633,10 @@ ipcMain.on('airdrop', (e, paths) => {
   // najpierw prosto okno AirDrop (wybór telefonu); gdy AirDrop niedostępny — menu „Udostępnij”
   const name = list.length === 1 ? path.basename(list[0]) : `${list.length} pliki`;
   send('airdrop-state', { state: 'opening', name });
-  execFile('/usr/bin/osascript', ['-l', 'JavaScript', path.join(__dirname, 'native', 'airdrop-mac.js'), ...list], { timeout: 11 * 60e3 }, (err, out) => {
+  // czyste środowisko: bez identyfikatora Aury (__CFBundleIdentifier itp.) — inaczej macOS przypisywał okno AirDrop
+  // do Aury (aplikacji w tle bez okien w Docku) i go nie pokazywał
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__CF|XPC_|ELECTRON_|CHROME_)/.test(k)));
+  execFile('/usr/bin/osascript', ['-l', 'JavaScript', path.join(__dirname, 'native', 'airdrop-mac.js'), ...list], { timeout: 11 * 60e3, env }, (err, out) => {
     const o = String(out || '');
     if (/niedostępny/.test(o)) { send('airdrop-state', { state: 'fallback', name }); shareMenu(); return; }
     if (/wysłano/.test(o)) { send('airdrop-state', { state: 'sent', name }); addNotice({ kind: 'phone', title: 'Wysłano przez AirDrop', body: name }); return; }

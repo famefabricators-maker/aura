@@ -134,6 +134,7 @@ jobs:
           APP="$(ls -d dist/mac*/Aura.app | head -1)"
           WYSPA_SHOT="$OUT/8-airdrop" WYSPA_AIRDROPTEST=1 "$APP/Contents/MacOS/Aura" > "$OUT/8-airdrop/wyjscie.txt" 2>&1 &
           PID=$!; sleep 8; screencapture -x "$OUT/8-airdrop/menu.png" || true
+          { echo "--- procesy pomocnika:"; ps aux | grep "[a]irdrop-mac" || echo brak; } | tee "$OUT/8-airdrop/procesy.txt"
           for i in $(seq 1 20); do sleep 1; kill -0 $PID 2>/dev/null || break; done
           kill $PID 2>/dev/null || true
           pkill -f airdrop-mac.js || true
