@@ -1,8 +1,8 @@
-# Aura - pomocnik paska zadań: chowa pasek Windows, podaje listę okien, przełącza je. Koniec stdin = przywrócenie
+﻿# Aura - pomocnik paska zadań: chowa pasek Windows, podaje listę okien, przełącza je. Koniec stdin = przywrócenie
 # paska i wyjście. Na wypadek awarii (proces ginie razem z Aurą) jest jeszcze odłączony stróż (lib/taskbar.js).
 # Parametr -Orig: zapamiętany stan paska Windows (-1 = odczytaj teraz). Polecenia (JSON, jedno na linię):
 #   {"c":"act","h":123} {"c":"focus","h":123} {"c":"close","h":123} {"c":"keys","k":"start|quick|notif"} {"c":"pid","pid":1}
-#   {"c":"quit"}
+#   {"c":"ping"} -> {"t":"pong"}  {"c":"quit"}
 # Wysyła: {"t":"state","s":N} raz na starcie oraz {"t":"windows","list":"..."} przy każdej zmianie okien.
 param([int]$Orig = -1, [string]$Marker = '', [int]$AuraPid = 0)
 $ErrorActionPreference = 'Stop'
@@ -73,6 +73,7 @@ try {
           'pid' { $ownPid = [uint32]$m.pid }
           'reserve' { [AuraTaskbar]::Reserve([long]$m.h, [int]$m.px) }
           'unreserve' { [AuraTaskbar]::Unreserve() }
+          'ping' { [Console]::Out.WriteLine('{"t":"pong"}'); [Console]::Out.Flush() }
           'quit' { return }
         }
       } catch {}

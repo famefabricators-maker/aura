@@ -1417,6 +1417,9 @@ function configureDock() {
       mediaProc: id => mediaProcName(id), mediaExe: id => appExe.get(id) || null });
     taskbar.on('change', place);
     taskbar.on('visibility', () => send('screen', screenInfo())); // pasek wysunięty/schowany: wyspa na dole podjeżdża razem z nim
+    if (process.env.WYSPA_WAKETEST) setInterval(() => { // test odświeżania paska po uśpieniu: stan co sekundę do pliku
+      const t = taskbar; try { fs.writeFileSync(process.env.WYSPA_WAKETEST, JSON.stringify({ helper: t.proc && t.proc.pid, win: t.win && t.win.id, heard: t.heard, pong: t.lastPong ? Date.now() - t.lastPong : null, woke: t.wokeAt || 0, okna: t.windows.length, ignoring: t.ignoring })); } catch {}
+    }, 1000);
   }
   if (S().dock && !taskbar.active) { taskbar.start(); taskbar.setMedia(dockMedia()); }
   else if (!S().dock && taskbar.active) taskbar.stop();
@@ -1455,8 +1458,7 @@ app.whenReady().then(async () => {
   screen.on('display-metrics-changed', place);
   screen.on('display-added', place);
   screen.on('display-removed', place);
-  for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(() => { try { if (taskbar) taskbar.wake(); } catch (e) { logError('wake', e); } }, 2500));
-  powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
+  for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(() => { try { if (taskbar) taskbar.wake(ev); } catch (e) { logError('wake', e); } }, 2500));  powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
   configureDock();
   configureDownloads();
