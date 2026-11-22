@@ -10,7 +10,7 @@ window.ICONS = (() => {
     controls: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
     launcher: '<circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/>',
     call: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13" width="4.5" height="7" rx="1.8"/><rect x="16.5" y="13" width="4.5" height="7" rx="1.8"/>',
-    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>',
+    gear: '<path d="M10.39 4.78 L10.65 2.50 L13.35 2.50 L13.61 4.78 L15.97 5.75 L17.76 4.32 L19.68 6.24 L18.25 8.03 L19.22 10.39 L21.50 10.65 L21.50 13.35 L19.22 13.61 L18.25 15.97 L19.68 17.76 L17.76 19.68 L15.97 18.25 L13.61 19.22 L13.35 21.50 L10.65 21.50 L10.39 19.22 L8.03 18.25 L6.24 19.68 L4.32 17.76 L5.75 15.97 L4.78 13.61 L2.50 13.35 L2.50 10.65 L4.78 10.39 L5.75 8.03 L4.32 6.24 L6.24 4.32 L8.03 5.75Z"/><circle cx="12" cy="12" r="3.1"/>',
     palette: '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.9 1.4-2-.4-1 .3-2 1.4-2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/>',
     prev: '<path d="M6 5v14" stroke-width="2.4"/><path d="M19 5.5v13L9 12z" fill="currentColor" stroke="none"/>',
     next: '<path d="M18 5v14" stroke-width="2.4"/><path d="M5 5.5v13L15 12z" fill="currentColor" stroke="none"/>',
