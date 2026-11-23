@@ -23,6 +23,8 @@ window.ICONS = (() => {
     num: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9.5l2-1.5v8M14 8.5h3l-2.5 3.5c1.6 0 2.5.9 2.5 2s-.9 2-2.2 2c-.9 0-1.6-.4-2-1"/>',
     mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
     micOff: '<path d="M15 10V6a3 3 0 0 0-5.6-1.5M9 9v2a3 3 0 0 0 4.8 2.4"/><path d="M5.5 11a6.5 6.5 0 0 0 10.4 5.2M18.5 11a6.4 6.4 0 0 1-.6 2.7M12 17.5V21M4 4l16 16"/>',
+    mouse: '<rect x="7" y="3" width="10" height="18" rx="5"/><path d="M12 7v3"/>',
+    keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
     headphones: '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="1.8"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="1.8"/>',
     battery: '<rect x="3" y="7" width="16" height="10" rx="2.5"/><path d="M21.5 10.5v3"/><path d="M6 10v4" stroke-width="2.6"/>',
     plug: '<path d="M9 3v5M15 3v5M6.5 8h11v3a5.5 5.5 0 0 1-11 0zM12 16.5V21"/>',

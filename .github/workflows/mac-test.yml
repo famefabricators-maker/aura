@@ -75,8 +75,11 @@ jobs:
           pkill -f "Electron.app" || true; pkill -f "Aura.app" || true; sleep 2  # poprzednia kopia nie może blokować nowej
           mkdir -p "$OUT/3-zwykle"
           APP="$(ls -d dist/mac*/Aura.app | head -1)"
-          "$APP/Contents/MacOS/Aura" > "$OUT/3-zwykle/wyjscie.txt" 2>&1 &
-          PID=$!; sleep 25
+          "$APP/Contents/MacOS/Aura" --remote-debugging-port=9334 > "$OUT/3-zwykle/wyjscie.txt" 2>&1 &
+          PID=$!; sleep 8; screencapture -x "$OUT/3-zwykle/ekran-8s.png" || true
+          echo "--- okno ustawień po 8 s (powitanie):"
+          node .github/mac-cdp.js 9334 settings/index.html "({ url: location.search, welcome: !!document.querySelector('.welcome'), h1: (document.querySelector('.welcome h1')||{}).textContent, err: window.__err || null, mac: document.body.className })" | tee "$OUT/3-zwykle/powitanie.txt"
+          sleep 17
           if kill -0 $PID 2>/dev/null; then echo "DZIAŁA po 25 s" | tee "$OUT/3-zwykle/wynik.txt"; else echo "WYŁĄCZYŁA SIĘ przed 25 s" | tee "$OUT/3-zwykle/wynik.txt"; fi
           screencapture -x "$OUT/3-zwykle/ekran.png" || true
           kill $PID 2>/dev/null || true; sleep 2

@@ -572,6 +572,30 @@ body.mac .pillbtn.airdrop { display: inline-flex; }
 .dp-zone.over { border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, rgba(20,20,24,.9)); transform: scale(1.015); }
 .dp-zone.air.over { border-color: #0a84ff; background: color-mix(in srgb, #0a84ff 26%, rgba(20,20,24,.9)); }
 
+/* Bateria urządzeń: kapsułka obok wyspy (tło rysuje shader wyspy — ten sam motyw), na niej pierścienie jak w widżecie
+   baterii iPhone'a: pełny okrąg od góry, ikona w środku, procent obok */
+#devDots { position: absolute; left: 0; top: 0; height: 36px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 6px;
+  pointer-events: none; visibility: hidden; opacity: 0; white-space: nowrap; color: #fff; }
+body.nogl #devDots { background: var(--surface); border-radius: 18px; }
+.dd { display: flex; align-items: center; gap: 5px; }
+.dd-ring { width: 26px; height: 26px; position: relative; display: grid; place-items: center; flex: none; }
+.dd-ring > svg { position: absolute; inset: 0; width: 26px; height: 26px; transform: rotate(-90deg); } /* start pierścienia u góry */
+.dd-ring circle { fill: none; stroke-width: 2.6; }
+.dd-ring .bg { stroke: rgba(255,255,255,.2); }
+.dd-ring .fg { stroke: #fff; stroke-linecap: round; transition: stroke-dasharray .7s cubic-bezier(.2, .8, .2, 1), stroke .3s; }
+.dd.low .dd-ring .fg { stroke: #ff453a; }
+.dd.charging .dd-ring .fg { stroke: #30d158; }
+.dd-ring .ico { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; display: grid; place-items: center; color: rgba(255,255,255,.92); }
+.dd-ring .ico svg { width: 12px; height: 12px; position: static; transform: none; }
+.dd-ring .bolt { position: absolute; top: -3px; left: 50%; width: 7px; height: 9px; margin-left: -3.5px; background: #30d158;
+  clip-path: polygon(60% 0, 0 58%, 45% 58%, 35% 100%, 100% 40%, 55% 40%); }
+.dd b { font-size: 12.5px; font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.dd.low b { color: #ff6b61; }
+body.light #devDots { color: #111; }
+body.light .dd-ring .bg { stroke: rgba(0,0,0,.15); }
+body.light .dd-ring .fg { stroke: #111; }
+body.light .dd-ring .ico { color: rgba(0,0,0,.8); }
+
 /* Żywe tło karty muzyki: dwie dodatkowe warstwy okładki powoli krążą i mieszają się (rozmycie .m-bg obejmuje je razem),
    więc kolory albumu cały czas się przelewają. Tylko transform; animacja stoi, gdy karta muzyki nie jest widoczna. */
 .m-bg::before, .m-bg::after { content: ''; position: absolute; inset: 8% -6%; background: inherit; border-radius: 46%;

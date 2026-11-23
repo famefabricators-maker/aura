@@ -187,6 +187,7 @@ function frame(now) {
   if (Math.abs(lt - liftX) > 0.4) { liftX += (lt - liftX) * Math.min(1, dt * 13); moving = true; } else if (liftX !== lt) { liftX = lt; sendRects(); }
   if (animating !== moving) { animating = moving; tuneCapture(); } // koniec animacji: mniej klatek szkła
   layoutBox();
+  if (placeDevDots(anchorX(spring.w.x), boxY(Math.max(0, spring.h.x)), spring.w.x, Math.max(0, spring.h.x), dt)) moving = true;
   drawGL(now);
   const surf = T.surface(st.S.surface);
   const fx = surf.fx && st.mode === 'card';
@@ -205,6 +206,7 @@ function drawGL(now) {
   const w = spring.w.x, h = Math.max(0, spring.h.x);
   const openness = Math.max(0, Math.min(1, (h - 36) / 140));
   WyspaGL.draw({
+    b2: devCapsule(anchorX(w), w, atBottom() ? topY() + liftX : topY(), h),
     x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(), soft: isMac(),
     base: T.hexToRgb(surf.base), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
@@ -431,6 +433,51 @@ async function ensureCapture() {
 // po wyłączeniu szkła i ponownym włączeniu potrzebny jest nowy strumień wideo
 function resetCaptureIfNeeded() { const vt = capStream && capStream.getVideoTracks()[0]; if (T.surface(st.S.surface).glass && !vt) { capStream.getTracks().forEach(t => t.stop()); capStream = null; capVideo = null; capWanted = ''; } }
 
+// ---------- bateria urządzeń: kapsułka obok wyspy ----------
+// Kapsułkę rysuje ten sam shader co wyspę (szkło, kolory motywu, cień), a na niej leżą pierścienie jak w widżecie
+// baterii iPhone'a: pełny okrąg od góry zgodnie z ruchem wskazówek, ikona w środku, procent obok.
+// Biały; poniżej 20% czerwony; ładowanie — zielony z błyskawicą.
+let devList = [], ddA = 0, ddWant = 0, ddW = 0;
+const DD_GAP = 8, DD_H = 36;
+const DD_ICON = { mouse: 'mouse', headset: 'headphones', keyboard: 'keyboard', bt: 'bt' };
+const DD_R = 10.5, DD_C = 2 * Math.PI * DD_R;
+function renderDevDots(list) {
+  devList = Array.isArray(list) ? list.slice(0, 3) : [];
+  const box = $('#devDots'); box.textContent = '';
+  for (const d of devList) {
+    const lvl = Math.max(0, Math.min(100, Number(d.level) || 0));
+    const dot = document.createElement('div');
+    dot.className = 'dd' + (lvl < 20 && !d.charging ? ' low' : '') + (d.charging ? ' charging' : '');
+    dot.title = `${d.name}: ${lvl}%`;
+    dot.innerHTML = `<div class="dd-ring"><svg viewBox="0 0 26 26"><circle class="bg" cx="13" cy="13" r="${DD_R}"/><circle class="fg" cx="13" cy="13" r="${DD_R}" stroke-dasharray="${(DD_C * lvl / 100).toFixed(2)} ${DD_C.toFixed(2)}"/></svg><span class="ico">${I.svg(DD_ICON[d.kind] || 'battery')}</span>${d.charging ? '<i class="bolt"></i>' : ''}</div><b class="mono">${lvl}%</b>`;
+    box.append(dot);
+  }
+  ddW = 0; update(); kick();
+}
+W.on('devbat', renderDevDots);
+const devDotsWanted = () => !!devList.length && st.S.devBattery !== false && !st.open && !['hidden', 'slim', 'card'].includes(st.mode) && spring.h.x > 20 && spring.h.x < 46;
+// wywoływane co klatkę: pozycja treści + krok animacji wysuwania (zwraca true, dopóki się rusza)
+function placeDevDots(x, y, w, h, dt) {
+  const box = $('#devDots');
+  ddWant = devDotsWanted() ? 1 : 0;
+  if (ddWant && !ddW) ddW = box.offsetWidth;
+  const moving = Math.abs(ddWant - ddA) > 0.002;
+  ddA = moving ? ddA + (ddWant - ddA) * Math.min(1, (dt || 0.016) * 11) : ddWant;
+  const vis = ddA > 0.01;
+  box.classList.toggle('on', vis && ddWant === 1);
+  box.style.visibility = vis ? 'visible' : 'hidden';
+  box.style.left = (x + w + DD_GAP) + 'px'; box.style.top = (y + (h - DD_H) / 2) + 'px';
+  box.style.opacity = Math.max(0, (ddA - 0.45) / 0.55).toFixed(3);
+  return moving;
+}
+// kształt kapsułki dla shadera (w układzie kształtu wyspy: na dole ekranu odbity w pionie)
+function devCapsule(x, w, frameY, h) {
+  if (ddA <= 0.01 || !ddW) return null;
+  const e = 1 - Math.pow(1 - ddA, 3);                        // wysuwa się z boku wyspy
+  const ch = DD_H * (0.55 + 0.45 * e), cw = Math.max(ch, ddW * e);
+  return [x + w + DD_GAP * e, frameY + (h - ch) / 2, cw, ch];
+}
+
 // ---------- HUD ----------
 let hudTimer = null;
 function showHud(h) {
@@ -463,7 +510,7 @@ function showHud(h) {
 }
 
 // ---------- baner i alert ----------
-const NOTICE_ICON = { script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell', web: 'globe' };
+const NOTICE_ICON = { device: 'battery', script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell', web: 'globe' };
 let bannerTimer = null;
 function showBanner(n) {
   if (st.alert) return;
@@ -603,6 +650,7 @@ W.on('game', on => { st.game = !!on; $('#gIco').innerHTML = I.svg('game'); updat
   st.S = d.settings; st.screen = d.screen; st.winAccent = d.winAccent || null;
   st.media = d.sys.media; st.thumb = d.sys.thumb; st.vol = d.sys.vol; st.mic = d.sys.mic; st.inuse = d.sys.inuse || st.inuse; st.capture = d.sys.capture || []; st.captureSince = d.sys.captureSince || {};
   st.agents = d.agents || []; st.notices = d.notices || []; st.covered = !!d.sys.covered;
+  if (d.sys.devbat && d.sys.devbat.length) setTimeout(() => renderDevDots(d.sys.devbat), 0);
   if (callActive()) st.callStart = Date.now();
   st.tab = d.settings.lastPanel || 'music';
   applyTheme();

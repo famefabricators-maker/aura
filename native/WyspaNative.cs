@@ -400,3 +400,162 @@ public static class WyspaAudio {
     } catch { }
   }
 }
+
+// Bateria urządzeń bezprzewodowych: Bluetooth (to, co Windows pokazuje w Ustawieniach) oraz urządzenia SteelSeries
+// na odbiorniku 2,4 GHz, odczytywane wprost przez HID (tak jak w otwartych projektach rivalcfg i HeadsetControl):
+//  - Aerox 3 Wireless (odbiornik 0x1838 / 0x1878, interfejs 3): raport 00 D2, odpowiedź D2 xx, poziom = ((xx & 0x7F) - 1) * 5, ładowanie = xx & 0x80
+//  - Arctis 7 / Pro (0x1260, 0x12AD, 0x1252, 0x1280; interfejs 5, strona 0xFF43 / 0x0202): raport 06 18, bajt 2 = procent
+// Odczyt w osobnym wątku co minutę; pomocnik PowerShell bierze gotowy wynik (Version rośnie przy zmianie).
+public static class WyspaDevBattery {
+  [StructLayout(LayoutKind.Sequential)] struct SP_DEVICE_INTERFACE_DATA { public int cbSize; public Guid g; public int flags; public IntPtr r; }
+  [StructLayout(LayoutKind.Sequential)] struct SP_DEVINFO_DATA { public int cbSize; public Guid g; public int inst; public IntPtr r; }
+  [StructLayout(LayoutKind.Sequential)] struct DEVPROPKEY { public Guid fmtid; public uint pid; }
+  [StructLayout(LayoutKind.Sequential)] struct HIDP_CAPS { public ushort Usage, UsagePage, InLen, OutLen, FeatLen; [MarshalAs(UnmanagedType.ByValArray, SizeConst = 17)] public ushort[] r; public ushort a, b, c, d, e, f, g, h, i, j; }
+  [StructLayout(LayoutKind.Sequential)] struct OVL { public IntPtr Internal, InternalHigh; public int Offset, OffsetHigh; public IntPtr hEvent; }
+  [DllImport("hid.dll")] static extern void HidD_GetHidGuid(out Guid g);
+  [DllImport("hid.dll")] static extern bool HidD_GetPreparsedData(IntPtr h, out IntPtr p);
+  [DllImport("hid.dll")] static extern bool HidD_FreePreparsedData(IntPtr p);
+  [DllImport("hid.dll")] static extern int HidP_GetCaps(IntPtr p, out HIDP_CAPS c);
+  [DllImport("setupapi.dll", CharSet = CharSet.Unicode, EntryPoint = "SetupDiGetClassDevsW")] static extern IntPtr ClassDevs(ref Guid g, IntPtr e, IntPtr w, int f);
+  [DllImport("setupapi.dll", CharSet = CharSet.Unicode, EntryPoint = "SetupDiGetClassDevsW")] static extern IntPtr ClassDevsAll(IntPtr g, IntPtr e, IntPtr w, int f);
+  [DllImport("setupapi.dll")] static extern bool SetupDiEnumDeviceInterfaces(IntPtr s, IntPtr d, ref Guid g, int i, ref SP_DEVICE_INTERFACE_DATA o);
+  [DllImport("setupapi.dll", CharSet = CharSet.Unicode)] static extern bool SetupDiGetDeviceInterfaceDetailW(IntPtr s, ref SP_DEVICE_INTERFACE_DATA d, IntPtr o, int size, out int req, IntPtr di);
+  [DllImport("setupapi.dll")] static extern bool SetupDiEnumDeviceInfo(IntPtr s, int i, ref SP_DEVINFO_DATA d);
+  [DllImport("setupapi.dll", CharSet = CharSet.Unicode)] static extern bool SetupDiGetDevicePropertyW(IntPtr s, ref SP_DEVINFO_DATA d, ref DEVPROPKEY k, out uint type, byte[] buf, int size, out int req, int flags);
+  [DllImport("setupapi.dll")] static extern bool SetupDiDestroyDeviceInfoList(IntPtr s);
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern IntPtr CreateFileW(string n, uint a, uint sh, IntPtr sa, uint c, uint f, IntPtr t);
+  [DllImport("kernel32.dll")] static extern bool WriteFile(IntPtr h, byte[] b, int n, out int w, ref OVL o);
+  [DllImport("kernel32.dll")] static extern bool ReadFile(IntPtr h, byte[] b, int n, out int r, ref OVL o);
+  [DllImport("kernel32.dll")] static extern bool GetOverlappedResult(IntPtr h, ref OVL o, out int n, bool wait);
+  [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr h, uint ms);
+  [DllImport("kernel32.dll")] static extern bool CancelIoEx(IntPtr h, IntPtr o);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+  [DllImport("kernel32.dll")] static extern IntPtr CreateEventW(IntPtr a, bool manual, bool init, IntPtr n);
+  [DllImport("kernel32.dll")] static extern bool ResetEvent(IntPtr h);
+
+  public static int Version;
+  public static string Result = "";   // linie: nazwa \t rodzaj \t procent \t ładowanie(0/1)
+  static System.Threading.Thread worker;
+  public static volatile bool Enabled = true;
+  public static void Start() {
+    if (worker != null) return;
+    worker = new System.Threading.Thread(() => {
+      while (true) {
+        if (Enabled) Update();
+        System.Threading.Thread.Sleep(60000);
+      }
+    });
+    worker.IsBackground = true; worker.Priority = System.Threading.ThreadPriority.BelowNormal;
+    worker.Start();
+  }
+  static readonly object gate = new object();
+  static void Update() { lock (gate) { string r = ""; try { r = ReadAll(); } catch { } if (r != Result) { Result = r; Version++; } } }
+  public static void Refresh() { var t = new System.Threading.Thread(Update); t.IsBackground = true; t.Start(); }
+  public static string Test() { return ReadAll(); } // do sprawdzania z PowerShella
+
+  static string ReadAll() {
+    var sb = new StringBuilder(); var seen = new HashSet<string>();
+    foreach (var d in SteelSeries()) if (seen.Add(d.Split('\t')[0])) sb.Append(d).Append('\n');
+    foreach (var d in Bluetooth()) if (seen.Add(d.Split('\t')[0])) sb.Append(d).Append('\n');
+    return sb.ToString();
+  }
+
+  static List<string> HidPaths() {
+    var list = new List<string>(); Guid g; HidD_GetHidGuid(out g);
+    IntPtr set = ClassDevs(ref g, IntPtr.Zero, IntPtr.Zero, 0x12); // obecne + interfejsy
+    if (set == (IntPtr)(-1)) return list;
+    try {
+      var d = new SP_DEVICE_INTERFACE_DATA(); d.cbSize = Marshal.SizeOf(d);
+      for (int i = 0; SetupDiEnumDeviceInterfaces(set, IntPtr.Zero, ref g, i, ref d); i++) {
+        int req; SetupDiGetDeviceInterfaceDetailW(set, ref d, IntPtr.Zero, 0, out req, IntPtr.Zero);
+        if (req <= 0) continue;
+        IntPtr buf = Marshal.AllocHGlobal(req);
+        try {
+          Marshal.WriteInt32(buf, IntPtr.Size == 8 ? 8 : 6);
+          if (SetupDiGetDeviceInterfaceDetailW(set, ref d, buf, req, out req, IntPtr.Zero)) list.Add(Marshal.PtrToStringUni(new IntPtr(buf.ToInt64() + 4)));
+        } finally { Marshal.FreeHGlobal(buf); }
+      }
+    } finally { SetupDiDestroyDeviceInfoList(set); }
+    return list;
+  }
+  // zapytanie: wyślij raport wyjściowy, czytaj raporty wejściowe (do 8, każdy do 600 ms), aż któryś pasuje;
+  // bezprzewodowa mysz odpowiada z opóźnieniem, a odbiornik potrafi wcześniej przysłać inny raport — wtedy druga próba
+  static byte[] Ask(string path, byte[] cmd, Func<byte[], bool> match, ushort page, ushort usage) {
+    for (int t = 0; t < 2; t++) { var r = AskOnce(path, cmd, match, page, usage); if (r != null) return r; }
+    return null;
+  }
+  static byte[] AskOnce(string path, byte[] cmd, Func<byte[], bool> match, ushort page, ushort usage) {
+    IntPtr h = CreateFileW(path, 0xC0000000, 3, IntPtr.Zero, 3, 0x40000000, IntPtr.Zero);
+    if (h == (IntPtr)(-1)) return null;
+    IntPtr ev = CreateEventW(IntPtr.Zero, true, false, IntPtr.Zero);
+    try {
+      IntPtr pp; HIDP_CAPS caps;
+      if (!HidD_GetPreparsedData(h, out pp)) return null;
+      try { HidP_GetCaps(pp, out caps); } finally { HidD_FreePreparsedData(pp); }
+      if (page != 0 && (caps.UsagePage != page || caps.Usage != usage)) return null;
+      if (caps.OutLen < cmd.Length || caps.InLen < 3) return null;
+      var o = new byte[caps.OutLen]; Array.Copy(cmd, o, cmd.Length);
+      var ov = new OVL(); ov.hEvent = ev; int n;
+      if (!WriteFile(h, o, o.Length, out n, ref ov)) {
+        if (WaitForSingleObject(ev, 300) != 0) { CancelIoEx(h, IntPtr.Zero); GetOverlappedResult(h, ref ov, out n, true); return null; }
+      }
+      for (int k = 0; k < 8; k++) {
+        ResetEvent(ev);
+        var inb = new byte[caps.InLen]; var ri = new OVL(); ri.hEvent = ev;
+        if (!ReadFile(h, inb, inb.Length, out n, ref ri)) {
+          if (WaitForSingleObject(ev, 600) != 0) { CancelIoEx(h, IntPtr.Zero); GetOverlappedResult(h, ref ri, out n, true); return null; }
+        }
+        if (match(inb)) return inb;
+      }
+      return null;
+    } catch { return null; }
+    finally { CloseHandle(ev); CloseHandle(h); }
+  }
+  static List<string> SteelSeries() {
+    var outl = new List<string>();
+    foreach (var p in HidPaths()) {
+      string l = p.ToLowerInvariant(); if (!l.Contains("vid_1038")) continue;
+      if ((l.Contains("pid_1838") || l.Contains("pid_1878")) && l.Contains("mi_03")) {
+        var r = Ask(p, new byte[] { 0x00, 0xD2 }, b => b[1] == 0xD2, 0, 0); // odpowiedź: [ID 0] D2 poziom
+        if (r == null) continue;
+        int raw = r[2], lvl = ((raw & 0x7F) - 1) * 5;
+        if (lvl < 0 || lvl > 100) continue;                                // mysz wyłączona albo uśpiona
+        outl.Add("SteelSeries Aerox 3\tmouse\t" + lvl + "\t" + ((raw & 0x80) != 0 ? 1 : 0));
+      } else if ((l.Contains("pid_12ad") || l.Contains("pid_1260") || l.Contains("pid_1252") || l.Contains("pid_1280")) && l.Contains("mi_05")) {
+        var r = Ask(p, new byte[] { 0x06, 0x18 }, b => b[0] == 0x06 && b[1] == 0x18, 0xFF43, 0x0202);
+        if (r == null) continue;
+        int lvl = r[2];
+        if (lvl <= 0 || lvl > 100) continue;                               // słuchawki wyłączone
+        outl.Add((l.Contains("pid_1252") || l.Contains("pid_1280") ? "SteelSeries Arctis Pro" : "SteelSeries Arctis 7") + "\theadset\t" + lvl + "\t0");
+      }
+    }
+    return outl;
+  }
+  // Bluetooth: właściwość „poziom baterii” urządzenia, nazwa z FriendlyName, rodzaj z klasy
+  static List<string> Bluetooth() {
+    var outl = new List<string>();
+    IntPtr set = ClassDevsAll(IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0x06); // wszystkie klasy, obecne
+    if (set == (IntPtr)(-1)) return outl;
+    try {
+      var bat = new DEVPROPKEY(); bat.fmtid = new Guid("104EA319-6EE2-4701-BD47-8DDBF425BBE5"); bat.pid = 2;
+      var name = new DEVPROPKEY(); name.fmtid = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"); name.pid = 14;
+      var cls = new DEVPROPKEY(); cls.fmtid = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"); cls.pid = 10;
+      var d = new SP_DEVINFO_DATA(); d.cbSize = Marshal.SizeOf(d);
+      var buf = new byte[512];
+      for (int i = 0; SetupDiEnumDeviceInfo(set, i, ref d); i++) {
+        uint t; int req;
+        if (!SetupDiGetDevicePropertyW(set, ref d, ref bat, out t, buf, buf.Length, out req, 0) || req < 1) continue;
+        int lvl = buf[0]; if (lvl > 100) continue;
+        string n = "";
+        if (SetupDiGetDevicePropertyW(set, ref d, ref name, out t, buf, buf.Length, out req, 0)) n = Encoding.Unicode.GetString(buf, 0, Math.Max(0, req - 2));
+        string kind = "bt";
+        if (SetupDiGetDevicePropertyW(set, ref d, ref cls, out t, buf, buf.Length, out req, 0)) {
+          string c = Encoding.Unicode.GetString(buf, 0, Math.Max(0, req - 2)).ToLowerInvariant();
+          kind = c.Contains("mouse") ? "mouse" : c.Contains("keyboard") ? "keyboard" : (c.Contains("audio") || c.Contains("media")) ? "headset" : "bt";
+        }
+        if (n.Length > 0) outl.Add(n.Replace("\t", " ") + "\t" + kind + "\t" + lvl + "\t0");
+      }
+    } finally { SetupDiDestroyDeviceInfoList(set); }
+    return outl;
+  }
+}

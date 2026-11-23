@@ -42,10 +42,11 @@ window.WyspaGL = (() => {
   uniform vec3 u_base; uniform float u_glass; uniform float u_blur; uniform float u_tint;
   uniform vec2 u_screen; uniform vec2 u_win; uniform sampler2D u_tex; uniform float u_hasTex; uniform vec2 u_texSize;
   uniform vec3 u_accent; uniform float u_time; uniform float u_open; uniform int u_fx; uniform float u_light; uniform float u_flip; uniform float u_soft;
+  uniform vec4 u_b2; // druga kapsułka obok wyspy (bateria urządzeń): x, y, szer., wys.; szer. 0 = brak
   out vec4 o;
 
   float sdBox(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
-  float shape(vec2 p){
+  float shapeMain(vec2 p){
     vec2 c = u_pos + u_size * 0.5;
     float r = min(u_r, min(u_size.x, u_size.y) * 0.5);
     if (u_island > 0.5) return sdBox(p - c, u_size * 0.5, r);
@@ -58,6 +59,12 @@ window.WyspaGL = (() => {
       float dr = max(sdBox(p - vec2(R + e * 0.5, e * 0.5), vec2(e * 0.5), 0.0), e - length(p - vec2(R + e, e)));
       d = min(d, min(dl, dr));
     }
+    return d;
+  }
+  // wyspa + kapsułka baterii: ten sam materiał (szkło, obręcz, poświata, cień), bo to jedno pole odległości
+  float shape(vec2 p){
+    float d = shapeMain(p);
+    if (u_b2.z > 0.5) d = min(d, sdBox(p - (u_b2.xy + u_b2.zw * 0.5), u_b2.zw * 0.5, u_b2.w * 0.5));
     return d;
   }
   float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -123,6 +130,7 @@ window.WyspaGL = (() => {
       vec2 c0 = u_pos + u_size * 0.5;
       float rr = min(u_r, min(u_size.x, u_size.y) * 0.5);
       float ds = sdBox(p - vec2(c0.x, c0.y + 5.0), u_size * 0.5, rr); // cień tylko od korpusu, bez „uszu”
+      if (u_b2.z > 0.5) ds = min(ds, sdBox(p - (u_b2.xy + u_b2.zw * 0.5 + vec2(0.0, 5.0)), u_b2.zw * 0.5, u_b2.w * 0.5));
       sh = (u_glass > 0.5 ? (u_hasTex > 0.5 ? 0.30 : 0.10) : 0.22) * exp(-max(ds, 0.0) / 9.0) * smoothstep(-2.0, 2.0, d) * smoothstep(u_pos.y + 4.0, u_pos.y + 16.0, p.y);
     }
     if (aa <= 0.0) { o = vec4(0.0, 0.0, 0.0, sh); return; }
@@ -211,7 +219,7 @@ window.WyspaGL = (() => {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const a = gl.getAttribLocation(prog, 'a');
     gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light', 'u_flip', 'u_soft'])
+    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light', 'u_flip', 'u_soft', 'u_b2'])
       loc[n] = gl.getUniformLocation(prog, n);
     tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -272,6 +280,7 @@ window.WyspaGL = (() => {
     gl.uniform1f(loc.u_open, st.open);
     gl.uniform1i(loc.u_fx, st.fx || 0);
     gl.uniform1f(loc.u_light, st.light ? 1 : 0);
+    const b2 = st.b2 || [0, 0, 0, 0]; gl.uniform4f(loc.u_b2, b2[0], b2[1], b2[2], b2[3]);
     gl.uniform1f(loc.u_flip, st.flip ? 1 : 0); gl.uniform1f(loc.u_soft, st.soft ? 1 : 0); // Mac: słabsza poświata (przy pasku menu wyglądała jak obwódka)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }

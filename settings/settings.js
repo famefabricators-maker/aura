@@ -1,10 +1,13 @@
+// błędy strony zapamiętane do diagnostyki (test na Macu czyta je przez port debugowania)
+addEventListener('error', e => { (window.__err = window.__err || []).push(String(e.message)); });
+addEventListener('unhandledrejection', e => { (window.__err = window.__err || []).push('promise: ' + String(e.reason && e.reason.message || e.reason)); });
 /* Aura — okno ustawień, generowane ze schematu. Każda zmiana działa od razu. */
 const W = window.wyspa, T = window.WYSPA_THEME, I = window.ICONS;
 const $ = s => document.querySelector(s);
 let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', query = '', hkErrors = [], claude = 'disconnected', codex = 'disconnected', glassReady = '';
 // opcje, które działają tylko na Windowsie — na Macu ich nie pokazujemy
 const MAC = W.platform === 'darwin';
-const WIN_ONLY = new Set(['appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudLockKeys', 'hudDevice', 'hudMic',
+const WIN_ONLY = new Set(['devBattery', 'appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudLockKeys', 'hudDevice', 'hudMic',
   'privacyDot', 'callTimer', 'colorPick', 'liveWallpaper', 'shape', 'topGap']); // krawędź i położenie wyspy działają też na Macu (na dole bez notcha)
 const hiddenRow = r => (MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry')) || (!MAC && (r.key === 'macRealGlass' || r.key === 'tabAirdrop' || r.key === 'macHudKeys')); // opcje tylko dla Maca
 const hiddenPage = p => MAC && (p.id === 'wallpaper' || p.id === 'taskbar');
@@ -67,6 +70,7 @@ const PAGES = [
     tog('hudBrightness', 'Jasność', MAC ? 'Klawisze jasności wbudowanego ekranu pokazują okienko na wyspie.' : 'Działa na laptopach i monitorach z DDC/CI.'),
     tog('macHudKeys', 'Zamiast okienka macOS', 'Aura przejmuje klawisze głośności i jasności: sama zmienia poziom i pokazuje okienko na wyspie, a systemowe się nie pojawia. Wymaga zgody „Dostępność” (Ustawienia systemowe → Prywatność i ochrona). Wyłączone: pokazuje się okienko macOS.'),
     tog('hudBattery', 'Zasilanie i bateria'),
+    tog('devBattery', 'Bateria myszy i słuchawek obok wyspy', 'Małe kropki przy wyspie z ikoną urządzenia i łukiem baterii; przy 15% wyspa przypomni o ładowaniu. Urządzenia Bluetooth oraz SteelSeries na odbiorniku USB (np. Aerox 3, Arctis 7).'),
     tog('hudLockKeys', 'Caps Lock i Num Lock'),
     tog('hudDevice', 'Zmiana urządzenia dźwięku', 'Np. po podłączeniu słuchawek.'),
     tog('hudMic', 'Wyciszenie mikrofonu'),

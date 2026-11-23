@@ -167,6 +167,7 @@ function Handle($line) {
     'brightget' { Out-Line (@{ t = 'bright' } + (Get-Bright)) }
     'stats' { Out-Line (@{ t = 'net' } + (Get-Net)) }
     'ownpid' { $script:ownPid = [int]$m.pid }
+    'devbat' { if ([bool]$m.on) { [WyspaDevBattery]::Enabled = $true; [WyspaDevBattery]::Start(); [WyspaDevBattery]::Refresh() } else { [WyspaDevBattery]::Enabled = $false; $script:devBatVer = -1; Out-Line @{ t = 'devbat'; list = @() } } }
     'edge' { $script:edgeBottom = [bool]$m.bottom; $script:lastCov = -1 }
     'toasts' { $on = [bool]$m.on; if ($on -ne $script:toasts) { $script:toasts = $on; $script:toastInit = $false; $script:toastSeen = @{} } }
     'power' { if ($m.g) { [void][WyspaWin]::SetPowerMode([string]$m.g) }; Out-Line @{ t = 'power'; g = [WyspaWin]::PowerMode() } }
@@ -198,7 +199,7 @@ $readTask = $stdin.ReadLineAsync()
 $lastMedia = ''; $lastKey = ''; $thumbTries = 0
 $lastFs = $null; $lastSeq = [WyspaWin]::GetClipboardSequenceNumber()
 $lastVol = ''; $lastMic = ''; $lastKeys = -1; $lastUse = ''; $lastBright = $null
-$tick = 0; $script:force = $true; $script:ownPid = 0; $script:edgeBottom = $false; $script:lastCov = -1; $lastCap = $null
+$script:devBatVer = -1; $tick = 0; $script:force = $true; $script:ownPid = 0; $script:edgeBottom = $false; $script:lastCov = -1; $lastCap = $null
 
 while ($true) {
   while ($readTask.IsCompleted) {
@@ -295,6 +296,12 @@ while ($true) {
   }
 
   if ($script:toasts -and $tick % 8 -eq 0) { try { Poll-Toasts } catch {} }  # ok. co 1,6 s
+  # bateria myszy, słuchawek itp. (odczyt w osobnym wątku co minutę) — wysyłamy, gdy się zmieni
+  if ($tick % 10 -eq 5 -and [WyspaDevBattery]::Enabled -and [WyspaDevBattery]::Version -ne $script:devBatVer) {
+    $script:devBatVer = [WyspaDevBattery]::Version
+    $list = @(foreach ($ln in ([WyspaDevBattery]::Result -split "`n")) { if ($ln) { $f = $ln.Split("`t"); @{ name = $f[0]; kind = $f[1]; level = [int]$f[2]; charging = ($f[3] -eq '1') } } })
+    Out-Line @{ t = 'devbat'; list = $list }
+  }
   if ($tick % 300 -eq 150) { [WyspaWin]::Trim() }  # ok. co minutę: oddaj systemowi nieużywaną pamięć
   $tick++
   # czekaj do 200 ms, ale obudź się od razu, gdy przyjdzie komenda (płynna głośność i przewijanie)

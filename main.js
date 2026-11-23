@@ -230,6 +230,7 @@ function applySettings(patch) {
   if (k.includes('appNotifications')) configureToasts();
   if (k.includes('lyrics')) { lyricsKey = ''; if (S().lyrics) onTrack(sys.media); else send('lyrics', null); } // włączone w trakcie utworu: tekst od razu
   if (k.some(x => ['hudVolume', 'hudBrightness', 'macHudKeys'].includes(x))) configureMacKeys();
+  if (k.includes('devBattery')) configureDevBattery();
   if (k.includes('dock')) configureDock(); else if (k.some(x => /^dock[A-Z]/.test(x))) { if (taskbar) taskbar.push(); if (k.includes('dockSize')) place(); }
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
   if (k.includes('calendarIcs')) refreshCalendar();
@@ -422,6 +423,18 @@ helper.on('capture', m => { // kto naprawdę nagrywa z mikrofonu
 });
 setInterval(() => { if (Object.keys(sys.captureSince).length) saveCaptureSince(); }, 60e3).unref?.();
 helper.on('covered', m => { sys.covered = !!m.on; send('covered', sys.covered); });
+// bateria myszy, słuchawek itp. (Windows): kropki obok wyspy + przypomnienie przy 15%
+const devLow = new Set();
+helper.on('devbat', m => {
+  const list = Array.isArray(m.list) ? m.list.filter(d => d && d.name && Number.isFinite(Number(d.level))) : [];
+  sys.devbat = list; send('devbat', list);
+  for (const d of list) {
+    const low = Number(d.level) <= 15 && !d.charging;
+    if (low && !devLow.has(d.name)) { devLow.add(d.name); addNotice({ kind: 'device', title: `${d.name}: ${d.level}% baterii`, body: 'Czas naładować.' }); }
+    if (!low && Number(d.level) >= 25) devLow.delete(d.name);
+  }
+});
+function configureDevBattery() { if (!IS_MAC) helper.send({ c: 'devbat', on: S().devBattery !== false }); }
 helper.on('power', m => { sys.power = m.g; send('power', m.g); });
 helper.on('radios', m => { sys.radios = m.list || []; send('radios', sys.radios); });
 helper.on('net', m => { sys.net = m; });
@@ -1394,7 +1407,7 @@ ipcMain.on('notes-set', (_, d) => { if (typeof d.notes === 'string') store.data.
 // ---------- stan początkowy dla okna wyspy ----------
 ipcMain.handle('init', async () => ({
   settings: S(), screen: screenInfo(), files: await filesOut(), clips: clipsOut(), notices: store.data.notices || [],
-  reminders: remindersOut(), agents: agentsOut(), sys: { vol: sys.vol, mic: sys.mic, inuse: sys.inuse, media: sys.media, thumb: sys.thumb, bright: sys.bright, covered: !!sys.covered, capture: sys.capture || [], captureSince: sys.captureSince || {} },
+  reminders: remindersOut(), agents: agentsOut(), sys: { vol: sys.vol, mic: sys.mic, inuse: sys.inuse, media: sys.media, thumb: sys.thumb, bright: sys.bright, covered: !!sys.covered, capture: sys.capture || [], captureSince: sys.captureSince || {}, devbat: sys.devbat || [] },
   hotkeyErrors, winAccent: winAccent(),
 }));
 function winAccent() { try { const c = systemPreferences.getAccentColor(); return c ? '#' + c.slice(0, 6) : null; } catch { return null; } }
@@ -1504,10 +1517,12 @@ app.whenReady().then(async () => {
   screen.on('display-metrics-changed', place);
   screen.on('display-added', place);
   screen.on('display-removed', place);
-  for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(() => { try { if (taskbar) taskbar.wake(ev); } catch (e) { logError('wake', e); } }, 2500));  powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
+  for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(() => { try { if (taskbar) taskbar.wake(ev); } catch (e) { logError('wake', e); } }, 2500));
+  powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
   configureDock();
   configureMacKeys();
+  setTimeout(configureDevBattery, 2000); // pomocnik już działa
   configureDownloads();
   upgradeClaudeHooks(); // dopisz hook zgód do już połączonego Claude Code
   setTimeout(configureToasts, 3000);
