@@ -516,6 +516,15 @@ public static class WyspaDevBattery {
     } catch { return null; }
     finally { CloseHandle(ev); CloseHandle(h); }
   }
+  // Słuchawki Arctis nie zgłaszają ładowania. Bateria rośnie jednak tylko przy ładowaniu (po podpięciu odczyt od razu
+  // podskakuje), a po odłączeniu spada — więc wzrost = ładuje się, spadek = już nie.
+  static readonly Dictionary<string, int> lastLvl = new Dictionary<string, int>();
+  static readonly Dictionary<string, bool> charging = new Dictionary<string, bool>();
+  static bool Charging(string name, int lvl) {
+    int prev; bool c; charging.TryGetValue(name, out c);
+    if (lastLvl.TryGetValue(name, out prev)) { if (lvl > prev) c = true; else if (lvl < prev) c = false; }
+    lastLvl[name] = lvl; charging[name] = c; return c;
+  }
   static List<string> SteelSeries() {
     var outl = new List<string>();
     foreach (var p in HidPaths()) {
@@ -533,7 +542,8 @@ public static class WyspaDevBattery {
         if (r == null) continue;
         int lvl = r[2];
         if (lvl <= 0 || lvl > 100) continue;                               // słuchawki wyłączone
-        outl.Add((l.Contains("pid_1252") || l.Contains("pid_1280") ? "SteelSeries Arctis Pro" : "SteelSeries Arctis 7") + "\theadset\t" + lvl + "\t0");
+        string nm = l.Contains("pid_1252") || l.Contains("pid_1280") ? "SteelSeries Arctis Pro" : "SteelSeries Arctis 7";
+        outl.Add(nm + "\theadset\t" + lvl + "\t" + (Charging(nm, lvl) ? 1 : 0));
       }
     }
     return outl;
