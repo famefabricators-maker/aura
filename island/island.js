@@ -177,6 +177,7 @@ function stepSpring(dt) {
 
 // ---------- pętla rysowania ----------
 let raf = 0, lastT = 0, animating = false, t0 = performance.now();
+let lyrHold = false; // zwężanie karty po wyłączeniu tekstu utworu (patrz update)
 function kick() { if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(frame); } }
 function frame(now) {
   raf = 0;
@@ -186,6 +187,7 @@ function frame(now) {
   const lt = liftTarget();
   if (Math.abs(lt - liftX) > 0.4) { liftX += (lt - liftX) * Math.min(1, dt * 13); moving = true; } else if (liftX !== lt) { liftX = lt; sendRects(); }
   if (animating !== moving) { animating = moving; tuneCapture(); } // koniec animacji: mniej klatek szkła
+  if (lyrHold && Math.abs(spring.w.x - target.w) < 1.5) { lyrHold = false; update(); } // zwężanie skończone: zwykły układ
   layoutBox();
   if (placeDevDots(anchorX(spring.w.x), boxY(Math.max(0, spring.h.x)), spring.w.x, Math.max(0, spring.h.x), dt)) moving = true;
   drawGL(now);
@@ -245,7 +247,14 @@ function update() {
   const z = target.z;
   for (const id of ['#pill', '#hud', '#banner', '#strip']) { const el = $(id); el.style.zoom = z; el.style.width = (target.w / z) + 'px'; el.style.height = (target.h / z) + 'px'; }
   const card = $('#card'); const oz = st.S.openSize / 100; card.style.zoom = oz;
-  card.style.setProperty('--card-w', cardW() + 'px'); $('#music').classList.toggle('with-lyrics', lyricsPanel());
+  // wyłączony tekst utworu: kształt wyspy zwęża się płynnie, a zawartość przeskakiwała od razu do wąskiego układu
+  // (po bokach prześwitywało tło kształtu). Teraz szeroki układ zostaje do końca zwężania, tekst znika, a karta
+  // przyklejona do lewej — przycina się tylko prawa strona z tekstem.
+  const lp = lyricsPanel(), musicCard = mode === 'card' && st.tab === 'music';
+  if (lp || !musicCard) lyrHold = false;
+  else if ($('#music').classList.contains('with-lyrics') && !$('#music').classList.contains('lyr-out')) lyrHold = true;
+  card.style.setProperty('--card-w', (lyrHold ? 722 : cardW()) + 'px');
+  $('#music').classList.toggle('with-lyrics', lp || lyrHold); $('#music').classList.toggle('lyr-out', lyrHold); card.classList.toggle('lyr-hold', lyrHold);
   const nh = hasNotch() ? st.screen.notch.h : 0;
   card.style.height = (tabH(st.tab) + nh / oz) + 'px';
   // notch: przerwa na wycięcie w pigułce/HUD i miejsce pod nim w karcie i banerze
@@ -356,7 +365,8 @@ requestAnimationFrame(vizLoop);
 // ---------- przechwytywanie ekranu: szkło + dźwięk ----------
 let capStream = null, capVideo = null, capWanted = '', capApplied = '';
 // szerokość obrazu ekranu: 1280 px wystarcza do rozmycia; przy prawie przezroczystym szkle 1920 (bez mydła)
-const capWidth = () => Math.min((st.screen && st.screen.w) || 1920, (st.S.glassBlur ?? 50) < 12 ? 1920 : 1280);
+// mocne rozmycie nie potrzebuje ostrego obrazu: mniejszy obraz = mniej pamięci i pracy (domyślne 50% → 960 px)
+const capWidth = () => { const b = st.S.glassBlur ?? 50; return Math.min((st.screen && st.screen.w) || 1920, b < 12 ? 1920 : b < 35 ? 1280 : 960); };
 // klatki: otwarta wyspa / animacja 30, zwinięta 15, cienka linia pod oknem albo schowana 2
 const capFps = () => (st.open || animating) ? 30 : ((st.covered && !st.open) || st.mode === 'hidden' || st.mode === 'slim') ? 2 : 15;
 function capConstraints() { return { width: { max: capWidth() }, frameRate: { ideal: capFps(), max: 30 } }; }

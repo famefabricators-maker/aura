@@ -484,6 +484,8 @@ body.reduce .layer, body.reduce section { transition: opacity .1s linear !import
 .m-lyrics { display: none; }
 #music.with-lyrics { padding-right: 310px; }
 #music.with-lyrics .m-lyric { display: none; }
+#music.lyr-out .m-lyrics { opacity: 0; transition: opacity .16s ease; } /* tekst znika, zanim wyspa się zwęzi */
+#card.lyr-hold { left: 0; transform: none; }
 #music.with-lyrics .m-lyrics { display: block; position: absolute; top: 8px; bottom: 12px; right: 16px; width: 278px; padding-left: 18px;
   border-left: 1px solid var(--line); overflow: hidden;
   -webkit-mask-image: linear-gradient(transparent 0, #000 24%, #000 76%, transparent 100%); mask-image: linear-gradient(transparent 0, #000 24%, #000 76%, transparent 100%); }
