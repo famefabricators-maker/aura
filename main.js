@@ -427,8 +427,18 @@ setInterval(() => { if (Object.keys(sys.captureSince).length) saveCaptureSince()
 helper.on('covered', m => { sys.covered = !!m.on; send('covered', sys.covered); });
 // bateria myszy, słuchawek itp. (Windows): kropki obok wyspy + przypomnienie przy 15%
 const devLow = new Set(), devCharging = new Map();
+// Wygładzanie: odczyt baterii z urządzeń skacze (napięcie pod ładowarką zawyżone, mysz podaje co 5%). Bez ładowania
+// procent może tylko spadać, przy ładowaniu — tylko rosnąć; zmiana stanu ładowania przyjmuje nowy odczyt.
+const devShown = new Map();
+function smoothDev(d) {
+  const lvl = Math.round(Number(d.level)), prev = devShown.get(d.name);
+  let v = lvl;
+  if (prev && prev.charging === !!d.charging) v = d.charging ? Math.max(prev.v, lvl) : Math.min(prev.v, lvl);
+  devShown.set(d.name, { v, charging: !!d.charging });
+  return { ...d, level: v, raw: lvl };
+}
 helper.on('devbat', m => {
-  const list = Array.isArray(m.list) ? m.list.filter(d => d && d.name && Number.isFinite(Number(d.level))) : [];
+  const list = (Array.isArray(m.list) ? m.list.filter(d => d && d.name && Number.isFinite(Number(d.level))) : []).map(smoothDev);
   sys.devbat = list; send('devbat', list);
   for (const d of list) {
     const was = devCharging.get(d.name); devCharging.set(d.name, !!d.charging);
