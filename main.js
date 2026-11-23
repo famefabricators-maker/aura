@@ -247,10 +247,21 @@ function applySettings(patch) {
 ipcMain.handle('settings-get', () => S());
 ipcMain.handle('settings-set', (_, patch) => { applySettings(patch || {}); return S(); });
 ipcMain.on('open-settings', (_, page) => openSettings(page));
-ipcMain.on('welcome-done', () => { if (!store.data.welcomeDone) { store.data.welcomeDone = true; store.saveData(); } });
+ipcMain.on('welcome-done', () => { if (!store.data.welcomeDone) { store.data.welcomeDone = true; store.saveData(); if (IS_MAC) setTimeout(configureMacKeys, 800); } });
 
+// macOS: Aura działa w tle (bez ikony w Docku), a okno takiej aplikacji otwiera się POD oknem aktywnego programu —
+// powitanie przy pierwszym uruchomieniu lądowało za przeglądarką czy Finderem i nikt go nie widział. Aktywujemy Aurę
+// i na chwilę stawiamy okno nad innymi.
+function bringFront(win, strong) {
+  if (!win || win.isDestroyed()) return;
+  if (IS_MAC) {
+    try { app.focus({ steal: true }); } catch {}
+    win.moveTop(); win.focus();
+    if (strong) { win.setAlwaysOnTop(true, 'floating'); setTimeout(() => { if (!win.isDestroyed()) win.setAlwaysOnTop(false); }, 2500); }
+  } else win.focus();
+}
 function openSettings(page) {
-  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); settingsWin.focus(); if (page) send('goto', page, settingsWin); return; }
+  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); bringFront(settingsWin, page === 'welcome'); if (page) send('goto', page, settingsWin); return; }
   const glass = S().surface === 'glass';
   settingsWin = new BrowserWindow({
     width: 860, height: 760, minWidth: 720, minHeight: 520, show: false, title: 'Aura — ustawienia',
@@ -263,7 +274,7 @@ function openSettings(page) {
   });
   settingsWin.setMenu(null);
   settingsWin.loadFile(path.join('settings', 'index.html'), { query: { page: page || '' } });
-  settingsWin.once('ready-to-show', () => settingsWin.show());
+  settingsWin.once('ready-to-show', () => { settingsWin.show(); bringFront(settingsWin, page === 'welcome'); });
   settingsWin.on('closed', () => { settingsWin = null; });
   for (const ev of ['move', 'moved', 'resize', 'show', 'maximize', 'unmaximize', 'restore', 'will-move']) settingsWin.on(ev, sendSettingsPos);
   // podczas przeciągania okna Windows nie zawsze wysyła „move” na bieżąco — dopytujemy o pozycję co klatkę
@@ -390,10 +401,11 @@ function configureMacKeys() {
   clearTimeout(keysRetry);
   const want = S().macHudKeys !== false && (S().hudVolume || S().hudBrightness);
   if (!want) { macNative().stopKeys(); return; }
-  const r = macNative().startKeys({ volume: !!S().hudVolume, bright: !!S().hudBrightness, onHud: h => { lastKeyHud = Date.now(); send('hud', h); } });
+  // pierwsze uruchomienie: o zgodę „Dostępność” pytamy dopiero po powitaniu (systemowe okno zasłaniało powitanie)
+  const r = macNative().startKeys({ ask: !!store.data.welcomeDone && !keysAsked, volume: !!S().hudVolume, bright: !!S().hudBrightness, onHud: h => { lastKeyHud = Date.now(); send('hud', h); } });
   if (process.env.WYSPA_SHOT) console.log('wyspa: klawisze głośności/jasności:', r, macNative().error ? String(macNative().error) : '');
   if (r === 'brak-zgody') {
-    if (!keysAsked) { keysAsked = true; addNotice({ kind: 'tool', title: 'Głośność i jasność na wyspie', body: 'Pozwól Aurze w Ustawieniach systemowych → Prywatność i ochrona → Dostępność, a okienko głośności i jasności pokaże się na wyspie zamiast systemowego.' }); }
+    if (!keysAsked && store.data.welcomeDone) { keysAsked = true; addNotice({ kind: 'tool', title: 'Głośność i jasność na wyspie', body: 'Pozwól Aurze w Ustawieniach systemowych → Prywatność i ochrona → Dostępność, a okienko głośności i jasności pokaże się na wyspie zamiast systemowego.' }); }
     keysRetry = setTimeout(configureMacKeys, 5000); // zgoda dana w Ustawieniach: kran rusza sam, bez restartu
   }
 }

@@ -75,6 +75,9 @@ jobs:
           pkill -f "Electron.app" || true; pkill -f "Aura.app" || true; sleep 2  # poprzednia kopia nie może blokować nowej
           mkdir -p "$OUT/3-zwykle"
           APP="$(ls -d dist/mac*/Aura.app | head -1)"
+          # jak u użytkownika: na pierwszym planie duże okno innego programu — powitanie ma wyjść nad nie
+          osascript -e 'tell application "Finder" to activate' -e 'tell application "Finder" to make new Finder window' -e 'tell application "Finder" to set bounds of front window to {0, 25, 1024, 768}' || true
+          sleep 2
           "$APP/Contents/MacOS/Aura" --remote-debugging-port=9334 > "$OUT/3-zwykle/wyjscie.txt" 2>&1 &
           PID=$!; sleep 8; screencapture -x "$OUT/3-zwykle/ekran-8s.png" || true
           echo "--- okno ustawień po 8 s (powitanie):"
