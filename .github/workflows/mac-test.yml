@@ -158,11 +158,14 @@ jobs:
             sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAccessibility',$C,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$TS,NULL,NULL,'UNUSED',0);" && echo "zgoda: $C" || echo "zgoda: nie udało się ($C)"
           done
           echo "--- przeciąganie:"
+          echo "zdjęcie z wakacji" > /tmp/zdjecie-z-wakacji.txt
+          /usr/bin/osascript -l JavaScript .github/mac-drag-source.js /tmp/zdjecie-z-wakacji.txt 75 > "$OUT/9-mac/zrodlo.txt" 2>&1 &
+          SRC=$!; sleep 3
           WYSPA_SHOT="$OUT/9-mac" WYSPA_DRAGTEST=1 "$APP/Contents/MacOS/Aura" > "$OUT/9-mac/wyjscie-drag.txt" 2>&1 &
           PID=$!; sleep 13; screencapture -x "$OUT/9-mac/drag-ekran-airdrop.png" || true
           for i in $(seq 1 80); do sleep 1; kill -0 $PID 2>/dev/null || break; done
-          kill $PID 2>/dev/null || true; pkill -f airdrop-mac.js || true
-          cat "$OUT/9-mac/drag.txt" || true
+          kill $PID 2>/dev/null || true; kill $SRC 2>/dev/null || true; pkill -f airdrop-mac.js || true
+          cat "$OUT/9-mac/drag.txt" || true; echo "--- źródło:"; cat "$OUT/9-mac/zrodlo.txt" || true
           echo "--- Mission Control i klawisze:"
           WYSPA_SHOT="$OUT/9-mac" WYSPA_KEYSTEST=1 "$APP/Contents/MacOS/Aura" > "$OUT/9-mac/wyjscie-klawisze.txt" 2>&1 &
           PID=$!; sleep 8; screencapture -x "$OUT/9-mac/mc-0-przed.png" || true
