@@ -1,5 +1,11 @@
 /* Wyspa — rdzeń: geometria, sprężyna, warstwy, szkło, HUD, banery, pigułka. */
-const W = window.wyspa, T = window.WYSPA_THEME, I = window.ICONS;
+// Podgląd w ustawieniach (island/index.html?preview): ta sama wyspa, ale nie rusza prawdziwej — nie zgłasza obszaru
+// klikania ani przytrzymania, nie zapisuje stanu; działa tylko sterowanie muzyką i głośnością. Szkło bez obrazu ekranu.
+const PREVIEW = new URLSearchParams(location.search).has('preview');
+const PREVIEW_SEND = new Set(['media', 'seek', 'volume', 'mute', 'controls-refresh', 'stats-on', 'weather-refresh', 'ai-usage-refresh']);
+const W = PREVIEW ? { ...window.wyspa, send: (ch, ...a) => { if (PREVIEW_SEND.has(ch)) window.wyspa.send(ch, ...a); } } : window.wyspa;
+const T = window.WYSPA_THEME, I = window.ICONS;
+if (PREVIEW) document.documentElement.classList.add('preview');
 const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySelectorAll(s));
 const isl = $('#isl');
 
@@ -383,7 +389,14 @@ function tuneCapture() {
   if (capFps() > cur) apply(); else capTuneT = setTimeout(apply, 1500);
 }
 function glassLive() { return capVideo && T.surface(st.S.surface).glass; }
+// podgląd: „ekran” = okienko podglądu (wyspa na jego środku, przy wybranej krawędzi), bez paska zadań i notcha w tle
+function previewScreen(s) {
+  return { ...(s || {}), w: innerWidth, h: innerHeight, x: 0, y: 0, winX: 0, winY: 0, dockBelow: false, dockShown: false, dockLift: 0,
+    notch: s && s.notch && s.notch.has ? s.notch : { has: false, w: 0, h: 0 } };
+}
+if (PREVIEW) addEventListener('resize', () => { if (st.screen) { st.screen = previewScreen(st.screen); update(); } });
 async function ensureCapture() {
+  if (PREVIEW) return; // podgląd nie pobiera obrazu ekranu (szkło przydymione)
   // „Widać wyspę na zrzutach”: szkło bez obrazu pulpitu (przydymione) — wyspa nie jest ukryta przed przechwytywaniem,
   // więc obraz na żywo pokazywałby samą wyspę (odbicie w odbiciu)
   const glass = !!T.surface(st.S.surface).glass && !st.S.glassInShots;
@@ -625,7 +638,7 @@ W.on('agent-ask', a => { askId = a.id; const ans = d => () => { W.send('agent-an
 W.on('agent-ask-done', id => { if (id === askId) { askId = null; closeAlert(); } });
 W.on('download', d => { st.download = d || null; update(); });
 W.on('goto-tab', n => { const t = enabledTabs()[Number(n) - 1]; if (t) { st.open = true; setTab(t.id); update(); } });
-W.on('open', on => {
+function onOpen(on) {
   if (on && !st.open) {
     let tab = st.S.lastPanel || 'music';
     if (st.banner) tab = 'notices';
@@ -634,7 +647,9 @@ W.on('open', on => {
     st.banner = null; st.hud = null;
     st.open = true; setTab(tab);
   } else if (!on && st.open) { st.open = false; document.dispatchEvent(new CustomEvent('closed')); update(); }
-});
+}
+W.on('open', on => { if (!PREVIEW) onOpen(on); });
+W.on('preview-open', on => { if (PREVIEW) onOpen(!!on); }); // przełącznik „W spoczynku / Otwarta” w ustawieniach
 
 // kółko myszy: na pigułce głośność, na karcie przewijanie kart
 let swipeAcc = 0, swipeAt = 0;
@@ -662,7 +677,7 @@ isl.addEventListener('wheel', e => {
 
 // ---------- zdarzenia z procesu głównego ----------
 W.on('settings', s => { const prevSurf = st.S.surface, prevReal = st.S.macRealGlass, prevShots = st.S.glassInShots; st.S = s; if (prevSurf !== s.surface || prevShots !== s.glassInShots) resetCaptureIfNeeded(); if (prevReal !== s.macRealGlass || prevShots !== s.glassInShots) ensureCapture(); applyTheme(); update(); document.dispatchEvent(new CustomEvent('settings')); });
-W.on('screen', s => { st.screen = s; if (st.S && st.S.surface) update(); else kick(); });
+W.on('screen', s => { if (PREVIEW) return; st.screen = s; if (st.S && st.S.surface) update(); else kick(); });
 W.on('hud', h => showHud(h));
 W.on('banner', n => showBanner(n));
 W.on('inuse', m => { st.inuse = { mic: m.mic || [], cam: m.cam || [] }; update(); });
@@ -679,7 +694,7 @@ W.on('game', on => { st.game = !!on; $('#gIco').innerHTML = I.svg('game'); updat
   try { gl = WyspaGL.init($('#bg')); } catch (e) { console.warn(e); }
   if (!gl) document.body.classList.add('nogl');
   const d = await W.invoke('init');
-  st.S = d.settings; st.screen = d.screen; st.winAccent = d.winAccent || null;
+  st.S = d.settings; st.screen = PREVIEW ? previewScreen(d.screen) : d.screen; st.winAccent = d.winAccent || null;
   st.media = d.sys.media; st.thumb = d.sys.thumb; st.vol = d.sys.vol; st.mic = d.sys.mic; st.inuse = d.sys.inuse || st.inuse; st.capture = d.sys.capture || []; st.captureSince = d.sys.captureSince || {};
   st.agents = d.agents || []; st.notices = d.notices || []; st.covered = !!d.sys.covered;
   if (d.sys.devbat && d.sys.devbat.length) setTimeout(() => renderDevDots(d.sys.devbat), 0);

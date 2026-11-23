@@ -78,7 +78,13 @@ let interactive = false, open = false, insideSince = 0, lastInside = 0, hold = f
 let userHidden = false, fsHidden = false, alertActive = false;
 
 // ---------- pomocnicze ----------
-const send = (ch, payload, win = island) => { if (!quitting && win && !win.isDestroyed()) win.webContents.send(ch, payload); };
+// wszystko, co dostaje wyspa, dostaje też jej podgląd w ustawieniach — oprócz rzeczy o prawdziwym oknie (otwarcie, ekran, kursor)
+const PREVIEW_SKIP = new Set(['open', 'screen', 'cursor', 'goto-tab']);
+let previewView = null;
+const send = (ch, payload, win = island) => {
+  if (!quitting && win && !win.isDestroyed()) win.webContents.send(ch, payload);
+  if (win === island && previewView && !PREVIEW_SKIP.has(ch)) { try { if (!previewView.webContents.isDestroyed()) previewView.webContents.send(ch, payload); } catch {} }
+};
 const both = (ch, payload) => { send(ch, payload, island); send(ch, payload, settingsWin); };
 const newId = () => crypto.randomBytes(6).toString('hex');
 
@@ -275,7 +281,7 @@ function openSettings(page) {
   settingsWin.setMenu(null);
   settingsWin.loadFile(path.join('settings', 'index.html'), { query: { page: page || '' } });
   settingsWin.once('ready-to-show', () => { settingsWin.show(); bringFront(settingsWin, page === 'welcome'); });
-  settingsWin.on('closed', () => { settingsWin = null; });
+  settingsWin.on('closed', () => { if (previewView) { try { previewView.webContents.close(); } catch {} previewView = null; } settingsWin = null; }); // widok podglądu nie znika sam z oknem
   for (const ev of ['move', 'moved', 'resize', 'show', 'maximize', 'unmaximize', 'restore', 'will-move']) settingsWin.on(ev, sendSettingsPos);
   // podczas przeciągania okna Windows nie zawsze wysyła „move” na bieżąco — dopytujemy o pozycję co klatkę
   let lastPos = '';
@@ -288,6 +294,31 @@ function openSettings(page) {
   settingsWin.on('blur', () => send('settings-focus', false, settingsWin));
   if (glass) settingsWin.setContentProtection(true);
 }
+// ---------- podgląd wyspy w ustawieniach ----------
+// Prawdziwa strona wyspy (island/index.html?preview) w widoku nad stroną ustawień, w miejscu, które ona wskaże
+// (r = prostokąt w pikselach strony; null = schowaj). Tworzony tylko na czas oglądania — po schowaniu znika z pamięci.
+function closePreview() {
+  if (!previewView) return;
+  const v = previewView; previewView = null;
+  try { if (settingsWin && !settingsWin.isDestroyed()) settingsWin.contentView.removeChildView(v); } catch {}
+  try { v.webContents.close(); } catch {}
+}
+ipcMain.on('preview-rect', (e, r) => {
+  if (!settingsWin || settingsWin.isDestroyed() || e.sender !== settingsWin.webContents) return;
+  if (!r || !(r.w > 40 && r.h > 40)) return closePreview();
+  if (!previewView) {
+    previewView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false } });
+    previewView.setBackgroundColor('#00000000');
+    settingsWin.contentView.addChildView(previewView);
+    previewView.webContents.loadFile(path.join(__dirname, 'island', 'index.html'), { query: { preview: '1' } });
+    previewView.webContents.on('did-finish-load', () => { if (previewView) { previewView.webContents.setZoomFactor(previewZoom); previewView.webContents.send('preview-open', previewOpen); } });
+  }
+  previewZoom = Math.max(0.5, Math.min(1, Number(r.zoom) || 0.8));
+  try { previewView.webContents.setZoomFactor(previewZoom); } catch {}
+  previewView.setBounds({ x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.w), height: Math.round(r.h) });
+});
+let previewOpen = false, previewZoom = 0.8;
+ipcMain.on('preview-open', (e, on) => { previewOpen = !!on; if (previewView) previewView.webContents.send('preview-open', previewOpen); });
 ipcMain.on('settings-titlebar', (_, c) => {
   if (!settingsWin || settingsWin.isDestroyed()) return;
   try {

@@ -249,19 +249,53 @@ function render() {
       main.append(el('h2', '', p.name)); hits.forEach(r => { main.append(rowEl(r)); n++; });
     }
     if (!n) main.append(el('div', 'empty', 'Nic nie znaleziono.'));
+    sendPreviewRect();
     return;
   }
   const p = PAGES.find(x => x.id === page) || PAGES[0];
   main.append(el('div', 'kicker', 'Ustawienia'));
   const h = el('h1', '', p.name);
+  queueMicrotask(sendPreviewRect);
   if (p.preview) { const b = el('button', 'preview', 'Pokaż otwartą wyspę'); b.title = 'Wyspa zostaje otwarta, dopóki nie najedziesz na nią kursorem i z niej nie zjedziesz.'; b.onclick = () => W.send('pin-open'); h.append(b); }
   main.append(h);
+  if (p.preview) main.append(previewEl());
   for (const r of p.rows) {
     if (hiddenRow(r)) continue;
     if (r.h) { main.append(el('h2', '', r.h)); continue; }
     main.append(rowEl(r));
   }
 }
+// Podgląd na żywo: prawdziwa wyspa w widoku nad tym miejscem (rysuje ją Aura), przełącznik spoczynek / otwarta.
+// Pasek przyklejony u góry strony — widać go przy przewijaniu ustawień.
+let pvOpen = false, pvRaf = 0;
+function previewEl() {
+  const box = el('div', 'pv');
+  const stage = el('div', 'pv-stage'); stage.id = 'pvStage';
+  const bar = el('div', 'pv-bar');
+  bar.append(el('span', 'pv-note', 'Podgląd na żywo — każda zmiana od razu na wyspie. Muzykę możesz sterować także tutaj.'));
+  const seg = el('div', 'pv-seg');
+  for (const [v, label] of [[false, 'W spoczynku'], [true, 'Otwarta']]) {
+    const b = el('button', pvOpen === v ? 'on' : '', label);
+    b.onclick = () => { pvOpen = v; W.send('preview-open', v); seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
+    seg.append(b);
+  }
+  bar.append(seg); box.append(stage, bar);
+  return box;
+}
+// gdzie ma stać widok podglądu (albo null, gdy na stronie go nie ma) — po każdym rysowaniu, przewinięciu i zmianie rozmiaru
+function sendPreviewRect() {
+  cancelAnimationFrame(pvRaf);
+  pvRaf = requestAnimationFrame(() => {
+    const s = $('#pvStage'), m = $('#main');
+    if (!s) return W.send('preview-rect', null);
+    const r = s.getBoundingClientRect(), mr = m.getBoundingClientRect();
+    const top = Math.max(r.top, mr.top), bottom = Math.min(r.bottom, mr.bottom);
+    if (bottom - top < 60) return W.send('preview-rect', null);
+    W.send('preview-rect', { x: r.left, y: top, w: r.width, h: bottom - top, zoom: Math.min(1, r.width / 760) });
+  });
+}
+addEventListener('resize', sendPreviewRect);
+$('#main') && $('#main').addEventListener('scroll', sendPreviewRect, { passive: true });
 function rowEl(r) {
   if (r.type === 'note') { const d = el('p', 'lead', r.text); return d; }
   if (r.type === 'code') {
