@@ -208,7 +208,7 @@ function drawGL(now) {
   const w = spring.w.x, h = Math.max(0, spring.h.x);
   const openness = Math.max(0, Math.min(1, (h - 36) / 140));
   WyspaGL.draw({
-    b2: devCapsule(anchorX(w), w, atBottom() ? topY() + liftX : topY(), h),
+    b2: devCapsule(),
     x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(), soft: isMac(),
     base: T.hexToRgb(surf.base), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
@@ -450,7 +450,7 @@ function resetCaptureIfNeeded() { const vt = capStream && capStream.getVideoTrac
 // baterii iPhone'a: pełny okrąg od góry zgodnie z ruchem wskazówek, ikona w środku, procent obok.
 // Biały; poniżej 20% czerwony; ładowanie — zielony z błyskawicą.
 let devList = [], ddW = 0;
-const dd = { a: 0, w: 0, h: 36, c: 0 };                     // obecność, szerokość, wysokość kapsułki, widoczność treści
+const dd = { a: 0, w: 0, h: 36, c: 0, x: 0, y: 0, place: 'side' };                     // obecność, szerokość, wysokość kapsułki, widoczność treści
 const DD_GAP = 8, DD_H = 36;
 const DD_ICON = { mouse: 'mouse', headset: 'headphones', keyboard: 'keyboard', bt: 'bt' };
 const DD_R = 10.5, DD_C = 2 * Math.PI * DD_R;
@@ -468,34 +468,45 @@ function renderDevDots(list) {
   ddW = 0; update(); kick();
 }
 W.on('devbat', renderDevDots);
-// 'full' obok zwykłej wyspy, 'slim' — wyspa zwinięta w cienką kreskę (np. okno zasłania krawędź): kapsułka też jako kreska
-function devDotsState(h) {
-  if (!devList.length || st.S.devBattery === false || st.open || st.mode === 'card' || st.mode === 'hidden') return null;
-  if (st.mode === 'slim' || h <= 20) return h > 1 ? 'slim' : null;
-  return h < 46 ? 'full' : null;
+// Gdzie i jak: 'side' — obok wyspy (zamkniętej i otwartej: najechanie na zwiniętą wyspę pokazuje pełną kapsułkę),
+// 'below' — szeroka karta (np. z tekstem utworu) nie zostawia miejsca z boku: kapsułka pod kartą (od strony ekranu),
+// slim — wyspa zwinięta w kreskę (okno zasłania krawędź): kapsułka też jako kreska.
+// Pozycję i rozmiar liczymy w układzie kształtu (odległość od krawędzi ekranu), a potem płynnie do nich dochodzimy.
+function devDotsTarget(x, w, h) {
+  if (!devList.length || st.S.devBattery === false || st.mode === 'hidden') return null;
+  const slim = st.mode === 'slim' || h <= 20;
+  if (slim && h <= 1) return null;
+  const fy = atBottom() ? innerHeight - (boxY(h) + h) : boxY(h);        // górna krawędź wyspy liczona od krawędzi ekranu
+  const fw = slim ? Math.max(24, devList.length * 24) : (ddW || 140), fh = slim ? Math.max(2, Math.min(h, 6)) : DD_H;
+  if (x + w + DD_GAP + fw <= innerWidth - 4) return { slim, place: 'side', x: x + w + DD_GAP, y: fy + (Math.min(h, 40) - fh) / 2, w: fw, h: fh };
+  if (!slim && fy + h + DD_GAP + fh < innerHeight - 4) return { slim, place: 'below', x: x + w / 2 - fw / 2, y: fy + h + DD_GAP, w: fw, h: fh };
+  return null;
 }
 // wywoływane co klatkę: krok animacji i pozycja treści (zwraca true, dopóki się rusza)
 function placeDevDots(x, y, w, h, dt) {
-  const box = $('#devDots'), mode = devDotsState(h);
-  if (mode && !ddW) ddW = box.offsetWidth;
-  const tA = mode ? 1 : 0, tW = mode === 'slim' ? Math.max(24, devList.length * 24) : ddW, tH = mode === 'slim' ? Math.max(2, h) : DD_H, tC = mode === 'full' ? 1 : 0;
+  const box = $('#devDots'), t = devDotsTarget(x, w, h);
+  if (t && !ddW) ddW = box.offsetWidth;
+  if (t && dd.a < 0.02) { dd.x = t.x; dd.y = t.y; dd.place = t.place; }   // pojawia się: od razu na miejscu, bez przelotu
+  if (t) dd.place = t.place;
   const k = Math.min(1, (dt || 0.016) * 11);
   let moving = false;
-  for (const [key, t, eps] of [['a', tA, 0.002], ['w', tW, 0.3], ['h', tH, 0.2], ['c', tC, 0.01]]) {
-    if (Math.abs(t - dd[key]) > eps) { dd[key] += (t - dd[key]) * k; moving = true; } else dd[key] = t;
-  }
+  const go = (key, v, eps) => { if (Math.abs(v - dd[key]) > eps) { dd[key] += (v - dd[key]) * k; moving = true; } else dd[key] = v; };
+  go('a', t ? 1 : 0, 0.002); go('c', t && !t.slim ? 1 : 0, 0.01);
+  if (t) { go('x', t.x, 0.3); go('y', t.y, 0.3); go('w', t.w, 0.3); go('h', t.h, 0.2); }
   const vis = dd.a > 0.01 && dd.c > 0.01;
   box.style.visibility = vis ? 'visible' : 'hidden';
-  box.style.left = (x + w + DD_GAP) + 'px'; box.style.top = (y + (h - DD_H) / 2) + 'px';
+  box.style.left = (dd.x + (dd.w - ddW) / 2 * (dd.place === 'below' ? 1 : 0)) + 'px';
+  box.style.top = (atBottom() ? innerHeight - dd.y - DD_H : dd.y) + 'px';
   box.style.opacity = (Math.max(0, (dd.a - 0.45) / 0.55) * Math.max(0, (dd.c - 0.4) / 0.6)).toFixed(3);
   return moving;
 }
-// kształt kapsułki dla shadera (w układzie kształtu wyspy: na dole ekranu odbity w pionie); wysuwa się z boku wyspy
-function devCapsule(x, w, frameY, h) {
+// kształt kapsułki dla shadera (układ kształtu: krawędź ekranu zawsze „u góry”); rośnie od strony wyspy
+function devCapsule() {
   if (dd.a <= 0.01 || dd.w < 1) return null;
   const e = 1 - Math.pow(1 - dd.a, 3);
   const ch = dd.h * (0.55 + 0.45 * e), cw = Math.max(ch, dd.w * e);
-  return [x + w + DD_GAP * e, frameY + (h - ch) / 2, cw, ch];
+  const cx = dd.place === 'below' ? dd.x + (dd.w - cw) / 2 : dd.x - DD_GAP * (1 - e);
+  return [cx, dd.y + (dd.h - ch) / 2, cw, ch];
 }
 
 // ---------- HUD ----------
