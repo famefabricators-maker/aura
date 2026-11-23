@@ -111,7 +111,7 @@ function screenInfo() {
 }
 
 let macNativeMod = null;
-const macNative = () => macNativeMod || (macNativeMod = IS_MAC ? require('./lib/mac-native') : { pinWindow: () => null, startKeys: () => 'błąd', stopKeys() {}, keysActive: () => false });
+const macNative = () => macNativeMod || (macNativeMod = IS_MAC ? require('./lib/mac-native') : { pinWindow: () => null, startKeys: () => 'błąd', stopKeys() {}, keysActive: () => false, dragState: () => null, dragFiles: () => [] });
 function createIsland() {
   island = new BrowserWindow({
     width: WIN_W, height: WIN_H, frame: false, transparent: true, resizable: false, movable: false,
@@ -168,6 +168,25 @@ function sendCursor(p, ib) {
   lastCur = key;
 }
 
+// macOS: okno wyspy nie dostaje zdarzeń upuszczania plików, więc przeciąganie wykrywa Aura sama: przycisk myszy wciśnięty
+// i nowa zawartość schowka przeciągania (pliki). Nad otwartą wyspą widok pokazuje pola Półka / AirDrop, a po puszczeniu
+// przycisku nad wyspą — plik trafia tam, gdzie był kursor.
+let md = { down: false };
+function macDragTick(inside, p, b) {
+  const s = macNative().dragState(); if (!s) return;
+  if (s.pressed && !md.down) { md = { down: true, base: s.change, fromIsland: inside, active: false }; return; }
+  if (!md.down) return;
+  const rel = { x: p.x - b.x, y: p.y - b.y };
+  if (s.pressed) {
+    if (!md.active && !md.fromIsland && s.change !== md.base) { const files = macNative().dragFiles(); if (files.length) { md.active = true; md.files = files; } }
+    if (md.active) { const over = open && inside; if (over || md.over) send('drag-pick', over ? rel : null); md.over = over; }
+    return;
+  }
+  if (md.active && md.over) send('drag-drop', { ...rel, files: md.files }); // puszczony nad wyspą
+  else if (md.active) send('drag-pick', null);
+  md = { down: false };
+}
+
 // Kursor: okno przepuszcza kliknięcia wszędzie poza samą wyspą.
 const cursorLoop = setInterval(() => {
   if (quitting || !island || island.isDestroyed() || !island.isVisible()) return;
@@ -185,6 +204,7 @@ const cursorLoop = setInterval(() => {
   const speed = Math.hypot(p.x - lastCurPt.x, p.y - lastCurPt.y); lastCurPt = p; // piksele na 30 ms
   if (inside) { lastInside = now; if (!insideSince || (!open && speed > 14)) insideSince = now; } else insideSince = 0;
   if (inside !== interactive) { interactive = inside; island.setIgnoreMouseEvents(!inside, { forward: true }); }
+  if (IS_MAC) macDragTick(inside, p, b);
   if (pin && inside) pinEntered = true;
   if (pin && pinEntered && !inside && now - lastInside > 400) { pin = false; pinEntered = false; }
   const delay = S().hoverDelay;
@@ -1600,13 +1620,14 @@ async function testShots(dir) {
       }`], { timeout: 30000 }, (err, out) => res(err ? 'błąd: ' + err.message : String(out).trim())));
     const dl = async () => JSON.stringify(await island.webContents.executeJavaScript('window.__dl'));
     log('wyspa: ' + JSON.stringify(b) + ', pole AirDrop: ' + JSON.stringify(zone('air')) + ', pigułka: ' + JSON.stringify(pill));
-    log('1) na pole AirDrop: ' + await drive(zone('air'))); await wait(2500);
+    const mid = async (name) => { await wait(4000); fs.writeFileSync(path.join(dir, name), (await island.webContents.capturePage()).toPNG()); };
+    { const r = drive(zone('air')); mid('drag-nad-airdrop.png'); log('1) na pole AirDrop: ' + await r); } await wait(2500);
     log('   zdarzenia na wyspie: ' + await dl() + ' | wywołań AirDrop: ' + adCalls + ' | otwarta: ' + open);
     fs.writeFileSync(path.join(dir, 'drag-airdrop.png'), (await island.webContents.capturePage()).toPNG());
     await wait(4000); execFile('/usr/bin/pkill', ['-f', 'airdrop-mac.js'], () => {}); await wait(2500);
     await island.webContents.executeJavaScript(`window.__dl={};'ok'`);
     const before = store.data.files.length;
-    log('2) na pole Półka: ' + await drive(zone('shelf'))); await wait(2500);
+    { const r = drive(zone('shelf')); mid('drag-nad-polka.png'); log('2) na pole Półka: ' + await r); } await wait(2500);
     log('   zdarzenia na wyspie: ' + await dl() + ' | plików na półce: ' + before + ' → ' + store.data.files.length);
     fs.writeFileSync(path.join(dir, 'drag-polka.png'), (await island.webContents.capturePage()).toPNG());
     await wait(500); app.quit(); return;

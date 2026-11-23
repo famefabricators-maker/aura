@@ -357,8 +357,27 @@ W.on('airdrop-state', s => {
 $('#shAirdrop').onclick = () => { if (files.length) W.send('airdrop', files.map(f => f.path)); else { $('#shAirdrop').classList.add('over'); setTimeout(() => $('#shAirdrop').classList.remove('over'), 600); } };
 $('#shAirdrop').addEventListener('dragover', e => { if (hasFiles(e)) $('#shAirdrop').classList.add('over'); });
 $('#shAirdrop').addEventListener('dragleave', () => $('#shAirdrop').classList.remove('over'));
+// Mac: przeciąganie wykrywane przez Aurę (okno nie dostaje zdarzeń upuszczania) — pozycja kursora względem okna wyspy
+const pickZoneAt = pos => { const el = document.elementFromPoint(pos.x, pos.y); return el && el.closest ? el.closest('.dp-zone') : null; };
+let lastDomDrop = 0;
+W.on('drag-pick', pos => {
+  const pick = $('#dropPick'); clearTimeout(pickT);
+  if (!pos) { pick.classList.remove('on'); $('#shelf').classList.remove('dropping'); return; }
+  if (!dropPickOn()) { if (st.tab !== 'shelf') setTab('shelf'); $('#shelf').classList.add('dropping'); return; }
+  pick.classList.add('on'); const z = pickZoneAt(pos);
+  pick.querySelectorAll('.dp-zone').forEach(x => x.classList.toggle('over', x === z));
+});
+W.on('drag-drop', async d => {
+  const pick = $('#dropPick'), z = dropPickOn() ? pickZoneAt(d) : null; $('#shelf').classList.remove('dropping');
+  pick.classList.remove('on'); pick.querySelectorAll('.dp-zone').forEach(x => x.classList.remove('over'));
+  if (Date.now() - lastDomDrop < 800 || !d.files || !d.files.length) return; // gdyby okno jednak dostało zwykłe upuszczenie
+  if (z && z.dataset.dp === 'airdrop') { setTab('airdrop'); W.send('airdrop', d.files); return; }
+  if (!z && st.tab === 'airdrop') { W.send('airdrop', d.files); return; }
+  setFiles(await W.invoke('files-add', d.files)); setTab('shelf');
+});
 document.addEventListener('drop', async e => {
   e.preventDefault(); $('#shelf').classList.remove('dropping');
+  lastDomDrop = Date.now();
   const pick = $('#dropPick');
   if (pick.classList.contains('on')) {
     const z = e.target.closest && e.target.closest('.dp-zone'), paths = W.pathsFor(e.dataTransfer.files);
