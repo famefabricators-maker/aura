@@ -560,6 +560,7 @@ body.mac .pillbtn.airdrop { display: inline-flex; }
 /* Mac: przeciąganie pliku nad wyspę — dwa pola: półka i AirDrop (pole pod kursorem się podświetla) */
 .drop-pick { position: absolute; inset: 0; z-index: 30; display: none; gap: 10px; padding: 2px 0 6px; }
 .drop-pick.on { display: flex; }
+.panels:has(.drop-pick.on) > section { visibility: hidden; } /* pod polami nic nie prześwituje */
 .dp-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 18px;
   border: 1.5px dashed rgba(255,255,255,.2); background: rgba(20,20,24,.82); transition: background .12s, border-color .12s, transform .15s cubic-bezier(.2,.8,.2,1); }
 .dp-zone * { pointer-events: none; } /* cel upuszczenia to całe pole, nie napis w środku */

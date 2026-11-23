@@ -176,6 +176,7 @@ jobs:
             function k(code, down) { const e = $.NSEvent.otherEventWithTypeLocationModifierFlagsTimestampWindowNumberContextSubtypeData1Data2(14, {x: 0, y: 0}, down ? 0xa00 : 0xb00, 0, 0, null, 8, (code << 16) | ((down ? 0xa : 0xb) << 8), -1); $.CGEventPost(0, e.CGEvent); }
             function run() { for (let i = 0; i < 2; i++) { k(0, true); k(0, false); $.NSThread.sleepForTimeInterval(0.4); } return "klawisz głośniej x2: wysłany"; }' || true
           sleep 0.3; screencapture -x "$OUT/9-mac/glosnosc-okienko.png" || true
+          /usr/bin/osascript -l JavaScript -e 'ObjC.import("CoreGraphics"); ObjC.import("Foundation"); function run() { for (let i = 0; i < 20; i++) { $.CGEventPost(0, $.CGEventCreateMouseEvent(null, 5, $.CGPointMake(300 + i * 10, 400), 0)); $.NSThread.sleepForTimeInterval(0.03); } const k = $.CGEventCreateKeyboardEvent(null, 56, true); $.CGEventPost(0, k); $.CGEventPost(0, $.CGEventCreateKeyboardEvent(null, 56, false)); return "mysz x20 + Shift: wysłane"; }' || true
           for i in $(seq 1 40); do sleep 1; kill -0 $PID 2>/dev/null || break; done
           kill $PID 2>/dev/null || true
           cat "$OUT/9-mac/klawisze.txt" || true; grep -E "wyspa: (zachowanie|klawisze)" "$OUT/9-mac/wyjscie-klawisze.txt" || true

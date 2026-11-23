@@ -1638,9 +1638,11 @@ async function testShots(dir) {
     log('zachowanie okna: ' + JSON.stringify(macNative().pinWindow(island)) + ' ' + (macNative().error || ''));
     log('głośność teraz: ' + JSON.stringify(macNative().getVolume ? macNative().getVolume() : null) + ', jasność: ' + (macNative().getBrightness ? macNative().getBrightness() : null));
     log('przechwytywanie klawiszy: ' + (macNative().keysActive() ? 'działa' : 'nie działa'));
+    const probe = macNative().probeTap(); log('podsłuch testowy: ' + JSON.stringify(probe));
     const t0 = Date.now();
     await wait(30000); // skrypt testu: Mission Control, potem klawisz „głośniej” x2
     log('wywołania kranu: ' + JSON.stringify(macNative().stats));
+    log('podsłuch testowy po: ' + JSON.stringify(probe));
     log('okienko głośności z klawisza: ' + (lastKeyHud > t0 ? 'tak' : 'nie') + ', głośność po: ' + JSON.stringify(macNative().getVolume ? macNative().getVolume() : null));
     app.quit(); return;
   }
