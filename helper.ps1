@@ -302,7 +302,7 @@ while ($true) {
     $list = @(foreach ($ln in ([WyspaDevBattery]::Result -split "`n")) { if ($ln) { $f = $ln.Split("`t"); @{ name = $f[0]; kind = $f[1]; level = [int]$f[2]; charging = ($f[3] -eq '1') } } })
     Out-Line @{ t = 'devbat'; list = $list }
   }
-  if ($tick % 300 -eq 150) { [WyspaWin]::Trim() }  # ok. co minutę: oddaj systemowi nieużywaną pamięć
+  if ($tick % 300 -eq 150) { [WyspaWin]::Trim(); [WyspaWin]::TrimPid($script:ownPid) }  # pomocnik i proces główny Aury  # ok. co minutę: oddaj systemowi nieużywaną pamięć
   $tick++
   # czekaj do 200 ms, ale obudź się od razu, gdy przyjdzie komenda (płynna głośność i przewijanie)
   [void]$readTask.Wait(200)

@@ -9,6 +9,16 @@ public static class WyspaWin {
   // Oddanie systemowi nieużywanej pamięci pomocnika (sprzątanie .NET + przycięcie zestawu roboczego); wołane co minutę
   [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr p, IntPtr min, IntPtr max);
   public static void Trim() { try { GC.Collect(); GC.WaitForPendingFinalizers(); SetProcessWorkingSetSize(System.Diagnostics.Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1)); } catch { } }
+  // to samo dla procesu głównego Aury (Electron): po starcie trzyma ok. 150 MB, z czego większość leży nieużywana;
+  // okna wyspy i grafiki nie ruszamy — ich pamięć jest w ciągłym użyciu (przycięcie dawałoby przycinki animacji)
+  [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+  public static void TrimPid(int pid) {
+    if (pid <= 0) return;
+    IntPtr h = OpenProcess(0x0100 | 0x0400, false, pid); // PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION
+    if (h == IntPtr.Zero) return;
+    try { SetProcessWorkingSetSize(h, (IntPtr)(-1), (IntPtr)(-1)); } finally { CloseHandle(h); }
+  }
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr h);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
