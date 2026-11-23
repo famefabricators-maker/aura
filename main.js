@@ -110,6 +110,8 @@ function screenInfo() {
     dockShown: !!(taskbar && taskbar.active && !taskbar.isHidden()), dockLift: taskbar && taskbar.active ? taskbar.reserve + 4 : 0 };
 }
 
+let macNativeMod = null;
+const macNative = () => macNativeMod || (macNativeMod = IS_MAC ? require('./lib/mac-native') : { pinWindow: () => null, startKeys: () => 'błąd', stopKeys() {}, keysActive: () => false });
 function createIsland() {
   island = new BrowserWindow({
     width: WIN_W, height: WIN_H, frame: false, transparent: true, resizable: false, movable: false,
@@ -122,7 +124,14 @@ function createIsland() {
   });
   place();
   island.setAlwaysOnTop(true, 'screen-saver');
-  if (IS_MAC) { island.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true }); island.setHiddenInMissionControl(true); }
+  if (IS_MAC) {
+    island.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+    // „nieruchoma” jak pulpit: Mission Control i widok okien jej nie ruszają (Transient z Electrona ją przesuwał);
+    // gdy się nie da — dawne ukrywanie w Mission Control
+    const pinned = macNative().pinWindow(island);
+    if (!pinned) island.setHiddenInMissionControl(true);
+    if (process.env.WYSPA_SHOT) console.log('wyspa: zachowanie okna', JSON.stringify(pinned), macNative().error ? String(macNative().error) : '');
+  }
   island.setIgnoreMouseEvents(true, { forward: true });
   applyGlassProtection();
   island.loadFile(path.join('island', 'index.html'));
@@ -178,8 +187,9 @@ const cursorLoop = setInterval(() => {
   if (pin && inside) pinEntered = true;
   if (pin && pinEntered && !inside && now - lastInside > 400) { pin = false; pinEntered = false; }
   const delay = S().hoverDelay;
-  const hover = !process.env.WYSPA_SHOT && inside; // w trybie testowym kursor nie otwiera wyspy
-  const want = pin || hold || (hover && now - insideSince >= delay) || (open && hover) || (open && !process.env.WYSPA_SHOT && now - lastInside < 260);
+  const realMouse = !process.env.WYSPA_SHOT || !!process.env.WYSPA_DRAGTEST; // w trybie testowym kursor nie otwiera wyspy (poza testem przeciągania)
+  const hover = realMouse && inside;
+  const want = pin || hold || (hover && now - insideSince >= delay) || (open && hover) || (open && realMouse && now - lastInside < 260);
   if (want !== open) { open = want; send('open', open); }
 }, 30);
 
@@ -198,6 +208,7 @@ function applySettings(patch) {
   if (k.includes('claudeUsage')) refreshClaudeUsage(true);
   if (k.includes('appNotifications')) configureToasts();
   if (k.includes('lyrics')) { lyricsKey = ''; if (S().lyrics) onTrack(sys.media); else send('lyrics', null); } // włączone w trakcie utworu: tekst od razu
+  if (k.some(x => ['hudVolume', 'hudBrightness', 'macHudKeys'].includes(x))) configureMacKeys();
   if (k.includes('dock')) configureDock(); else if (k.some(x => /^dock[A-Z]/.test(x))) { if (taskbar) taskbar.push(); if (k.includes('dockSize')) place(); }
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
   if (k.includes('calendarIcs')) refreshCalendar();
@@ -346,8 +357,22 @@ helper.on('clip', m => { clearTimeout(clipTimer); clipTimer = setTimeout(() => o
 helper.on('vol', m => {
   const prev = sys.vol; sys.vol = m; send('vol', m);
   if (prev && prev.id !== m.id && S().hudDevice) send('hud', { kind: 'device', text: m.name });
-  else if (prev && (Math.abs(prev.level - m.level) > 0.004 || prev.mute !== m.mute) && S().hudVolume) send('hud', { kind: 'volume', level: m.level, mute: m.mute });
+  else if (prev && (Math.abs(prev.level - m.level) > 0.004 || prev.mute !== m.mute) && S().hudVolume && Date.now() - lastKeyHud > 2500) send('hud', { kind: 'volume', level: m.level, mute: m.mute }); // po klawiszu (Mac) okienko już było
 });
+// macOS: klawisze głośności i jasności przechwytuje Aura — sama zmienia poziom i pokazuje swoje okienko zamiast systemowego
+let lastKeyHud = 0, keysRetry = null, keysAsked = false;
+function configureMacKeys() {
+  if (!IS_MAC) return;
+  clearTimeout(keysRetry);
+  const want = S().macHudKeys !== false && (S().hudVolume || S().hudBrightness);
+  if (!want) { macNative().stopKeys(); return; }
+  const r = macNative().startKeys({ volume: !!S().hudVolume, bright: !!S().hudBrightness, onHud: h => { lastKeyHud = Date.now(); send('hud', h); } });
+  if (process.env.WYSPA_SHOT) console.log('wyspa: klawisze głośności/jasności:', r, macNative().error ? String(macNative().error) : '');
+  if (r === 'brak-zgody') {
+    if (!keysAsked) { keysAsked = true; addNotice({ kind: 'tool', title: 'Głośność i jasność na wyspie', body: 'Pozwól Aurze w Ustawieniach systemowych → Prywatność i ochrona → Dostępność, a okienko głośności i jasności pokaże się na wyspie zamiast systemowego.' }); }
+    keysRetry = setTimeout(configureMacKeys, 5000); // zgoda dana w Ustawieniach: kran rusza sam, bez restartu
+  }
+}
 helper.on('mic', m => {
   const prev = sys.mic; sys.mic = m; send('mic', m);
   if (prev && prev.mute !== m.mute && S().hudMic) send('hud', { kind: 'mic', mute: m.mute });
@@ -1461,6 +1486,7 @@ app.whenReady().then(async () => {
   for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(() => { try { if (taskbar) taskbar.wake(ev); } catch (e) { logError('wake', e); } }, 2500));  powerMonitor.on('on-ac', () => S().hudBattery && send('hud', { kind: 'battery', plugged: true }));
   powerMonitor.on('on-battery', () => S().hudBattery && send('hud', { kind: 'battery', plugged: false }));
   configureDock();
+  configureMacKeys();
   configureDownloads();
   upgradeClaudeHooks(); // dopisz hook zgód do już połączonego Claude Code
   setTimeout(configureToasts, 3000);
@@ -1546,6 +1572,55 @@ async function testShots(dir) {
     await js(w, `location.href='file:///C:/Windows/win.ini'`); await wait(1000);
     log('Web: przejście na plik z dysku', w.getURL().startsWith('file:') ? 'PRZESZŁA' : 'zablokowane (' + w.getURL() + ')');
     fs.writeFileSync(path.join(dir, 'sec.txt'), out.join('\n'));
+    app.quit(); return;
+  }
+  if (process.env.WYSPA_DRAGTEST && IS_MAC) { // prawdziwe przeciąganie pliku myszą (zdarzenia CoreGraphics) na wyspę: pole AirDrop, potem pole Półka
+    const log = s => { fs.appendFileSync(path.join(dir, 'drag.txt'), new Date().toISOString().slice(11, 19) + ' ' + s + '\n'); };
+    const f = path.join(dir, 'zdjecie-z-wakacji.txt'); fs.writeFileSync(f, 'Aura drag test');
+    let adCalls = 0; ipcMain.on('airdrop', (_, p) => { adCalls++; log('IPC airdrop: ' + JSON.stringify(p)); });
+    ipcMain.on('test-startdrag', e => { log('źródło: startDrag'); e.sender.startDrag({ file: f, icon: path.join(__dirname, 'build', 'icon.png') }); });
+    const src = new BrowserWindow({ x: 40, y: 260, width: 240, height: 180, frame: false, alwaysOnTop: true, show: true, webPreferences: { nodeIntegration: true, contextIsolation: false } });
+    src.loadURL('data:text/html,' + encodeURIComponent(`<body style="margin:0;background:#2a6;display:grid;place-items:center;height:100vh;font:20px sans-serif;color:#fff"><div id=d draggable=true style="padding:30px;background:#164">PLIK</div><script>const {ipcRenderer}=require('electron');d.ondragstart=e=>{e.preventDefault();ipcRenderer.send('test-startdrag')}</script>`));
+    await wait(5000);
+    log('zachowanie okna wyspy (Mission Control): ' + JSON.stringify(macNative().pinWindow(island)));
+    await island.webContents.executeJavaScript(`window.__dl={};['dragenter','dragover','drop','dragleave'].forEach(t=>document.addEventListener(t,e=>{const k=t+' '+((e.target.closest&&e.target.closest('.dp-zone')||{}).dataset?.dp||'-');__dl[k]=(__dl[k]||0)+1},true));'ok'`);
+    const b = island.getBounds(), sb = src.getBounds();
+    const pill = { x: b.x + rects.c.x + rects.c.w / 2, y: b.y + rects.c.y + rects.c.h / 2 };
+    const zone = side => ({ x: b.x + rects.o.x + rects.o.w * (side === 'air' ? 0.75 : 0.25), y: b.y + rects.o.y + rects.o.h * 0.62 });
+    const drive = (to) => new Promise(res => execFile('/usr/bin/osascript', ['-l', 'JavaScript', '-e', `
+      ObjC.import('CoreGraphics'); ObjC.import('Foundation');
+      function ev(t, x, y) { const e = $.CGEventCreateMouseEvent(null, t, $.CGPointMake(x, y), 0); $.CGEventPost(0, e); }
+      function sl(s) { $.NSThread.sleepForTimeInterval(s); }
+      function line(a, b, n, t) { for (let i = 1; i <= n; i++) { ev(t, a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n); sl(0.03); } }
+      function run() {
+        const s = {x:${sb.x + sb.width / 2}, y:${sb.y + sb.height / 2}}, p = {x:${pill.x}, y:${pill.y}}, z = {x:${to.x}, y:${to.y}};
+        ev(5, s.x, s.y); sl(0.3); ev(1, s.x, s.y); sl(0.15);
+        line(s, {x: s.x + 30, y: s.y + 10}, 6, 6); line({x: s.x + 30, y: s.y + 10}, p, 30, 6);
+        for (let i = 0; i < 30; i++) { ev(6, p.x + (i % 2 ? 2 : -2), p.y); sl(0.06); }  // czekamy, aż wyspa się otworzy
+        line(p, z, 20, 6); for (let i = 0; i < 15; i++) { ev(6, z.x + (i % 2 ? 2 : -2), z.y); sl(0.06); }
+        ev(2, z.x, z.y); return 'ok';
+      }`], { timeout: 30000 }, (err, out) => res(err ? 'błąd: ' + err.message : String(out).trim())));
+    const dl = async () => JSON.stringify(await island.webContents.executeJavaScript('window.__dl'));
+    log('1) na pole AirDrop: ' + await drive(zone('air'))); await wait(2500);
+    log('   zdarzenia na wyspie: ' + await dl() + ' | wywołań AirDrop: ' + adCalls + ' | otwarta: ' + open);
+    fs.writeFileSync(path.join(dir, 'drag-airdrop.png'), (await island.webContents.capturePage()).toPNG());
+    await wait(4000); execFile('/usr/bin/pkill', ['-f', 'airdrop-mac.js'], () => {}); await wait(2500);
+    await island.webContents.executeJavaScript(`window.__dl={};'ok'`);
+    const before = store.data.files.length;
+    log('2) na pole Półka: ' + await drive(zone('shelf'))); await wait(2500);
+    log('   zdarzenia na wyspie: ' + await dl() + ' | plików na półce: ' + before + ' → ' + store.data.files.length);
+    fs.writeFileSync(path.join(dir, 'drag-polka.png'), (await island.webContents.capturePage()).toPNG());
+    src.destroy(); await wait(500); app.quit(); return;
+  }
+  if (process.env.WYSPA_KEYSTEST && IS_MAC) { // Mission Control i klawisze głośności: zrzuty ekranu robi skrypt testu
+    const log = s => { fs.appendFileSync(path.join(dir, 'klawisze.txt'), new Date().toISOString().slice(11, 19) + ' ' + s + '\n'); };
+    await wait(4000);
+    log('zachowanie okna: ' + JSON.stringify(macNative().pinWindow(island)) + ' ' + (macNative().error || ''));
+    log('głośność teraz: ' + JSON.stringify(macNative().getVolume ? macNative().getVolume() : null) + ', jasność: ' + (macNative().getBrightness ? macNative().getBrightness() : null));
+    log('przechwytywanie klawiszy: ' + (macNative().keysActive() ? 'działa' : 'nie działa'));
+    const t0 = Date.now();
+    await wait(30000); // skrypt testu: Mission Control, potem klawisz „głośniej” x2
+    log('okienko głośności z klawisza: ' + (lastKeyHud > t0 ? 'tak' : 'nie') + ', głośność po: ' + JSON.stringify(macNative().getVolume ? macNative().getVolume() : null));
     app.quit(); return;
   }
   if (process.env.WYSPA_AIRDROPTEST && IS_MAC) { // AirDrop: menu „Udostępnij” dla pliku z półki (zrzut ekranu robi test)

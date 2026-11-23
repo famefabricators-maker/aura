@@ -17,6 +17,7 @@
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/manrope": "^5.3.0",
     "electron-updater": "^6.8.11",
+    "koffi": "^2.16.4",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
@@ -46,7 +47,10 @@
     "win": {
       "target": "nsis",
       "icon": "icon.ico",
-      "artifactName": "Aura-Setup-${version}.${ext}"
+      "artifactName": "Aura-Setup-${version}.${ext}",
+      "files": [
+        "!node_modules/koffi/**"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -72,7 +76,13 @@
         "NSAppleEventsUsageDescription": "Aura steruje odtwarzaniem w Spotify i Apple Music oraz głośnością systemu.",
         "NSMicrophoneUsageDescription": "Aura nagrywa Twój głos przy nagrywaniu ekranu, jeśli to włączysz.",
         "NSCameraUsageDescription": "Podgląd kamery na karcie Rozmowa, tylko gdy go otworzysz."
-      }
+      },
+      "files": [
+        "!node_modules/koffi/src/**",
+        "!node_modules/koffi/vendor/**",
+        "!node_modules/koffi/doc/**",
+        "!node_modules/koffi/build/koffi/{freebsd,linux,musl,openbsd,win32}_*/**"
+      ]
     },
     "dmg": {
       "title": "Aura ${version}"

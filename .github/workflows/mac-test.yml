@@ -146,6 +146,37 @@ jobs:
           kill "$(cat /tmp/adpid)" 2>/dev/null || true
           cat "$OUT/8-airdrop/pomocnik.txt"; system_profiler SPBluetoothDataType 2>/dev/null | head -5 || true
 
+      - name: 9) Przeciąganie pliku na AirDrop / Półkę, Mission Control, klawisze głośności
+        if: ${{ !inputs.tylko_dmg }}
+        run: |
+          pkill -f "Electron.app" || true; pkill -f "Aura.app" || true; sleep 2
+          mkdir -p "$OUT/9-mac"
+          APP="$(ls -d dist/mac*/Aura.app | head -1)"
+          # zgoda „Dostępność” dla Aury i osascript na maszynie testowej (u użytkownika daje ją on sam w Ustawieniach)
+          TS=$(date +%s)
+          for C in "'pl.aura.app',0" "'/usr/bin/osascript',1"; do
+            sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access VALUES('kTCCServiceAccessibility',$C,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,$TS,NULL,NULL,'UNUSED',0);" && echo "zgoda: $C" || echo "zgoda: nie udało się ($C)"
+          done
+          echo "--- przeciąganie:"
+          WYSPA_SHOT="$OUT/9-mac" WYSPA_DRAGTEST=1 "$APP/Contents/MacOS/Aura" > "$OUT/9-mac/wyjscie-drag.txt" 2>&1 &
+          PID=$!; sleep 13; screencapture -x "$OUT/9-mac/drag-ekran-airdrop.png" || true
+          for i in $(seq 1 80); do sleep 1; kill -0 $PID 2>/dev/null || break; done
+          kill $PID 2>/dev/null || true; pkill -f airdrop-mac.js || true
+          cat "$OUT/9-mac/drag.txt" || true
+          echo "--- Mission Control i klawisze:"
+          WYSPA_SHOT="$OUT/9-mac" WYSPA_KEYSTEST=1 "$APP/Contents/MacOS/Aura" > "$OUT/9-mac/wyjscie-klawisze.txt" 2>&1 &
+          PID=$!; sleep 8; screencapture -x "$OUT/9-mac/mc-0-przed.png" || true
+          open -a "Mission Control"; sleep 1.5; screencapture -x "$OUT/9-mac/mc-1-w-trakcie.png" || true
+          sleep 1.5; screencapture -x "$OUT/9-mac/mc-2-w-trakcie.png" || true
+          open -a "Mission Control"; sleep 2; screencapture -x "$OUT/9-mac/mc-3-po.png" || true
+          /usr/bin/osascript -l JavaScript -e 'ObjC.import("AppKit"); ObjC.import("CoreGraphics");
+            function k(code, down) { const e = $.NSEvent.otherEventWithTypeLocationModifierFlagsTimestampWindowNumberContextSubtypeData1Data2(14, {x: 0, y: 0}, down ? 0xa00 : 0xb00, 0, 0, null, 8, (code << 16) | ((down ? 0xa : 0xb) << 8), -1); $.CGEventPost(0, e.CGEvent); }
+            function run() { for (let i = 0; i < 2; i++) { k(0, true); k(0, false); $.NSThread.sleepForTimeInterval(0.4); } return "klawisz głośniej x2: wysłany"; }' || true
+          sleep 0.3; screencapture -x "$OUT/9-mac/glosnosc-okienko.png" || true
+          for i in $(seq 1 40); do sleep 1; kill -0 $PID 2>/dev/null || break; done
+          kill $PID 2>/dev/null || true
+          cat "$OUT/9-mac/klawisze.txt" || true; grep -E "wyspa: (zachowanie|klawisze)" "$OUT/9-mac/wyjscie-klawisze.txt" || true
+
       - name: 4) Pobrany .dmg z wydania — jak u użytkownika
         if: ${{ inputs.tag != '' }}
         env:

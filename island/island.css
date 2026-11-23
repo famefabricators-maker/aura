@@ -557,6 +557,20 @@ body.mac .pillbtn.airdrop { display: inline-flex; }
 .ad-zone.sent small { color: #30d158; }
 @media (prefers-reduced-motion: reduce) { .ad-zone.over .ad-logo { animation: none; } }
 
+/* Mac: przeciąganie pliku nad wyspę — dwa pola: półka i AirDrop (pole pod kursorem się podświetla) */
+.drop-pick { position: absolute; inset: 0; z-index: 30; display: none; gap: 10px; padding: 2px 0 6px; }
+.drop-pick.on { display: flex; }
+.dp-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 18px;
+  border: 1.5px dashed rgba(255,255,255,.2); background: rgba(20,20,24,.82); transition: background .12s, border-color .12s, transform .15s cubic-bezier(.2,.8,.2,1); }
+.dp-zone * { pointer-events: none; } /* cel upuszczenia to całe pole, nie napis w środku */
+.dp-zone b { font-size: 16px; font-weight: 750; }
+.dp-zone small { color: var(--dim); font-size: 12px; }
+.dp-ico { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: var(--row-hi); margin-bottom: 4px; }
+.dp-ico svg { width: 24px; height: 24px; }
+.dp-zone.air .dp-ico { color: #fff; background: radial-gradient(circle at 30% 25%, #6cc4ff, #0a84ff 55%, #0059c9); }
+.dp-zone.over { border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, rgba(20,20,24,.9)); transform: scale(1.015); }
+.dp-zone.air.over { border-color: #0a84ff; background: color-mix(in srgb, #0a84ff 26%, rgba(20,20,24,.9)); }
+
 /* Żywe tło karty muzyki: dwie dodatkowe warstwy okładki powoli krążą i mieszają się (rozmycie .m-bg obejmuje je razem),
    więc kolory albumu cały czas się przelewają. Tylko transform; animacja stoi, gdy karta muzyki nie jest widoczna. */
 .m-bg::before, .m-bg::after { content: ''; position: absolute; inset: 8% -6%; background: inherit; border-radius: 46%;

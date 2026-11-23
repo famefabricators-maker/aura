@@ -321,12 +321,21 @@ $('#shPhone').onclick = async () => {
 };
 $('#qrStop').onclick = () => { W.send('phone-stop'); $('#qr').classList.remove('on'); };
 W.on('phone', () => $('#qr').classList.remove('on'));
-let dropT = null;
+let dropT = null, pickT = 0;
+// Mac z kartą AirDrop: przeciągany plik można upuścić na półkę albo od razu wysłać przez AirDrop (bez przełączania kart w trakcie przeciągania)
+const dropPickOn = () => isMac() && enabledTabs().some(t => t.id === 'airdrop');
+$('#dpShelfIco').innerHTML = I.svg('shelf'); $('#dpAirIco').innerHTML = I.svg('airdrop');
+
 const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
 document.addEventListener('dragover', e => {
   e.preventDefault();
   if (!hasFiles(e)) return;
   e.dataTransfer.dropEffect = 'copy';
+  if (st.open && dropPickOn()) { // Mac: wybór półka / AirDrop
+    const pick = $('#dropPick'), z = e.target.closest && e.target.closest('.dp-zone');
+    pick.classList.add('on'); pick.querySelectorAll('.dp-zone').forEach(x => x.classList.toggle('over', x === z));
+    clearTimeout(pickT); pickT = setTimeout(() => pick.classList.remove('on'), 300); return;
+  }
   if (st.open && st.tab === 'airdrop') { $('#adZone').classList.add('over'); clearTimeout(adT); adT = setTimeout(() => $('#adZone').classList.remove('over'), 250); return; } // karta AirDrop przyjmuje plik sama
   if (st.open && st.tab !== 'shelf') setTab('shelf');
   $('#shelf').classList.add('dropping');
@@ -350,6 +359,14 @@ $('#shAirdrop').addEventListener('dragover', e => { if (hasFiles(e)) $('#shAirdr
 $('#shAirdrop').addEventListener('dragleave', () => $('#shAirdrop').classList.remove('over'));
 document.addEventListener('drop', async e => {
   e.preventDefault(); $('#shelf').classList.remove('dropping');
+  const pick = $('#dropPick');
+  if (pick.classList.contains('on')) {
+    const z = e.target.closest && e.target.closest('.dp-zone'), paths = W.pathsFor(e.dataTransfer.files);
+    clearTimeout(pickT); pick.classList.remove('on'); pick.querySelectorAll('.dp-zone').forEach(x => x.classList.remove('over'));
+    if (!paths.length) return;
+    if (z && z.dataset.dp === 'airdrop') { setTab('airdrop'); W.send('airdrop', paths); return; }
+    setFiles(await W.invoke('files-add', paths)); setTab('shelf'); return;
+  }
   if (st.open && st.tab === 'airdrop') { $('#adZone').classList.remove('over'); if (e.dataTransfer.files.length) W.send('airdrop', W.pathsFor(e.dataTransfer.files)); return; } // karta AirDrop: od razu okno AirDrop
   if (e.target.closest && e.target.closest('#shAirdrop')) { $('#shAirdrop').classList.remove('over'); if (e.dataTransfer.files.length) W.send('airdrop', W.pathsFor(e.dataTransfer.files)); return; }
   if (e.dataTransfer.files.length) { setFiles(await W.invoke('files-add', W.pathsFor(e.dataTransfer.files))); if (st.open) setTab('shelf'); }

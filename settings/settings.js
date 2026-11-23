@@ -4,9 +4,9 @@ const $ = s => document.querySelector(s);
 let S = {}, page = new URLSearchParams(location.search).get('page') || 'look', query = '', hkErrors = [], claude = 'disconnected', codex = 'disconnected', glassReady = '';
 // opcje, które działają tylko na Windowsie — na Macu ich nie pokazujemy
 const MAC = W.platform === 'darwin';
-const WIN_ONLY = new Set(['appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudBrightness', 'hudLockKeys', 'hudDevice', 'hudMic',
+const WIN_ONLY = new Set(['appNotifications', 'slimCovered', 'hideInFullscreen', 'gamerOverlay', 'hudLockKeys', 'hudDevice', 'hudMic',
   'privacyDot', 'callTimer', 'colorPick', 'liveWallpaper', 'shape', 'topGap']); // krawędź i położenie wyspy działają też na Macu (na dole bez notcha)
-const hiddenRow = r => (MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry')) || (!MAC && (r.key === 'macRealGlass' || r.key === 'tabAirdrop')); // opcje tylko dla Maca
+const hiddenRow = r => (MAC && (WIN_ONLY.has(r.key) || r.h === 'Gry')) || (!MAC && (r.key === 'macRealGlass' || r.key === 'tabAirdrop' || r.key === 'macHudKeys')); // opcje tylko dla Maca
 const hiddenPage = p => MAC && (p.id === 'wallpaper' || p.id === 'taskbar');
 document.body.classList.toggle('mac', MAC);
 W.on('settings-pos', p => GlassBg.setPos(p));
@@ -63,8 +63,9 @@ const PAGES = [
     tog('reverseScroll', 'Odwrócone przewijanie na wyspie', 'Kółko na pigułce zmienia głośność, na pasku kart przełącza karty.'),
     seg('animationSpeed', 'Szybkość animacji', 'Szybka skraca czas mniej więcej o jedną trzecią.', [['calm', 'Spokojna'], ['normal', 'Normalna'], ['fast', 'Szybka']]),
     { h: 'Komunikaty (HUD)' },
-    tog('hudVolume', 'Głośność', 'Okienko Windows też się pokaże — Aura go nie ukrywa.'),
-    tog('hudBrightness', 'Jasność', 'Działa na laptopach i monitorach z DDC/CI.'),
+    tog('hudVolume', 'Głośność', MAC ? 'Klawisze głośności pokazują okienko na wyspie.' : 'Okienko Windows też się pokaże — Aura go nie ukrywa.'),
+    tog('hudBrightness', 'Jasność', MAC ? 'Klawisze jasności wbudowanego ekranu pokazują okienko na wyspie.' : 'Działa na laptopach i monitorach z DDC/CI.'),
+    tog('macHudKeys', 'Zamiast okienka macOS', 'Aura przejmuje klawisze głośności i jasności: sama zmienia poziom i pokazuje okienko na wyspie, a systemowe się nie pojawia. Wymaga zgody „Dostępność” (Ustawienia systemowe → Prywatność i ochrona). Wyłączone: pokazuje się okienko macOS.'),
     tog('hudBattery', 'Zasilanie i bateria'),
     tog('hudLockKeys', 'Caps Lock i Num Lock'),
     tog('hudDevice', 'Zmiana urządzenia dźwięku', 'Np. po podłączeniu słuchawek.'),
