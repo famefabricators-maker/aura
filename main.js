@@ -141,7 +141,9 @@ function createIsland() {
 }
 function applyGlassProtection() {
   // Szkło czyta obraz ekranu, więc samo okno musi być niewidoczne dla przechwytywania (inaczej odbija samo siebie).
-  if (island) island.setContentProtection(S().surface === 'glass' || S().hideFromCaptures);
+  // szkło na żywo czyta obraz ekranu, więc wyspa musi być ukryta przed przechwytywaniem — chyba że wybrano „widać na zrzutach”
+  // (wtedy szkło jest przydymione, bez obrazu pulpitu)
+  if (island) island.setContentProtection(S().hideFromCaptures || (S().surface === 'glass' && !S().glassInShots));
 }
 function applyVisibility() {
   if (quitting || !island || island.isDestroyed()) return;
@@ -218,7 +220,7 @@ const cursorLoop = setInterval(() => {
 function applySettings(patch) {
   store.set(patch);
   const k = Object.keys(patch);
-  if (k.includes('surface') || k.includes('hideFromCaptures')) applyGlassProtection();
+  if (k.includes('surface') || k.includes('hideFromCaptures') || k.includes('glassInShots')) applyGlassProtection();
   if (k.includes('hotkeys') || k.includes('tabHotkeys')) registerHotkeys();
   if (k.includes('autostart')) setAutostart();
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
@@ -424,11 +426,13 @@ helper.on('capture', m => { // kto naprawdę nagrywa z mikrofonu
 setInterval(() => { if (Object.keys(sys.captureSince).length) saveCaptureSince(); }, 60e3).unref?.();
 helper.on('covered', m => { sys.covered = !!m.on; send('covered', sys.covered); });
 // bateria myszy, słuchawek itp. (Windows): kropki obok wyspy + przypomnienie przy 15%
-const devLow = new Set();
+const devLow = new Set(), devCharging = new Map();
 helper.on('devbat', m => {
   const list = Array.isArray(m.list) ? m.list.filter(d => d && d.name && Number.isFinite(Number(d.level))) : [];
   sys.devbat = list; send('devbat', list);
   for (const d of list) {
+    const was = devCharging.get(d.name); devCharging.set(d.name, !!d.charging);
+    if (d.charging && was === false && S().hudBattery) send('hud', { kind: 'devbat', name: d.name, level: Number(d.level), kind2: d.kind }); // podpięte do ładowania
     const low = Number(d.level) <= 15 && !d.charging;
     if (low && !devLow.has(d.name)) { devLow.add(d.name); addNotice({ kind: 'device', title: `${d.name}: ${d.level}% baterii`, body: 'Czas naładować.' }); }
     if (!low && Number(d.level) >= 25) devLow.delete(d.name);

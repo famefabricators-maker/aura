@@ -374,7 +374,9 @@ function tuneCapture() {
 }
 function glassLive() { return capVideo && T.surface(st.S.surface).glass; }
 async function ensureCapture() {
-  const glass = !!T.surface(st.S.surface).glass;
+  // „Widać wyspę na zrzutach”: szkło bez obrazu pulpitu (przydymione) — wyspa nie jest ukryta przed przechwytywaniem,
+  // więc obraz na żywo pokazywałby samą wyspę (odbicie w odbiciu)
+  const glass = !!T.surface(st.S.surface).glass && !st.S.glassInShots;
   // macOS: bez przechwytywania ekranu w ogóle — nagrywanie ekranu na Macu zapala wskaźnik nagrywania, pyta o zgodę
   // i mocno obciąża procesor; szkło rysujemy tam bez obrazu pulpitu (przydymiona tafla), a dźwięku systemu Electron i tak nie daje
   // Wyjątek: opcja „Prawdziwe szkło na Macu” — świadomie włączona, z lekkim przechwytywaniem (niżej)
@@ -431,13 +433,14 @@ async function ensureCapture() {
   kick();
 }
 // po wyłączeniu szkła i ponownym włączeniu potrzebny jest nowy strumień wideo
-function resetCaptureIfNeeded() { const vt = capStream && capStream.getVideoTracks()[0]; if (T.surface(st.S.surface).glass && !vt) { capStream.getTracks().forEach(t => t.stop()); capStream = null; capVideo = null; capWanted = ''; } }
+function resetCaptureIfNeeded() { const vt = capStream && capStream.getVideoTracks()[0]; if (T.surface(st.S.surface).glass && !st.S.glassInShots && !vt) { capStream.getTracks().forEach(t => t.stop()); capStream = null; capVideo = null; capWanted = ''; } }
 
 // ---------- bateria urządzeń: kapsułka obok wyspy ----------
 // Kapsułkę rysuje ten sam shader co wyspę (szkło, kolory motywu, cień), a na niej leżą pierścienie jak w widżecie
 // baterii iPhone'a: pełny okrąg od góry zgodnie z ruchem wskazówek, ikona w środku, procent obok.
 // Biały; poniżej 20% czerwony; ładowanie — zielony z błyskawicą.
-let devList = [], ddA = 0, ddWant = 0, ddW = 0;
+let devList = [], ddW = 0;
+const dd = { a: 0, w: 0, h: 36, c: 0 };                     // obecność, szerokość, wysokość kapsułki, widoczność treści
 const DD_GAP = 8, DD_H = 36;
 const DD_ICON = { mouse: 'mouse', headset: 'headphones', keyboard: 'keyboard', bt: 'bt' };
 const DD_R = 10.5, DD_C = 2 * Math.PI * DD_R;
@@ -455,26 +458,33 @@ function renderDevDots(list) {
   ddW = 0; update(); kick();
 }
 W.on('devbat', renderDevDots);
-const devDotsWanted = () => !!devList.length && st.S.devBattery !== false && !st.open && !['hidden', 'slim', 'card'].includes(st.mode) && spring.h.x > 20 && spring.h.x < 46;
-// wywoływane co klatkę: pozycja treści + krok animacji wysuwania (zwraca true, dopóki się rusza)
+// 'full' obok zwykłej wyspy, 'slim' — wyspa zwinięta w cienką kreskę (np. okno zasłania krawędź): kapsułka też jako kreska
+function devDotsState(h) {
+  if (!devList.length || st.S.devBattery === false || st.open || st.mode === 'card' || st.mode === 'hidden') return null;
+  if (st.mode === 'slim' || h <= 20) return h > 1 ? 'slim' : null;
+  return h < 46 ? 'full' : null;
+}
+// wywoływane co klatkę: krok animacji i pozycja treści (zwraca true, dopóki się rusza)
 function placeDevDots(x, y, w, h, dt) {
-  const box = $('#devDots');
-  ddWant = devDotsWanted() ? 1 : 0;
-  if (ddWant && !ddW) ddW = box.offsetWidth;
-  const moving = Math.abs(ddWant - ddA) > 0.002;
-  ddA = moving ? ddA + (ddWant - ddA) * Math.min(1, (dt || 0.016) * 11) : ddWant;
-  const vis = ddA > 0.01;
-  box.classList.toggle('on', vis && ddWant === 1);
+  const box = $('#devDots'), mode = devDotsState(h);
+  if (mode && !ddW) ddW = box.offsetWidth;
+  const tA = mode ? 1 : 0, tW = mode === 'slim' ? Math.max(24, devList.length * 24) : ddW, tH = mode === 'slim' ? Math.max(2, h) : DD_H, tC = mode === 'full' ? 1 : 0;
+  const k = Math.min(1, (dt || 0.016) * 11);
+  let moving = false;
+  for (const [key, t, eps] of [['a', tA, 0.002], ['w', tW, 0.3], ['h', tH, 0.2], ['c', tC, 0.01]]) {
+    if (Math.abs(t - dd[key]) > eps) { dd[key] += (t - dd[key]) * k; moving = true; } else dd[key] = t;
+  }
+  const vis = dd.a > 0.01 && dd.c > 0.01;
   box.style.visibility = vis ? 'visible' : 'hidden';
   box.style.left = (x + w + DD_GAP) + 'px'; box.style.top = (y + (h - DD_H) / 2) + 'px';
-  box.style.opacity = Math.max(0, (ddA - 0.45) / 0.55).toFixed(3);
+  box.style.opacity = (Math.max(0, (dd.a - 0.45) / 0.55) * Math.max(0, (dd.c - 0.4) / 0.6)).toFixed(3);
   return moving;
 }
-// kształt kapsułki dla shadera (w układzie kształtu wyspy: na dole ekranu odbity w pionie)
+// kształt kapsułki dla shadera (w układzie kształtu wyspy: na dole ekranu odbity w pionie); wysuwa się z boku wyspy
 function devCapsule(x, w, frameY, h) {
-  if (ddA <= 0.01 || !ddW) return null;
-  const e = 1 - Math.pow(1 - ddA, 3);                        // wysuwa się z boku wyspy
-  const ch = DD_H * (0.55 + 0.45 * e), cw = Math.max(ch, ddW * e);
+  if (dd.a <= 0.01 || dd.w < 1) return null;
+  const e = 1 - Math.pow(1 - dd.a, 3);
+  const ch = dd.h * (0.55 + 0.45 * e), cw = Math.max(ch, dd.w * e);
   return [x + w + DD_GAP * e, frameY + (h - ch) / 2, cw, ch];
 }
 
@@ -501,6 +511,7 @@ function showHud(h) {
     }
     case 'mic': icon.innerHTML = I.svg(h.mute ? 'micOff' : 'mic'); text.textContent = h.mute ? 'Mikrofon wyciszony' : 'Mikrofon włączony'; dot.className = 'hdot ' + (h.mute ? 'off' : 'on'); break;
     case 'device': icon.innerHTML = I.svg('headphones'); text.textContent = h.text; break;
+    case 'devbat': icon.innerHTML = I.svg('plug'); text.textContent = `${String(h.name).replace(/^SteelSeries /, '')}: ładowanie · ${h.level}%`; dot.className = 'hdot on'; break;
     case 'battery': icon.innerHTML = I.svg(h.plugged ? 'plug' : 'battery'); text.textContent = h.plugged ? 'Ładowanie' : 'Na baterii'; if (navigator.getBattery) navigator.getBattery().then(b => { text.textContent += ` · ${Math.round(b.level * 100)}%`; }); break;
     case 'color': icon.innerHTML = I.svg('color'); text.textContent = `${h.hex} skopiowany`; dot.className = 'hdot swatch'; dot.style.background = h.hex; break;
   }
@@ -629,7 +640,7 @@ isl.addEventListener('wheel', e => {
 }, { passive: false });
 
 // ---------- zdarzenia z procesu głównego ----------
-W.on('settings', s => { const prevSurf = st.S.surface, prevReal = st.S.macRealGlass; st.S = s; if (prevSurf !== s.surface) resetCaptureIfNeeded(); if (prevReal !== s.macRealGlass) ensureCapture(); applyTheme(); update(); document.dispatchEvent(new CustomEvent('settings')); });
+W.on('settings', s => { const prevSurf = st.S.surface, prevReal = st.S.macRealGlass, prevShots = st.S.glassInShots; st.S = s; if (prevSurf !== s.surface || prevShots !== s.glassInShots) resetCaptureIfNeeded(); if (prevReal !== s.macRealGlass || prevShots !== s.glassInShots) ensureCapture(); applyTheme(); update(); document.dispatchEvent(new CustomEvent('settings')); });
 W.on('screen', s => { st.screen = s; if (st.S && st.S.surface) update(); else kick(); });
 W.on('hud', h => showHud(h));
 W.on('banner', n => showBanner(n));

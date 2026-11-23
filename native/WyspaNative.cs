@@ -405,7 +405,7 @@ public static class WyspaAudio {
 // na odbiorniku 2,4 GHz, odczytywane wprost przez HID (tak jak w otwartych projektach rivalcfg i HeadsetControl):
 //  - Aerox 3 Wireless (odbiornik 0x1838 / 0x1878, interfejs 3): raport 00 D2, odpowiedź D2 xx, poziom = ((xx & 0x7F) - 1) * 5, ładowanie = xx & 0x80
 //  - Arctis 7 / Pro (0x1260, 0x12AD, 0x1252, 0x1280; interfejs 5, strona 0xFF43 / 0x0202): raport 06 18, bajt 2 = procent
-// Odczyt w osobnym wątku co minutę; pomocnik PowerShell bierze gotowy wynik (Version rośnie przy zmianie).
+// Odczyt w osobnym wątku (co 30 s albo od razu po podłączeniu/odłączeniu); pomocnik PowerShell bierze gotowy wynik (Version rośnie przy zmianie).
 public static class WyspaDevBattery {
   [StructLayout(LayoutKind.Sequential)] struct SP_DEVICE_INTERFACE_DATA { public int cbSize; public Guid g; public int flags; public IntPtr r; }
   [StructLayout(LayoutKind.Sequential)] struct SP_DEVINFO_DATA { public int cbSize; public Guid g; public int inst; public IntPtr r; }
@@ -439,10 +439,15 @@ public static class WyspaDevBattery {
   public static volatile bool Enabled = true;
   public static void Start() {
     if (worker != null) return;
+    // co 3 s: czy zmieniły się podłączone urządzenia (np. mysz wpięta kablem do ładowania) — wtedy odczyt od razu; poza tym co 30 s
     worker = new System.Threading.Thread(() => {
+      string sig = null; DateTime last = DateTime.MinValue;
       while (true) {
-        if (Enabled) Update();
-        System.Threading.Thread.Sleep(60000);
+        if (Enabled) {
+          string now = ""; try { foreach (var p in HidPaths()) { string l = p.ToLowerInvariant(); if (l.Contains("vid_1038") && (l.Contains("mi_03") || l.Contains("mi_05"))) now += l + "|"; } } catch { }
+          if (now != sig || (DateTime.Now - last).TotalSeconds >= 30) { if (sig != null && now != sig) System.Threading.Thread.Sleep(1500); sig = now; last = DateTime.Now; Update(); }
+        }
+        System.Threading.Thread.Sleep(3000);
       }
     });
     worker.IsBackground = true; worker.Priority = System.Threading.ThreadPriority.BelowNormal;
@@ -515,8 +520,10 @@ public static class WyspaDevBattery {
     var outl = new List<string>();
     foreach (var p in HidPaths()) {
       string l = p.ToLowerInvariant(); if (!l.Contains("vid_1038")) continue;
-      if ((l.Contains("pid_1838") || l.Contains("pid_1878")) && l.Contains("mi_03")) {
-        var r = Ask(p, new byte[] { 0x00, 0xD2 }, b => b[1] == 0xD2, 0, 0); // odpowiedź: [ID 0] D2 poziom
+      bool wired = l.Contains("pid_183a") || l.Contains("pid_187a");   // mysz na kablu (ładowanie): ta sama mysz, komenda bez bitu „bezprzewodowo”
+      if ((l.Contains("pid_1838") || l.Contains("pid_1878") || wired) && l.Contains("mi_03")) {
+        byte cmd = (byte)(wired ? 0x92 : 0xD2);
+        var r = Ask(p, new byte[] { 0x00, cmd }, b => b[1] == cmd, 0, 0); // odpowiedź: [ID 0] komenda poziom
         if (r == null) continue;
         int raw = r[2], lvl = ((raw & 0x7F) - 1) * 5;
         if (lvl < 0 || lvl > 100) continue;                                // mysz wyłączona albo uśpiona

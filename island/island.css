@@ -587,8 +587,10 @@ body.nogl #devDots { background: var(--surface); border-radius: 18px; }
 .dd.charging .dd-ring .fg { stroke: #30d158; }
 .dd-ring .ico { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; display: grid; place-items: center; color: rgba(255,255,255,.92); }
 .dd-ring .ico svg { width: 12px; height: 12px; position: static; transform: none; }
-.dd-ring .bolt { position: absolute; top: -3px; left: 50%; width: 7px; height: 9px; margin-left: -3.5px; background: #30d158;
-  clip-path: polygon(60% 0, 0 58%, 45% 58%, 35% 100%, 100% 40%, 55% 40%); }
+.dd-ring .bolt { position: absolute; top: -5px; left: 50%; width: 9px; height: 12px; margin-left: -4.5px; background: #30d158;
+  clip-path: polygon(62% 0, 0 58%, 44% 58%, 34% 100%, 100% 40%, 56% 40%); filter: drop-shadow(0 0 1.5px rgba(0,0,0,.9)); }
+.dd.charging b::after { content: ''; display: inline-block; width: 7px; height: 10px; margin-left: 3px; vertical-align: -1px; background: #30d158;
+  clip-path: polygon(62% 0, 0 58%, 44% 58%, 34% 100%, 100% 40%, 56% 40%); } /* błyskawica też przy procentach — widać, że się ładuje */
 .dd b { font-size: 12.5px; font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .dd.low b { color: #ff6b61; }
 body.light #devDots { color: #111; }
