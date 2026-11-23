@@ -621,7 +621,9 @@ ipcMain.on('file-show', (_, p) => { if (store.data.files.includes(p) || p.starts
 // Przeglądarki zapisują pobierany plik z tymczasową końcówką (.crdownload — Chrome/Edge/Opera/Brave, .part — Firefox).
 const DL_TMP = /\.(crdownload|part|opdownload|partial)$/i;
 const dls = new Map(); // ścieżka tymczasowa -> { size, t, speed, seen }
-let dlWatch = null, dlTimer = null, dlLast = '';
+let dlWatch = null, dlTimer = null, dlLast = '', dlN = 0, gameActive = [];
+// gry pobierane w Steamie i Epic Games (Windows): procent na wyspie, gdy nic nie leci z przeglądarki
+const gameDl = IS_MAC ? null : new (require('./lib/gamedl').GameDownloads)();
 function configureDownloads() {
   const on = S().downloads !== false;
   if (!on) { if (dlWatch) { try { dlWatch.close(); } catch {} dlWatch = null; } clearInterval(dlTimer); dlTimer = null; dls.clear(); send('download', null); return; }
@@ -642,6 +644,7 @@ function dlScan() {
 function dlTick() {
   dlScan();
   const now = Date.now();
+  if (gameDl && dlN++ % 3 === 0) { try { gameActive = gameDl.tick(name => addNotice({ kind: 'download', title: 'Pobrano grę', body: name })); } catch (e) { logError('gamedl', e); } }
   for (const [p, d] of dls) {
     let s; try { s = fs.statSync(p); } catch { s = null; }
     if (!s) { // zniknął plik tymczasowy: pobrane (jest plik bez końcówki) albo anulowane
@@ -659,8 +662,9 @@ function dlTick() {
     if (now - d.seen > 90e3) dls.delete(p); // od półtorej minuty nic nie przybywa — porzucone pobieranie
   }
   const act = [...dls.entries()].filter(([, d]) => now - d.seen < 15e3);
-  const out = act.length ? { name: path.basename(act[0][0]).replace(DL_TMP, '').replace(/^Unconfirmed \d+$/i, 'plik'), size: act[0][1].size, speed: Math.max(0, act[0][1].speed), count: act.length } : null;
-  const key = JSON.stringify(out && [out.name, Math.round(out.size / 2e5), out.count]);
+  let out = act.length ? { name: path.basename(act[0][0]).replace(DL_TMP, '').replace(/^Unconfirmed \d+$/i, 'plik'), size: act[0][1].size, speed: Math.max(0, act[0][1].speed), count: act.length } : null;
+  if (!out && gameActive.length) out = { ...gameActive[0], count: gameActive.length };
+  const key = JSON.stringify(out && [out.name, Math.round(out.size / 2e5), out.count, out.pct]);
   if (key !== dlLast) { dlLast = key; send('download', out); }
 }
 

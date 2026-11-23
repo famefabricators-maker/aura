@@ -306,7 +306,7 @@ function renderPill() {
   }
   else if (st.rec.on) { time.textContent = fmt((Date.now() - st.rec.start) / 1000); time.classList.add('rec'); }
   else if (st.download) { // pobieranie z przeglądarki: rozmiar na żywo, a bez muzyki też nazwa pliku
-    const mb = st.download.size / 1048576; time.textContent = '↓ ' + (mb >= 1000 ? (mb / 1024).toFixed(1) + ' GB' : mb >= 10 ? Math.round(mb) + ' MB' : mb.toFixed(1) + ' MB');
+    const mb = st.download.size / 1048576; time.textContent = '↓ ' + (st.download.pct != null ? st.download.pct + '%' : mb >= 1000 ? (mb / 1024).toFixed(1) + ' GB' : mb >= 10 ? Math.round(mb) + ' MB' : mb.toFixed(1) + ' MB'); // gra z launchera: procent
     if (!play) { icon.innerHTML = I.svg('drop'); text.textContent = st.download.count > 1 ? `${st.download.count} pobierania` : st.download.name; }
   }
   else if (st.focus.running || (st.focus.total && st.focus.left > 0)) time.textContent = fmt(st.focus.left);

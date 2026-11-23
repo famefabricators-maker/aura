@@ -78,7 +78,7 @@ const PAGES = [
     tog('privacyDot', 'Kropka prywatności', 'Pomarańczowa, gdy aplikacja używa mikrofonu; zielona przy kamerze.'),
     tog('callTimer', 'Minutnik rozmowy', 'Licznik czasu, gdy dowolna aplikacja ma otwarty mikrofon.'),
     { h: 'Teraz odtwarzane' },
-    tog('downloads', 'Pobierania na wyspie', 'Postęp pobierania z przeglądarki (folder Pobrane), a po zakończeniu komunikat.'),
+    tog('downloads', 'Pobierania na wyspie', MAC ? 'Postęp pobierania z przeglądarki (folder Pobrane), a po zakończeniu komunikat.' : 'Postęp pobierania z przeglądarki (folder Pobrane) oraz gier w Steamie i Epic Games, a po zakończeniu komunikat.'),
     tog('downloadsToShelf', 'Pobrane pliki na półkę', '', { when: s => s.downloads !== false }),
     tog('pillLyrics', 'Tekst piosenki w zamkniętej wyspie', 'Bieżąca linijka, jak karaoke (gdy są włączone teksty piosenek i utwór ma tekst z czasami).', { when: s => s.lyrics }),
     tog('lyrics', 'Teksty piosenek', 'Tytuł, wykonawca i długość utworu trafiają do LRCLIB (darmowa biblioteka tekstów), raz na utwór. Wyłączone = nic nie wychodzi z komputera.'),
