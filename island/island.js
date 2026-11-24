@@ -2,7 +2,7 @@
 // Podgląd w ustawieniach (island/index.html?preview): ta sama wyspa, ale nie rusza prawdziwej — nie zgłasza obszaru
 // klikania ani przytrzymania, nie zapisuje stanu; działa tylko sterowanie muzyką i głośnością. Szkło bez obrazu ekranu.
 const PREVIEW = new URLSearchParams(location.search).has('preview');
-const PREVIEW_SEND = new Set(['media', 'seek', 'volume', 'mute', 'controls-refresh', 'stats-on', 'weather-refresh', 'ai-usage-refresh']);
+const PREVIEW_SEND = new Set(['media-app', 'media', 'seek', 'volume', 'mute', 'controls-refresh', 'stats-on', 'weather-refresh', 'ai-usage-refresh']);
 const W = PREVIEW ? { ...window.wyspa, send: (ch, ...a) => { if (PREVIEW_SEND.has(ch)) window.wyspa.send(ch, ...a); } } : window.wyspa;
 const T = window.WYSPA_THEME, I = window.ICONS;
 if (PREVIEW) document.documentElement.classList.add('preview');

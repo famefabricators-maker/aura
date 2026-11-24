@@ -406,6 +406,20 @@ async function resolveAppIcon(id) {
   appExe.set(id, exe);
   try { const ic = await fileIcon(exe); if (ic.isEmpty()) return null; const url = ic.toDataURL(); appIcons.set(id, url); return url; } catch { return null; }
 }
+// klik w muzykę na wyspie: na wierzch program, z którego gra (Mac: Spotify / Muzyka; Windows: okno procesu, w przeglądarce
+// najlepiej to z tytułem utworu). Brak okna (Spotify w zasobniku) — uruchomienie programu, który sam pokaże okno.
+const BROWSERS = /^(opera|chrome|msedge|firefox|brave|vivaldi)$/i;
+ipcMain.on('media-app', () => {
+  const m = sys.media; if (!m || !m.has || !m.app) return;
+  if (IS_MAC) { execFile('/usr/bin/open', ['-a', /music/i.test(m.app) ? 'Music' : 'Spotify'], () => {}); return; }
+  helper.send({ c: 'focusapp', proc: mediaProcName(m.app), hint: m.title || '', id: m.app });
+});
+helper.on('focusapp', r => {
+  if (!r || r.ok) return;
+  const name = mediaProcName(r.id || ''), exe = appExe.get(r.id);
+  if (/spotify/i.test(r.id || '')) shell.openExternal('spotify:');
+  else if (exe && !BROWSERS.test(name) && fs.existsSync(exe)) shell.openPath(exe);
+});
 helper.on('media', m => {
   sys.media = m; send('media', m); onTrack(m);
   if (taskbar) taskbar.setMedia(dockMedia());

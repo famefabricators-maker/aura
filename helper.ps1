@@ -167,6 +167,7 @@ function Handle($line) {
     'brightget' { Out-Line (@{ t = 'bright' } + (Get-Bright)) }
     'stats' { Out-Line (@{ t = 'net' } + (Get-Net)) }
     'ownpid' { $script:ownPid = [int]$m.pid }
+    'focusapp' { Out-Line @{ t = 'focusapp'; ok = [WyspaFocus]::FocusApp([string]$m.proc, [string]$m.hint); id = [string]$m.id } }
     'devbat' { if ([bool]$m.on) { [WyspaDevBattery]::Enabled = $true; [WyspaDevBattery]::Start(); [WyspaDevBattery]::Refresh() } else { [WyspaDevBattery]::Enabled = $false; $script:devBatVer = -1; Out-Line @{ t = 'devbat'; list = @() } } }
     'edge' { $script:edgeBottom = [bool]$m.bottom; $script:lastCov = -1 }
     'toasts' { $on = [bool]$m.on; if ($on -ne $script:toasts) { $script:toasts = $on; $script:toastInit = $false; $script:toastSeen = @{} } }

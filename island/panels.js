@@ -41,6 +41,8 @@ function extractColor(src) {
   };
   img.src = src;
 }
+// klik w okładkę (albo znaczek programu): na wierzch aplikacja, z której gra muzyka
+$('.m-art').addEventListener('click', e => { e.stopPropagation(); W.send('media-app'); });
 function renderMusic() {
   $('#mLyr').classList.toggle('on', !!st.S.lyrics);
   const m = st.media, has = !!(m && m.has && (m.title || m.artist));
@@ -63,7 +65,7 @@ function renderMusic() {
   const bgImg = st.thumb ? `url("${st.thumb}")` : '';
   if (renderMusic.bg !== bgImg) { renderMusic.bg = bgImg; bg.style.backgroundImage = bgImg; }
   const app = prettyApp(m.app); const badge = $('#mBadge');
-  badge.title = app;
+  badge.title = app; $('.m-art').title = `Otwórz: ${app}`;
   const icon = appIcons[m.app];
   const badgeKey = icon ? 'i:' + icon : /spotify/i.test(m.app) ? 'spotify' : 'music';
   if (renderMusic.badge !== badgeKey) {

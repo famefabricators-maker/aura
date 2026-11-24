@@ -133,6 +133,8 @@ section.on { opacity: 1; pointer-events: auto; transition: opacity .2s ease .05s
    wcześniej nasycenie ×2,3 i kontrast ×1,55 robiły z przygaszonych okładek jaskrawe tło */
 .m-bg { position: absolute; inset: -200px -60px -60px; background-color: #000; background-size: 100% 100%; background-position: center; filter: blur(46px) saturate(1.25) brightness(.9); opacity: 0; transform: scale(1.35); transition: opacity .5s; pointer-events: none; }
 .m-bg.on { opacity: 1; }
+.m-art { cursor: pointer; transition: transform .14s cubic-bezier(.3, .7, .4, 1); }
+.m-art:active { transform: scale(.95); } /* klik: otwiera aplikację z muzyką */
 /* winieta od samej góry karty (z pasem przy notchu na Macu) — wcześniej zaczynała się 40 px nad treścią i nad nią
    zostawał jaśniejszy pas z ostrą granicą */
 .m-vig { position: absolute; inset: -200px -40px -40px; pointer-events: none; opacity: 0; transition: opacity .5s;

@@ -586,3 +586,42 @@ public static class WyspaDevBattery {
     return outl;
   }
 }
+
+// Klik w muzykę na wyspie: okno programu, z którego gra (Spotify, Opera, Chrome…) na wierzch.
+// Szukamy widocznego okna procesu o tej nazwie; w przeglądarce najlepiej tego z tytułem utworu w nazwie (karta YouTube).
+public static class WyspaFocus {
+  delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr h, uint cmd);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern void SwitchToThisWindow(IntPtr h, bool alt);
+  [DllImport("user32.dll")] static extern void mouse_event(uint f, int x, int y, uint d, UIntPtr e);
+  // zwraca true, gdy znalazł i przełączył okno; false — brak okna (np. Spotify schowany w zasobniku)
+  public static bool FocusApp(string proc, string hint) {
+    proc = (proc ?? "").ToLowerInvariant(); hint = (hint ?? "").ToLowerInvariant();
+    var pids = new HashSet<uint>();
+    foreach (var p in System.Diagnostics.Process.GetProcesses()) { try { if (p.ProcessName.ToLowerInvariant() == proc) pids.Add((uint)p.Id); } catch { } }
+    if (pids.Count == 0) return false;
+    IntPtr best = IntPtr.Zero, first = IntPtr.Zero;
+    EnumWindows((h, l) => {
+      uint pid; GetWindowThreadProcessId(h, out pid);
+      if (!pids.Contains(pid) || !IsWindowVisible(h) || GetWindow(h, 4) != IntPtr.Zero) return true; // 4 = właściciel: okienka pomocnicze pomijamy
+      var sb = new StringBuilder(512); GetWindowText(h, sb, 512); string t = sb.ToString();
+      if (t.Length == 0) return true;
+      if (first == IntPtr.Zero) first = h;
+      if (hint.Length > 2 && t.ToLowerInvariant().Contains(hint)) { best = h; return false; }
+      return true;
+    }, IntPtr.Zero);
+    IntPtr w = best != IntPtr.Zero ? best : first;
+    if (w == IntPtr.Zero) return false;
+    if (IsIconic(w)) ShowWindow(w, 9); // przywróć zminimalizowane
+    mouse_event(0x0001, 0, 0, 0, UIntPtr.Zero);   // ruch o 0 px: Windows pozwala wtedy przełączyć okno z procesu w tle
+    SetForegroundWindow(w); SwitchToThisWindow(w, true);
+    return true;
+  }
+}
