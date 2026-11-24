@@ -363,7 +363,7 @@ $('#shAirdrop').addEventListener('dragover', e => { if (hasFiles(e)) $('#shAirdr
 $('#shAirdrop').addEventListener('dragleave', () => $('#shAirdrop').classList.remove('over'));
 // Mac: przeciąganie wykrywane przez Aurę (okno nie dostaje zdarzeń upuszczania) — pozycja kursora względem okna wyspy
 const pickZoneAt = pos => { const el = document.elementFromPoint(pos.x, pos.y); return el && el.closest ? el.closest('.dp-zone') : null; };
-let lastDomDrop = 0;
+let lastDomDrop = 0, lastNativeDrop = 0;
 W.on('drag-pick', pos => {
   const pick = $('#dropPick'); clearTimeout(pickT);
   if (!pos) { pick.classList.remove('on'); $('#shelf').classList.remove('dropping'); return; }
@@ -374,17 +374,22 @@ W.on('drag-pick', pos => {
 W.on('drag-drop', async d => {
   const pick = $('#dropPick'), z = dropPickOn() ? pickZoneAt(d) : null; $('#shelf').classList.remove('dropping');
   pick.classList.remove('on'); pick.querySelectorAll('.dp-zone').forEach(x => x.classList.remove('over'));
-  if (Date.now() - lastDomDrop < 800 || !d.files || !d.files.length) return; // gdyby okno jednak dostało zwykłe upuszczenie
+  if (Date.now() - lastDomDrop < 800 || !d.files || !d.files.length) return; // okno dostało już zwykłe upuszczenie z plikiem
+  lastNativeDrop = Date.now();
   if (z && z.dataset.dp === 'airdrop') { setTab('airdrop'); W.send('airdrop', d.files); return; }
   if (!z && st.tab === 'airdrop') { W.send('airdrop', d.files); return; }
   setFiles(await W.invoke('files-add', d.files)); setTab('shelf');
 });
 document.addEventListener('drop', async e => {
   e.preventDefault(); $('#shelf').classList.remove('dropping');
+  // Mac: upuszczenie przychodzi czasem bez ścieżki pliku — wtedy plik obsłuży Aura (drag-drop niżej), nic tu nie blokujemy
+  const domPaths = W.pathsFor(e.dataTransfer.files);
+  if (!domPaths.length && isMac()) return;
+  if (Date.now() - lastNativeDrop < 800) { $('#dropPick').classList.remove('on'); return; } // Aura już go obsłużyła
   lastDomDrop = Date.now();
   const pick = $('#dropPick');
   if (pick.classList.contains('on')) {
-    const z = e.target.closest && e.target.closest('.dp-zone'), paths = W.pathsFor(e.dataTransfer.files);
+    const z = e.target.closest && e.target.closest('.dp-zone'), paths = domPaths;
     clearTimeout(pickT); pick.classList.remove('on'); pick.querySelectorAll('.dp-zone').forEach(x => x.classList.remove('over'));
     if (!paths.length) return;
     if (z && z.dataset.dp === 'airdrop') { setTab('airdrop'); W.send('airdrop', paths); return; }
