@@ -14,7 +14,8 @@ function run(argv) {
 
   const name = (typeof $.NSSharingServiceNameSendViaAirDrop !== 'undefined' && $.NSSharingServiceNameSendViaAirDrop) || $('com.apple.share.AirDrop.send');
   const svc = $.NSSharingService.sharingServiceNamed(name);
-  if (!svc || svc.isNil() || !svc.canPerformWithItems(items)) { out('niedostępny'); $.exit(2); }
+  if (!svc || svc.isNil()) { out('niedostępny:usługa'); $.exit(2); }
+  if (!svc.canPerformWithItems(items)) { out('niedostępny:pliki'); $.exit(2); } // np. plik, którego ten proces nie może czytać
 
   // koniec po wysłaniu albo anulowaniu (zamknięciu okna)
   ObjC.registerSubclass({

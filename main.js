@@ -186,12 +186,18 @@ function macDragTick(inside, p, b) {
   if (!md.down) return;
   const rel = { x: p.x - b.x, y: p.y - b.y };
   if (s.pressed) {
-    if (!md.active && !md.fromIsland && s.change !== md.base) { const files = macNative().dragFiles(); if (files.length) { md.active = true; md.files = files; } }
+    if (!md.active && !md.fromIsland && s.change !== md.base) {
+      const files = macNative().dragFiles();
+      // wyspa stoi wyżej niż obrazek przeciąganego pliku (poziom „wygaszacza” > poziom przeciągania) — na czas przeciągania
+      // schodzi niżej, żeby plik było widać NAD wyspą
+      if (files.length) { md.active = true; md.files = files; try { island.setAlwaysOnTop(true, 'pop-up-menu'); } catch {} }
+    }
     if (md.active) { const over = open && inside; if (over || md.over) send('drag-pick', over ? rel : null); md.over = over; }
     return;
   }
   if (md.active && md.over) send('drag-drop', { ...rel, files: md.files }); // puszczony nad wyspą
   else if (md.active) send('drag-pick', null);
+  if (md.active) { try { island.setAlwaysOnTop(true, 'screen-saver'); } catch {} }
   md = { down: false };
 }
 
@@ -746,8 +752,24 @@ async function convertImage(p, fmt, opts = {}) {
 // macOS: AirDrop — systemowe menu „Udostępnij” (AirDrop, Wiadomości, Mail…) dla upuszczonych plików albo plików z półki
 ipcMain.on('airdrop', (e, paths) => {
   if (!IS_MAC) return;
-  const list = (Array.isArray(paths) ? paths : []).filter(p => typeof p === 'string' && path.isAbsolute(p) && fs.existsSync(p)).slice(0, 20);
-  if (!list.length) return;
+  const given = (Array.isArray(paths) ? paths : []).filter(p => typeof p === 'string' && path.isAbsolute(p) && fs.existsSync(p)).slice(0, 20);
+  if (!given.length) return;
+  // Pliki z Biurka, Dokumentów czy Pobranych: macOS pyta o zgodę program, który je czyta. Pomocnik AirDrop działa w tle
+  // i dostawał cichą odmowę („niedostępny”, choć Wi-Fi i Bluetooth były włączone). Aura sama robi kopię (na APFS to klon —
+  // natychmiast i bez miejsca) w folderze tymczasowym, a AirDrop dostaje kopię. Brak dostępu = jasny komunikat.
+  const tmp = path.join(os.tmpdir(), 'aura-airdrop'); try { fs.mkdirSync(tmp, { recursive: true }); } catch {}
+  const list = [], denied = [];
+  for (const p of given) {
+    try {
+      fs.accessSync(p, fs.constants.R_OK);
+      if (fs.statSync(p).isDirectory()) { list.push(p); continue; }
+      const dst = path.join(tmp, path.basename(p));
+      try { fs.rmSync(dst, { force: true }); } catch {}
+      fs.copyFileSync(p, dst, fs.constants.COPYFILE_FICLONE);
+      list.push(dst);
+    } catch (err) { denied.push(p); logError('airdrop: brak dostępu do ' + p, err); }
+  }
+  if (!list.length) { send('airdrop-state', { state: 'denied', name: path.basename(given[0]) }); return; }
   const win = BrowserWindow.fromWebContents(e.sender) || undefined;
   const shareMenu = () => { try { const { ShareMenu } = require('electron'); new ShareMenu({ filePaths: list }).popup({ window: win }); } catch (err) { logError('airdrop', err); } };
   // najpierw prosto okno AirDrop (wybór telefonu); gdy AirDrop niedostępny — menu „Udostępnij”
@@ -758,10 +780,10 @@ ipcMain.on('airdrop', (e, paths) => {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(__CF|XPC_|ELECTRON_|CHROME_)/.test(k)));
   execFile('/usr/bin/osascript', ['-l', 'JavaScript', path.join(__dirname, 'native', 'airdrop-mac.js'), ...list], { timeout: 11 * 60e3, env }, (err, out) => {
     const o = String(out || '');
-    if (/niedostępny/.test(o)) { send('airdrop-state', { state: 'fallback', name }); shareMenu(); return; }
+    if (/niedostępny/.test(o)) { logError('airdrop', new Error(o.trim() || 'niedostępny')); send('airdrop-state', { state: /usługa/.test(o) ? 'fallback' : 'error', name }); shareMenu(); return; }
     if (/wysłano/.test(o)) { send('airdrop-state', { state: 'sent', name }); addNotice({ kind: 'phone', title: 'Wysłano przez AirDrop', body: name }); return; }
     if (/anulowano/.test(o)) { send('airdrop-state', { state: 'cancel', name }); return; }
-    if (err && !/ok/.test(o)) { logError('airdrop', err); send('airdrop-state', { state: 'fallback', name }); shareMenu(); return; }
+    if (err && !/ok/.test(o)) { logError('airdrop', new Error((err.message || '') + ' | ' + o.trim())); send('airdrop-state', { state: 'error', name }); shareMenu(); return; }
     send('airdrop-state', { state: 'idle', name });
   });
 });
@@ -1696,9 +1718,10 @@ async function testShots(dir) {
       }`], { timeout: 30000 }, (err, out) => res(err ? 'błąd: ' + err.message : String(out).trim())));
     const dl = async () => JSON.stringify(await island.webContents.executeJavaScript('window.__dl'));
     log('wyspa: ' + JSON.stringify(b) + ', pole AirDrop: ' + JSON.stringify(zone('air')) + ', pigułka: ' + JSON.stringify(pill));
-    const mid = async (name) => { await wait(4000); fs.writeFileSync(path.join(dir, name), (await island.webContents.capturePage()).toPNG()); };
+    const mid = async (name) => { await wait(4000); fs.writeFileSync(path.join(dir, name), (await island.webContents.capturePage()).toPNG()); execFile('/usr/sbin/screencapture', ['-x', path.join(dir, 'ekran-' + name)], () => {}); };
     { const r = drive(zone('air')); mid('drag-nad-airdrop.png'); log('1) na pole AirDrop: ' + await r); } await wait(2500);
     log('   zdarzenia na wyspie: ' + await dl() + ' | wywołań AirDrop: ' + adCalls + ' | otwarta: ' + open);
+    await wait(1500); execFile('/usr/sbin/screencapture', ['-x', path.join(dir, 'ekran-po-upuszczeniu-airdrop.png')], () => {});
     fs.writeFileSync(path.join(dir, 'drag-airdrop.png'), (await island.webContents.capturePage()).toPNG());
     await wait(4000); execFile('/usr/bin/pkill', ['-f', 'airdrop-mac.js'], () => {}); await wait(2500);
     await island.webContents.executeJavaScript(`window.__dl={};'ok'`);

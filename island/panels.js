@@ -351,7 +351,9 @@ W.on('airdrop-state', s => {
   const z = $('#adZone'), h = $('#adHint'); if (!s) return;
   z.classList.toggle('sent', s.state === 'sent');
   h.textContent = s.state === 'opening' ? `Wybierz urządzenie w oknie AirDrop: ${s.name}` : s.state === 'sent' ? `Wysłano: ${s.name}` : s.state === 'cancel' ? 'Anulowano — przeciągnij plik jeszcze raz.'
-    : s.state === 'fallback' ? 'AirDrop niedostępny (włącz Bluetooth i Wi-Fi) — wybierz sposób wysłania z menu.' : AD_HINT;
+    : s.state === 'fallback' ? 'AirDrop jest wyłączony (Wi-Fi albo Bluetooth) — wybierz sposób wysłania z menu.'
+    : s.state === 'denied' ? 'macOS nie pozwala Aurze czytać tego folderu. Zezwól w Ustawieniach systemowych → Prywatność i ochrona → Pliki i foldery.'
+    : s.state === 'error' ? 'Nie udało się otworzyć AirDrop — wybierz sposób wysłania z menu.' : AD_HINT;
   clearTimeout(z._t); if (s.state !== 'opening') z._t = setTimeout(() => { h.textContent = AD_HINT; z.classList.remove('sent'); }, 6000);
 });
 $('#shAirdrop').onclick = () => { if (files.length) W.send('airdrop', files.map(f => f.path)); else { $('#shAirdrop').classList.add('over'); setTimeout(() => $('#shAirdrop').classList.remove('over'), 600); } };
