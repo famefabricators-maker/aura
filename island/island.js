@@ -208,6 +208,14 @@ function layoutBox() {
   isl.style.width = w + 'px'; isl.style.height = h + 'px';
   isl.style.borderRadius = isIslandShape() ? `${Math.min(r, h / 2, w / 2)}px` : atBottom() ? `${Math.min(r, h, w / 2)}px ${Math.min(r, h, w / 2)}px 0 0` : `0 0 ${Math.min(r, h, w / 2)}px ${Math.min(r, h, w / 2)}px`;
 }
+// otwarta karta z tłem okładki: kształt wyspy (też „uszy” przy krawędzi ekranu i pas przy notchu, których nie zakrywa
+// tło karty) przybiera przyciemniony kolor albumu — bez tego wystawały w kolorze motywu
+function albumBase(base, openness) {
+  const m = typeof albumColor === 'string' && /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(albumColor);
+  if (!m || openness <= 0 || !$('#card').classList.contains('album')) return base;
+  const k = Math.min(1, openness * 1.4), a = [m[1], m[2], m[3]].map(v => (v / 255) * 0.42);
+  return base.map((v, i) => v + (a[i] - v) * k);
+}
 function drawGL(now) {
   if (!WyspaGL.ok) return;
   const surf = T.surface(st.S.surface);
@@ -216,7 +224,7 @@ function drawGL(now) {
   WyspaGL.draw({
     b2: devCapsule(),
     x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(), soft: isMac(),
-    base: T.hexToRgb(surf.base), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
+    base: albumBase(T.hexToRgb(surf.base), openness), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
     accent: T.hexToRgb(st.accent), time: (now - t0) / 1000, open: openness, fx: surf.fx || 0, light: surf.light,
   });
