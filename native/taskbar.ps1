@@ -21,6 +21,19 @@ else {
   Add-Type -TypeDefinition $code -OutputAssembly $dll -OutputType Library
   Add-Type -Path $dll
 }
+# ikony okien (System.Drawing) — osobno, bo TaskbarNative.cs kompiluje też stróż bez dodatkowych bibliotek; błąd = bez ikon okien
+$iconOk = $false
+try {
+  $icode = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'IconNative.cs'))
+  $isha = [BitConverter]::ToString((New-Object Security.Cryptography.SHA1Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes($icode))).Replace('-', '').Substring(0, 12)
+  $idll = Join-Path $cacheDir "IconNative-$isha.dll"
+  if (-not (Test-Path $idll)) {
+    New-Item -ItemType Directory -Force $cacheDir | Out-Null
+    Get-ChildItem $cacheDir -Filter 'IconNative-*.dll' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Add-Type -TypeDefinition $icode -ReferencedAssemblies System.Drawing -OutputAssembly $idll -OutputType Library
+  }
+  Add-Type -Path $idll; $iconOk = $true
+} catch {}
 function Out-Line($o) { [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress)); [Console]::Out.Flush() }
 
 [AuraTaskbar]::DpiAware()
@@ -66,8 +79,9 @@ try {
       try {
         $m = $line | ConvertFrom-Json
         switch ($m.c) {
-          'act' { [AuraTaskbar]::Activate([long]$m.h); $last = '' }
-          'focus' { [AuraTaskbar]::Focus([long]$m.h); $last = '' }
+          'act' { $sw = [Diagnostics.Stopwatch]::StartNew(); [AuraTaskbar]::Activate([long]$m.h); $last = ''; Out-Line @{ t = 'acted'; ms = $sw.ElapsedMilliseconds } }
+          'wicon' { $png = ''; if ($iconOk) { try { $png = [AuraWinIcon]::Png([long]$m.h) } catch {} }; Out-Line @{ t = 'wicon'; key = [string]$m.key; png = $png } }
+          'focus' { $sw = [Diagnostics.Stopwatch]::StartNew(); [AuraTaskbar]::Focus([long]$m.h); $last = ''; Out-Line @{ t = 'acted'; ms = $sw.ElapsedMilliseconds } }
           'close' { [AuraTaskbar]::Close([long]$m.h) }
           'keys' { [AuraTaskbar]::Keys([string]$m.k) }
           'pid' { $ownPid = [uint32]$m.pid }
