@@ -118,7 +118,18 @@ function drawProgress() {
   if (m.end > 1) $('#mEnd').textContent = '-' + fmt(m.end - mediaPos());
   if (lyrics && lyrics.length) { const p = mediaPos(); let line = ''; for (const l of lyrics) { if (l.t <= p + 0.3) line = l.text; else break; } $('#mLyric').textContent = line; }
 }
-(function progLoop() { requestAnimationFrame(progLoop); if (st.open && st.tab === 'music') { drawProgress(); scrollLyrics(); } })();
+// pasek postępu i przewijany tekst: tylko przy otwartej karcie muzyki, najwyżej 60 kl./s (wcześniej zawsze, 144 Hz)
+let progRaf = 0, progLast = 0;
+const progWanted = () => st.open && st.tab === 'music' && !document.hidden;
+function progKick() { if (!progRaf && progWanted()) progRaf = requestAnimationFrame(progLoop); }
+function progLoop() {
+  progRaf = 0;
+  if (!progWanted()) return;
+  drawProgress(); scrollLyrics();
+  progRaf = -1; setTimeout(() => { progRaf = 0; progKick(); }, seeking != null ? 0 : 14); // następna klatka nie wcześniej niż za ~16 ms (monitor 144 Hz budził 144×/s)
+}
+progKick();
+document.addEventListener('tab', () => progKick()); // przejście na kartę muzyki
 // przewijanie: przeciągasz płynnie (podgląd na bieżąco), utwór przeskakuje po puszczeniu
 const fracAt = e => Math.max(0, Math.min(1, e.offsetX / prog.clientWidth));
 prog.addEventListener('pointerdown', e => {

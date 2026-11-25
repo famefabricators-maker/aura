@@ -199,7 +199,9 @@ function frame(now) {
   drawGL(now);
   const surf = T.surface(st.S.surface);
   const fx = surf.fx && st.mode === 'card';
-  if (moving || fx || (surf.glass && glassLive())) kick();
+  // szkło na żywo: rysujemy, gdy przyjdzie nowa klatka ekranu (uploadFrame woła kick) albo wyspa się rusza —
+  // a nie przy każdym odświeżeniu monitora (144 razy na sekundę przy obrazie zmieniającym się 2–30 razy)
+  if (moving || fx) kick();
 }
 function layoutBox() {
   const w = spring.w.x, h = Math.max(0, spring.h.x), r = spring.r.x;
@@ -250,6 +252,7 @@ W.on('cursor', c => { if (!c) st.cursors = []; else { st.cursors.push({ x: c.x, 
 // ---------- tryby i warstwy ----------
 let lastRects = '';
 function update() {
+  try { vizKick(); if (typeof progKick === 'function') progKick(); } catch {}
   const mode = currentMode();
   st.mode = mode;
   tuneCapture(); // liczba klatek szkła zależna od stanu wyspy
@@ -354,9 +357,14 @@ setInterval(() => { if (st.mode === 'pill') renderPill(); }, 1000);
 // ---------- wizualizator ----------
 let analyser = null, freq = null;
 const viz = $('#viz'), vctx = viz.getContext('2d');
+// Pętla chodzi tylko, gdy słupki widać (pigułka + coś gra), najwyżej 30 kl./s — wcześniej kręciła się bez przerwy
+// z częstotliwością monitora (144 Hz = 144 razy na sekundę) także przy schowanej wyspie.
+let vizRaf = 0;
+const vizWanted = () => st.mode === 'pill' && playing() && !document.hidden;
+function vizKick() { if (!vizRaf && vizWanted()) vizRaf = requestAnimationFrame(vizLoop); }
 function vizLoop() {
-  requestAnimationFrame(vizLoop);
-  if (st.mode !== 'pill' || !playing()) return;
+  vizRaf = -1; setTimeout(() => { vizRaf = 0; vizKick(); }, 30); // ~30 kl./s niezależnie od odświeżania monitora
+  if (!vizWanted()) return;
   const W2 = viz.width, H2 = viz.height;
   vctx.clearRect(0, 0, W2, H2);
   const cols = 5, levels = [];
@@ -374,7 +382,7 @@ function vizLoop() {
     levels.forEach((l, i) => { const n = Math.max(1, Math.round(l * rows)); for (let r = 0; r < n; r++) vctx.fillRect(i * (px + gap) + 3, H2 - 2 - (r + 1) * (px + gap) + gap, px, px); });
   }
 }
-requestAnimationFrame(vizLoop);
+vizKick();
 
 // ---------- przechwytywanie ekranu: szkło + dźwięk ----------
 let capStream = null, capVideo = null, capWanted = '', capApplied = '';
