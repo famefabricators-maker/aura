@@ -490,14 +490,22 @@ setInterval(() => { if (Object.keys(sys.captureSince).length) saveCaptureSince()
 helper.on('covered', m => { sys.covered = !!m.on; send('covered', sys.covered); });
 // bateria myszy, słuchawek itp. (Windows): kropki obok wyspy + przypomnienie przy 15%
 const devLow = new Set(), devCharging = new Map();
-// Wygładzanie: odczyt baterii z urządzeń skacze (napięcie pod ładowarką zawyżone, mysz podaje co 5%). Bez ładowania
-// procent może tylko spadać, przy ładowaniu — tylko rosnąć; zmiana stanu ładowania przyjmuje nowy odczyt.
+// Wygładzanie odczytu baterii: środkowa z 3 ostatnich wartości (pojedynczy błędny odczyt, np. przy przełączaniu myszy
+// z kabla na radio, nic nie zmienia) i bez drgań — bez ładowania drobny wzrost (≤5%) jest pomijany, przy ładowaniu drobny
+// spadek. Wcześniej „bez ładowania tylko w dół” trzymało jeden błędny odczyt (10% zamiast 95%) aż do następnego ładowania.
 const devShown = new Map();
 function smoothDev(d) {
-  const lvl = Math.round(Number(d.level)), prev = devShown.get(d.name);
-  let v = lvl;
-  if (prev && prev.charging === !!d.charging) v = d.charging ? Math.max(prev.v, lvl) : Math.min(prev.v, lvl);
-  devShown.set(d.name, { v, charging: !!d.charging });
+  const lvl = Math.round(Number(d.level)), charging = !!d.charging, prev = devShown.get(d.name);
+  const same = prev && prev.charging === charging;
+  // zmiana ładowania: od nowa, ale z ostatnią znaną wartością (błędny pierwszy odczyt po odpięciu kabla nie wyskoczy)
+  const hist = same ? [...prev.hist, lvl].slice(-3) : prev && prev.v != null ? [prev.v, lvl] : [lvl];
+  const med = [...hist].sort((a, b) => a - b)[Math.floor(hist.length / 2)];
+  let v = med;
+  if (same && prev.v != null) {
+    if (!charging && med > prev.v && med - prev.v <= 5) v = prev.v;
+    if (charging && med < prev.v && prev.v - med <= 5) v = prev.v;
+  }
+  devShown.set(d.name, { v, charging, hist });
   return { ...d, level: v, raw: lvl };
 }
 helper.on('devbat', m => {
