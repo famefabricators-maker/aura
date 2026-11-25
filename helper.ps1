@@ -298,7 +298,7 @@ while ($true) {
 
   if ($script:toasts -and $tick % 8 -eq 0) { try { Poll-Toasts } catch {} }  # ok. co 1,6 s
   # bateria myszy, słuchawek itp. (odczyt w osobnym wątku co minutę) — wysyłamy, gdy się zmieni
-  if ($tick % 10 -eq 5 -and [WyspaDevBattery]::Enabled -and [WyspaDevBattery]::Version -ne $script:devBatVer) {
+  if ($tick % 2 -eq 1 -and [WyspaDevBattery]::Enabled -and [WyspaDevBattery]::Version -ne $script:devBatVer) {  # zmiana baterii od razu na wyspę
     $script:devBatVer = [WyspaDevBattery]::Version
     $list = @(foreach ($ln in ([WyspaDevBattery]::Result -split "`n")) { if ($ln) { $f = $ln.Split("`t"); @{ name = $f[0]; kind = $f[1]; level = [int]$f[2]; charging = ($f[3] -eq '1') } } })
     Out-Line @{ t = 'devbat'; list = $list }

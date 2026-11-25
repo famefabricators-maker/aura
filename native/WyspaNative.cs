@@ -449,15 +449,19 @@ public static class WyspaDevBattery {
   public static volatile bool Enabled = true;
   public static void Start() {
     if (worker != null) return;
-    // co 3 s: czy zmieniły się podłączone urządzenia (np. mysz wpięta kablem do ładowania) — wtedy odczyt od razu; poza tym co 30 s
+    // Co 1,5 s: czy zmieniły się podłączone urządzenia (np. mysz wpięta kablem do ładowania). Po zmianie przez 20 s
+    // odczyt co ~2,5 s — mysz zgłasza ładowanie dopiero po kilku sekundach, a wcześniej następny odczyt był za 30 s.
+    // Poza tym odczyt co 15 s.
     worker = new System.Threading.Thread(() => {
-      string sig = null; DateTime last = DateTime.MinValue;
+      string sig = null; DateTime last = DateTime.MinValue, fastUntil = DateTime.MinValue;
       while (true) {
         if (Enabled) {
           string now = ""; try { foreach (var p in HidPaths()) { string l = p.ToLowerInvariant(); if (l.Contains("vid_1038") && (l.Contains("mi_03") || l.Contains("mi_05"))) now += l + "|"; } } catch { }
-          if (now != sig || (DateTime.Now - last).TotalSeconds >= 30) { if (sig != null && now != sig) System.Threading.Thread.Sleep(1500); sig = now; last = DateTime.Now; Update(); }
+          if (sig != null && now != sig) { fastUntil = DateTime.Now.AddSeconds(20); System.Threading.Thread.Sleep(700); }
+          double every = DateTime.Now < fastUntil ? 2.5 : 15;
+          if (now != sig || (DateTime.Now - last).TotalSeconds >= every) { sig = now; last = DateTime.Now; Update(); }
         }
-        System.Threading.Thread.Sleep(3000);
+        System.Threading.Thread.Sleep(1500);
       }
     });
     worker.IsBackground = true; worker.Priority = System.Threading.ThreadPriority.BelowNormal;

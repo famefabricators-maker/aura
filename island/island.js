@@ -489,7 +489,7 @@ function resetCaptureIfNeeded() { const vt = capStream && capStream.getVideoTrac
 // ---------- bateria urządzeń: kapsułka obok wyspy ----------
 // Kapsułkę rysuje ten sam shader co wyspę (szkło, kolory motywu, cień), a na niej leżą pierścienie jak w widżecie
 // baterii iPhone'a: pełny okrąg od góry zgodnie z ruchem wskazówek, ikona w środku, procent obok.
-// Biały; poniżej 20% czerwony; ładowanie — zielony z błyskawicą.
+// Biały; 20% i mniej — czerwony; ładowanie — zielony z błyskawicą.
 let devList = [], ddW = 0;
 const dd = { a: 0, w: 0, h: 36, c: 0, x: 0, y: 0, place: 'side' };                     // obecność, szerokość, wysokość kapsułki, widoczność treści
 const DD_GAP = 8, DD_H = 36;
@@ -501,7 +501,7 @@ function renderDevDots(list) {
   for (const d of devList) {
     const lvl = Math.max(0, Math.min(100, Number(d.level) || 0));
     const dot = document.createElement('div');
-    dot.className = 'dd' + (lvl < 20 && !d.charging ? ' low' : '') + (d.charging ? ' charging' : '');
+    dot.className = 'dd' + (lvl <= 20 && !d.charging ? ' low' : '') + (d.charging ? ' charging' : ''); // mało baterii: czerwony pierścień
     dot.title = `${d.name}: ${lvl}%`;
     dot.innerHTML = `<div class="dd-ring"><svg viewBox="0 0 26 26"><circle class="bg" cx="13" cy="13" r="${DD_R}"/><circle class="fg" cx="13" cy="13" r="${DD_R}" stroke-dasharray="${(DD_C * lvl / 100).toFixed(2)} ${DD_C.toFixed(2)}"/></svg><span class="ico">${I.svg(DD_ICON[d.kind] || 'battery')}</span>${d.charging ? '<i class="bolt"></i>' : ''}</div><b class="mono">${lvl}%</b>`;
     box.append(dot);
