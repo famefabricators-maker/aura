@@ -37,7 +37,7 @@ body.nogl #isl { background: var(--surface); }
 /* przewijany tytuł: postój, przejazd do końca, postój, powrót (wolniej niż czytanie, bez szarpnięć) */
 #pText .pt-run { display: inline-block; white-space: nowrap; }
 #pText.run { text-overflow: clip; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5px, #000 calc(100% - 14px), transparent); }
-#pText.run .pt-run { animation: ptRun var(--pt-t, 6s) cubic-bezier(.45,0,.55,1) .9s infinite; }
+#pText.run .pt-run { animation: ptRun var(--pt-t, 6s) cubic-bezier(.45,0,.55,1) var(--pt-delay, .9s) infinite; }
 @keyframes ptRun { 0%, 18% { transform: translateX(0); } 50%, 68% { transform: translateX(var(--pt-d)); } 100% { transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) { #pText.run .pt-run { animation: none; } #pText.run { text-overflow: ellipsis; -webkit-mask-image: none; } }
 .p-right { display: flex; align-items: center; gap: 7px; flex: none; min-width: 24px; justify-content: flex-end; }

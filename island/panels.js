@@ -177,7 +177,7 @@ W.on('media', m => {
   if (Date.now() < seekGuard && st.media && m.title === st.media.title) { m.pos = st.media.pos; m.upd = st.media.upd; }
   // nowy utwór: tytuł w zamkniętej wyspie na 10 s, potem wyspa się zwija
   const key = m && m.has ? `${m.title}|${m.artist}` : '';
-  if (key && key !== titleKey) { titleKey = key; st.titleUntil = Date.now() + 10000; clearTimeout(titleTimer); titleTimer = setTimeout(update, 10050); }
+  if (key && key !== titleKey) { titleKey = key; st.titleUntil = Date.now() + 3000; clearTimeout(titleTimer); titleTimer = setTimeout(update, 3050); } // tytuł po zmianie utworu: 3 s
   st.media = m; renderMusic(); update();
 });
 let titleKey = '', titleTimer = 0;

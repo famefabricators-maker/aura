@@ -82,7 +82,7 @@ const PAGES = [
     tog('downloadsToShelf', 'Pobrane pliki na półkę', '', { when: s => s.downloads !== false }),
     tog('pillLyrics', 'Tekst piosenki w zamkniętej wyspie', 'Bieżąca linijka, jak karaoke (gdy są włączone teksty piosenek i utwór ma tekst z czasami).', { when: s => s.lyrics }),
     tog('lyrics', 'Teksty piosenek', 'Tytuł, wykonawca i długość utworu trafiają do LRCLIB (darmowa biblioteka tekstów), raz na utwór. Wyłączone = nic nie wychodzi z komputera.'),
-    seg('pillTitle', 'Tytuł utworu w zamkniętej wyspie', 'Po zmianie utworu tytuł widać przez 10 sekund, potem wyspa zwija się do okładki i wizualizera.', [['change', 'Przez 10 s'], ['always', 'Zawsze'], ['never', 'Nigdy']]),
+    seg('pillTitle', 'Tytuł utworu w zamkniętej wyspie', 'Po zmianie utworu tytuł widać przez 3 sekundy, potem wyspa zwija się do okładki i wizualizera.', [['change', 'Przez 3 s'], ['always', 'Zawsze'], ['never', 'Nigdy']]),
     { h: 'Zrzuty ekranu' },
     tog('hideFromCaptures', 'Ukryj wyspę na zrzutach i nagraniach', 'Przy powierzchni Szkło wyspa jest ukryta przed przechwytywaniem, bo sama czyta obraz ekranu — chyba że włączysz niżej „Widać wyspę na zrzutach”.'),
     tog('glassInShots', 'Szkło: widać wyspę na zrzutach ekranu', 'Wyspa pokaże się na zrzutach (Win+Shift+S, Print Screen) i nagraniach. Szkło jest wtedy przydymione — bez rozmywania tła na żywo, bo szkło na żywo musiałoby odbijać samo siebie.', { when: s => s.surface === 'glass' }),

@@ -129,20 +129,20 @@ function closedMode() {
   if (st.hud) return 'hud';
   if (hasNotch()) return 'pill';                        // na Macu pigułka = notch (+ skrzydełka)
   if (st.game) return 'strip';
-  // nowy utwór: wyspa wysuwa się z tytułem na 10 s także nad oknem, które zasłania górę (np. przeglądarką)
+  // nowy utwór: wyspa wysuwa się z tytułem na 3 s także nad oknem, które zasłania górę (np. przeglądarką)
   if (showTitle() && (st.S.pillTitle || 'change') === 'change') return 'pill';
   if (st.S.slimCovered && st.covered) return 'slim';   // okno zasłania górę: cienka linia
   // schowana w spoczynku — chyba że wybrano, co ma być wtedy widać (zwierzak, godzina, pogoda…): to wygrywa
   if (st.S.hiddenUntilHover && !hasLive() && (st.S.idleShows || 'none') === 'none') return 'hidden';
   return 'pill';
 }
-// tytuł utworu w zamkniętej wyspie: przez 10 s po zmianie utworu (domyślnie), zawsze albo nigdy
+// tytuł utworu w zamkniętej wyspie: przez 3 s po zmianie utworu (domyślnie), zawsze albo nigdy
 function showTitle() {
   if (!playing()) return false;
   const m = st.S.pillTitle || 'change';
   return m === 'always' || (m === 'change' && Date.now() < (st.titleUntil || 0));
 }
-// tekst piosenki w zamkniętej wyspie: po 10 s z tytułem, gdy utwór ma tekst z czasami
+// tekst piosenki w zamkniętej wyspie: po 3 s z tytułem, gdy utwór ma tekst z czasami
 function showLyric() { return st.S.lyrics && st.S.pillLyrics !== false && playing() && !!st.lyricLine && !showTitle(); }
 function anchorX(w) {
   if (hasNotch()) return (innerWidth - w) / 2;
@@ -299,7 +299,7 @@ function mode2rect(mode) { const t = targetFor(mode); return { x: Math.round(anc
 // ---------- pigułka ----------
 const fmt = sec => { sec = Math.max(0, Math.floor(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
 window.fmt = fmt;
-// Za długi tytuł/wykonawca: po chwili tekst przejeżdża do końca i wraca (całość do przeczytania w 10 s pokazu)
+// Za długi tytuł/wykonawca: tekst przejeżdża do końca i wraca; przy 3-sekundowym pokazie szybciej, żeby koniec był widać
 function buildPillTitle(text, key) {
   const run = document.createElement('span'); run.className = 'pt-run';
   run.textContent = st.media.title || '';
@@ -308,9 +308,12 @@ function buildPillTitle(text, key) {
   requestAnimationFrame(() => {
     const over = run.scrollWidth - text.clientWidth;
     if (over <= 2) return;
+    const quick = (st.S.pillTitle || 'change') === 'change';
     const travel = Math.min(3.6, Math.max(1.4, over / 45)); // s na przejazd w jedną stronę
     text.style.setProperty('--pt-d', -(over + 14) + 'px');
-    text.style.setProperty('--pt-t', (travel * 2 + 2.4).toFixed(2) + 's');
+    // 3 s pokazu: start po 0,3 s, koniec tekstu widać przed upływem ~2,5 s
+    text.style.setProperty('--pt-t', (quick ? Math.min(4.4, Math.max(3, over / 60 + 2.6)) : travel * 2 + 2.4).toFixed(2) + 's');
+    text.style.setProperty('--pt-delay', quick ? '.3s' : '.9s');
     text.classList.add('run');
   });
 }
