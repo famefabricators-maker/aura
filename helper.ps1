@@ -263,21 +263,19 @@ while ($true) {
   }
 
   # muzyka
-  if ($mgr -and ($script:force -or ($tick % 5 -eq 0))) {
+  # muzyka co ~0,4 s (było co 1 s); przy zmianie utworu najpierw tytuł na wyspę, okładka zaraz potem —
+  # wcześniej pobieranie okładki opóźniało tytuł i nowa piosenka grała, zanim wyspa się zmieniła
+  if ($mgr -and ($script:force -or ($tick % 2 -eq 0))) {
     $script:force = $false
     try {
-      $s = $mgr.GetCurrentSession()
+      $s = $mgr.GetCurrentSession(); $thumbFrom = $null
       if ($s) {
         $pr = Await ($s.TryGetMediaPropertiesAsync()) $propsType
         $info = $s.GetPlaybackInfo()
         $tl = $s.GetTimelineProperties()
         $key = "$($s.SourceAppUserModelId)|$($pr.Title)|$($pr.Artist)"
         if ($key -ne $lastKey) { $lastKey = $key; $thumbTries = 0; Out-Line @{ t = 'thumb'; data = $null } }
-        if ($thumbTries -lt 4 -and $pr -and $pr.Thumbnail) {
-          $thumbTries++
-          $th = Get-Thumb $pr.Thumbnail
-          if ($th) { $thumbTries = 99; Out-Line @{ t = 'thumb'; data = $th } }
-        }
+        if ($thumbTries -lt 4 -and $pr -and $pr.Thumbnail) { $thumbFrom = $pr.Thumbnail }
         $o = [ordered]@{
           t = 'media'; has = $true
           title = [string]$pr.Title; artist = [string]$pr.Artist; album = [string]$pr.AlbumTitle
@@ -292,7 +290,14 @@ while ($true) {
         }
       } else { $o = [ordered]@{ t = 'media'; has = $false }; $lastKey = '' }
       $json = $o | ConvertTo-Json -Compress
-      if ($json -ne $lastMedia) { $lastMedia = $json; [Console]::Out.WriteLine($json); [Console]::Out.Flush() }
+      # zmiana utworu / pauzy — od razu; sama pozycja w utworze — co ~0,8 s (mniej pracy dla wyspy)
+      $core = ($o.Keys | Where-Object { $_ -ne 'pos' -and $_ -ne 'upd' } | ForEach-Object { [string]$o[$_] }) -join '|'
+      if ($json -ne $lastMedia -and ($core -ne $script:lastCore -or $tick % 4 -eq 0)) { $lastMedia = $json; $script:lastCore = $core; [Console]::Out.WriteLine($json); [Console]::Out.Flush() }
+      if ($thumbFrom) {
+        $thumbTries++
+        $th = Get-Thumb $thumbFrom
+        if ($th) { $thumbTries = 99; Out-Line @{ t = 'thumb'; data = $th } }
+      }
     } catch {}
   }
 
