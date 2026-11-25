@@ -34,6 +34,19 @@ try {
   }
   Add-Type -Path $idll; $iconOk = $true
 } catch {}
+# listy szybkiego dostępu programów (jump listy: Steam — Sklep, Biblioteka…) — też osobno, błąd = menu bez nich
+$jumpOk = $false
+try {
+  $jcode = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'JumpNative.cs'))
+  $jsha = [BitConverter]::ToString((New-Object Security.Cryptography.SHA1Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes($jcode))).Replace('-', '').Substring(0, 12)
+  $jdll = Join-Path $cacheDir "JumpNative-$jsha.dll"
+  if (-not (Test-Path $jdll)) {
+    New-Item -ItemType Directory -Force $cacheDir | Out-Null
+    Get-ChildItem $cacheDir -Filter 'JumpNative-*.dll' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Add-Type -TypeDefinition $jcode -OutputAssembly $jdll -OutputType Library
+  }
+  Add-Type -Path $jdll; $jumpOk = $true
+} catch {}
 function Out-Line($o) { [Console]::Out.WriteLine(($o | ConvertTo-Json -Compress)); [Console]::Out.Flush() }
 
 [AuraTaskbar]::DpiAware()
@@ -80,6 +93,8 @@ try {
         $m = $line | ConvertFrom-Json
         switch ($m.c) {
           'act' { $sw = [Diagnostics.Stopwatch]::StartNew(); [AuraTaskbar]::Activate([long]$m.h); $last = ''; Out-Line @{ t = 'acted'; ms = $sw.ElapsedMilliseconds } }
+          'jump' { $jl = ''; if ($jumpOk) { try { $jl = [AuraJumpList]::Tasks([string]$m.exe) } catch {} }; Out-Line @{ t = 'jump'; key = [string]$m.exe; list = $jl } }
+          'run' { if ($jumpOk) { [AuraJumpList]::Run([string]$m.p, [string]$m.a) } }
           'wicon' { $png = ''; if ($iconOk) { try { $png = [AuraWinIcon]::Png([long]$m.h) } catch {} }; Out-Line @{ t = 'wicon'; key = [string]$m.key; png = $png } }
           'focus' { $sw = [Diagnostics.Stopwatch]::StartNew(); [AuraTaskbar]::Focus([long]$m.h); $last = ''; Out-Line @{ t = 'acted'; ms = $sw.ElapsedMilliseconds } }
           'close' { [AuraTaskbar]::Close([long]$m.h) }
