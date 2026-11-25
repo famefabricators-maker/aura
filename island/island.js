@@ -361,6 +361,18 @@ const viz = $('#viz'), vctx = viz.getContext('2d');
 // z częstotliwością monitora (144 Hz = 144 razy na sekundę) także przy schowanej wyspie.
 let vizRaf = 0;
 const vizWanted = () => st.mode === 'pill' && playing() && !document.hidden;
+// kolor słupków: kolor okładki grającego utworu (za ciemny — rozjaśniony, żeby był widoczny na wyspie); bez okładki — akcent
+let vizCol = { src: '', out: '' };
+function vizColor() {
+  const src = typeof albumColor === 'string' && albumColor ? albumColor : '';
+  if (!src) return st.accent;
+  if (vizCol.src !== src) {
+    const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(src); let c = m ? [+m[1], +m[2], +m[3]] : null;
+    if (c) { const l = (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255, k = l < 0.55 ? (0.55 - l) / (1 - l) : 0; c = c.map(v => Math.round(v + (255 - v) * k)); }
+    vizCol = { src, out: c ? `rgb(${c.join(',')})` : st.accent };
+  }
+  return vizCol.out;
+}
 function vizKick() { if (!vizRaf && vizWanted()) vizRaf = requestAnimationFrame(vizLoop); }
 function vizLoop() {
   vizRaf = -1; setTimeout(() => { vizRaf = 0; vizKick(); }, 30); // ~30 kl./s niezależnie od odświeżania monitora
@@ -373,7 +385,7 @@ function vizLoop() {
     const bands = [2, 5, 10, 18, 30];
     for (let i = 0; i < cols; i++) { let s = 0; for (let j = bands[i]; j < bands[i] + 4; j++) s += freq[j]; levels.push(Math.min(1, (s / 4 / 255) * 1.25)); }
   } else { const t = performance.now() / 1000; for (let i = 0; i < cols; i++) levels.push(0.35 + 0.3 * Math.sin(t * (3 + i) + i * 1.7) + 0.2 * Math.sin(t * 7.3 + i)); }
-  vctx.fillStyle = st.accent;
+  vctx.fillStyle = vizColor();
   if (st.S.visualizer === 'bars') {
     const bw = 5, gap = 3.5;
     levels.slice(0, 4).forEach((l, i) => { const h = Math.max(4, l * H2); const x = i * (bw + gap) + 4; vctx.beginPath(); vctx.roundRect(x, (H2 - h) / 2, bw, h, 2.5); vctx.fill(); });
