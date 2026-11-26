@@ -171,7 +171,11 @@ function gDraw() {
   const r = dock.getBoundingClientRect(), reg = gRegion(), k = S.look || {};
   const winY = k.winY != null ? k.winY : reg.y + 48;
   const acc = window.WYSPA_THEME.hexToRgb(S.accent || '#8ec5ff');
-  WyspaGL.draw({ x: r.left, y: innerHeight - r.bottom, w: r.width, h: r.height, r: 20, ear: 16, island: false, flip: true,
+  // „uszy” shader rysuje przy samej krawędzi ekranu — przy chowaniu paska maleją razem z widoczną częścią,
+  // inaczej zostawały w rogach schowanego paska
+  const visible = Math.max(0, Math.min(r.height, innerHeight - r.top));
+  if (visible < 1) { WyspaGL.draw({ x: 0, y: -999, w: 1, h: 1, r: 0, ear: 0, island: true, flip: true, base: [0, 0, 0], glass: false, blur: 0, tint: 0, screen: { w: 1, h: 1 }, win: { x: 0, y: 0 }, accent: acc, time: 0, open: 0, fx: 0, light: true }); return; }
+  WyspaGL.draw({ x: r.left, y: innerHeight - r.bottom, w: r.width, h: r.height, r: 20, ear: Math.min(16, visible * 0.5), island: false, flip: true,
     base: window.WYSPA_THEME.hexToRgb(gLookNow().surf.base), glass: true, blur: k.blur != null ? k.blur : 0.5, tint: 0,
     screen: { w: reg.w, h: reg.h }, win: { x: 0, y: winY - reg.y }, accent: acc, time: performance.now() / 1000, open: 0, fx: 0, light: true });
 }
@@ -184,4 +188,5 @@ function drawSoon(ms) {
 }
 apps.addEventListener('mousemove', () => drawSoon(200));
 dock.addEventListener('transitionrun', () => drawSoon(450));
+dock.addEventListener('transitionend', () => drawSoon(60));
 addEventListener('resize', () => drawSoon(200));

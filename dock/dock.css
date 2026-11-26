@@ -20,7 +20,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: def
   background: radial-gradient(circle at 0 0, transparent 15.5px, var(--bg) 16px); }
 .dock::before { left: -16px; }
 .dock::after { right: -16px; background: radial-gradient(circle at 100% 0, transparent 15.5px, var(--bg) 16px); }
-.dock.hidden { transform: translateY(calc(100% + 8px)); } /* schowany całkiem, jak dock na Macu */
+.dock.hidden { transform: translateY(calc(100% + 44px)); } /* schowany całkiem (z cieniem, który sięga ~40 px w górę), jak dock na Macu */
 
 .start, .qs { width: calc(var(--icon) * .92); height: calc(var(--icon) * .92); border-radius: 12px; display: grid; place-items: center; color: var(--fg); flex: none; transition: background .15s; }
 .start:hover, .qs:hover, .clock:hover { background: var(--row-hi); }
