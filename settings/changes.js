@@ -2,6 +2,17 @@
    Nowa wersja = nowy wpis NA GÓRZE, po polsku i po angielsku. */
 window.AURA_CHANGES = [
   {
+    v: '2.2.11', date: '2026-11-26',
+    pl: [
+      'Mac z notchem: wyspa przy wycięciu jest czystą czernią — skrzydełka i karta zlewają się z notchem w jeden pasek.',
+      'Pasek postępu muzyki w kontrastowym kolorze z okładki — inny dla każdego utworu i dobrze widoczny na tle albumu.',
+    ],
+    en: [
+      'Mac with a notch: the island next to the cut-out is pure black — the wings and the card blend with the notch into one bar.',
+      'The music progress bar takes a contrasting colour from the cover — different for every track and easy to see on the album background.',
+    ],
+  },
+  {
     v: '2.2.10', date: '2026-11-26',
     pl: [
       'Aura po angielsku — język wybierzesz w Ustawienia → Ogólne (domyślnie język systemu).',
