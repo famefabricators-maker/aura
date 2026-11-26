@@ -2,6 +2,11 @@
    Nowa wersja = nowy wpis NA GÓRZE, po polsku i po angielsku. */
 window.AURA_CHANGES = [
   {
+    v: '2.2.12', date: '2026-11-26',
+    pl: ['Schowany pasek zadań nie zostawia już zaokrągleń ani cienia w rogach ekranu.'],
+    en: ['The hidden taskbar no longer leaves rounded corners or a shadow at the bottom of the screen.'],
+  },
+  {
     v: '2.2.11', date: '2026-11-26',
     pl: [
       'Mac z notchem: wyspa przy wycięciu jest czystą czernią — skrzydełka i karta zlewają się z notchem w jeden pasek.',
