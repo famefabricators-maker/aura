@@ -41,7 +41,7 @@ window.WyspaGL = (() => {
   uniform vec2 u_pos; uniform vec2 u_size; uniform float u_r; uniform float u_ear; uniform float u_island;
   uniform vec3 u_base; uniform float u_glass; uniform float u_blur; uniform float u_tint;
   uniform vec2 u_screen; uniform vec2 u_win; uniform sampler2D u_tex; uniform float u_hasTex; uniform vec2 u_texSize;
-  uniform vec3 u_accent; uniform float u_time; uniform float u_open; uniform int u_fx; uniform float u_light; uniform float u_flip; uniform float u_soft;
+  uniform vec3 u_accent; uniform float u_time; uniform float u_open; uniform int u_fx; uniform float u_light; uniform float u_flip; uniform float u_soft; uniform float u_band;
   uniform vec4 u_b2; // druga kapsułka obok wyspy (bateria urządzeń): x, y, szer., wys.; szer. 0 = brak
   out vec4 o;
 
@@ -200,6 +200,9 @@ window.WyspaGL = (() => {
     col += particles(pw);
     // szkło bez obrazu pulpitu: lekko przezroczyste i z mniejszym cieniem (przy notchu cień wyglądał jak poświata dookoła)
     float al = (u_glass > 0.5 && u_hasTex < 0.5) ? 0.88 : 1.0;
+    // Mac z notchem: pas na wysokości wycięcia zawsze czysta, nieprzezroczysta czerń (bez szkła, obwódki i koloru albumu),
+    // żeby skrzydełka i góra karty zlewały się z notchem w jeden pasek
+    if (u_band > 0.5) { float bk = 1.0 - smoothstep(u_band - 1.5, u_band + 0.5, pw.y); col = mix(col, vec3(0.0), bk); al = mix(al, 1.0, bk); }
     o = vec4(col * aa * al, aa * al) + vec4(0.0, 0.0, 0.0, sh) * (1.0 - aa);
   }`;
 
@@ -219,7 +222,7 @@ window.WyspaGL = (() => {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const a = gl.getAttribLocation(prog, 'a');
     gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light', 'u_flip', 'u_soft', 'u_b2'])
+    for (const n of ['u_res', 'u_dpr', 'u_pos', 'u_size', 'u_r', 'u_ear', 'u_island', 'u_base', 'u_glass', 'u_blur', 'u_tint', 'u_screen', 'u_win', 'u_tex', 'u_hasTex', 'u_texSize', 'u_accent', 'u_time', 'u_open', 'u_fx', 'u_light', 'u_flip', 'u_soft', 'u_band', 'u_b2'])
       loc[n] = gl.getUniformLocation(prog, n);
     tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -281,7 +284,7 @@ window.WyspaGL = (() => {
     gl.uniform1i(loc.u_fx, st.fx || 0);
     gl.uniform1f(loc.u_light, st.light ? 1 : 0);
     const b2 = st.b2 || [0, 0, 0, 0]; gl.uniform4f(loc.u_b2, b2[0], b2[1], b2[2], b2[3]);
-    gl.uniform1f(loc.u_flip, st.flip ? 1 : 0); gl.uniform1f(loc.u_soft, st.soft ? 1 : 0); // Mac: słabsza poświata (przy pasku menu wyglądała jak obwódka)
+    gl.uniform1f(loc.u_flip, st.flip ? 1 : 0); gl.uniform1f(loc.u_soft, st.soft ? 1 : 0); gl.uniform1f(loc.u_band, st.band || 0); // Mac: słabsza poświata (przy pasku menu wyglądała jak obwódka)
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   return { init, draw, setVideo, uploadFrame, get ok() { return !!gl; } };

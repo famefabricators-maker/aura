@@ -85,6 +85,7 @@ function agentWorking() { return st.agents.some(a => a.state === 'working' || a.
 // ---------- macOS z fabrycznym notchem: Aura otacza wycięcie ----------
 const isMac = () => st.screen.platform === 'darwin';
 const hasNotch = () => isMac() && st.screen.notch && st.screen.notch.has;
+const notchActiveTop = () => hasNotch() && !atBottom() && !isIslandShape(); // pas przy notchu = czerń jak wycięcie
 function notchTarget(mode) {
   const { w: nw, h: nh } = st.screen.notch, s = st.S.size / 100, o = st.S.openSize / 100;
   switch (mode) {
@@ -226,6 +227,7 @@ function drawGL(now) {
   WyspaGL.draw({
     b2: devCapsule(),
     x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(), soft: isMac(),
+    band: notchActiveTop() ? st.screen.notch.h - (st.screen.winY || 0) : 0,
     base: albumBase(T.hexToRgb(surf.base), openness), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
     accent: T.hexToRgb(st.accent), time: (now - t0) / 1000, open: openness, fx: surf.fx || 0, light: surf.light,

@@ -24,7 +24,29 @@ function prettyApp(id) {
 }
 let seeking = null, seekGuard = 0; // ułamek utworu podczas przeciągania paska / blokada starych pozycji po przewinięciu
 function mediaPos() { const m = st.media; if (!m) return 0; if (seeking != null && m.end > 0) return seeking * m.end; let p = m.pos || 0; if (m.playing && m.upd) p += (Date.now() - m.upd) / 1000; return m.end > 0 ? Math.min(p, m.end) : p; }
-let albumColor = null;
+let albumColor = null, progColor = null;
+// Kolor paska postępu na tle okładki: wyraźny, ale z tej samej okładki — drugi kolor obrazka, którego odcień leży daleko
+// od dominującego (tła). Gdy okładka ma jeden kolor: barwa dopełniająca; szara okładka: prawie biały. Zawsze jasny
+// i nasycony, bo tło karty to przyciemniona, rozmyta okładka.
+function hsl2rgb(h, s, l) { const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return [f(0), f(8), f(4)].map(v => Math.round(v * 255)); }
+function rgb2hsl(r, g, b) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn; if (!d) return [0, 0, l]; const s = d / (1 - Math.abs(2 * l - 1)); let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; if (h < 0) h += 360; return [h, s, l]; }
+function contrastColor(d) {
+  const bins = new Array(12).fill(0), sum = Array.from({ length: 12 }, () => [0, 0, 0]); let total = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const [h, s, l] = rgb2hsl(d[i], d[i + 1], d[i + 2]); const w = s * (1 - Math.abs(2 * l - 1)); // nasycone i nie prawie czarne/białe
+    total += 1; if (w < 0.12) continue;
+    const b = Math.floor(h / 30) % 12; bins[b] += w; sum[b][0] += d[i] * w; sum[b][1] += d[i + 1] * w; sum[b][2] += d[i + 2] * w;
+  }
+  const dom = bins.indexOf(Math.max(...bins));
+  if (bins[dom] < total * 0.02) return 'rgb(236,236,242)'; // szara / czarno-biała okładka
+  const dist = b => Math.min(Math.abs(b - dom), 12 - Math.abs(b - dom));
+  let pick = -1, pw = 0;
+  for (let b = 0; b < 12; b++) if (dist(b) >= 3 && bins[b] > Math.max(pw, bins[dom] * 0.12)) { pick = b; pw = bins[b]; }
+  let h;
+  if (pick >= 0) { const [r, g, bl] = sum[pick].map(v => v / bins[pick]); h = rgb2hsl(r, g, bl)[0]; }
+  else { const [r, g, bl] = sum[dom].map(v => v / bins[dom]); h = (rgb2hsl(r, g, bl)[0] + 180) % 360; }
+  return `rgb(${hsl2rgb(h, 0.8, 0.68).join(',')})`;
+}
 function extractColor(src) {
   const img = new Image();
   img.onload = () => {
@@ -34,6 +56,7 @@ function extractColor(src) {
     let lum = 0;
     for (let i = 0; i < d.length; i += 4) { const [r, g, b] = [d[i], d[i + 1], d[i + 2]]; lum += 0.2126 * r + 0.7152 * g + 0.0722 * b; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); const s = (mx - mn) * (mx / 255); if (s > bs) { bs = s; best = [r, g, b]; } }
     albumColor = best && bs > 25 ? `rgb(${best.join(',')})` : null;
+    progColor = contrastColor(d);
     // jasność okładki 0–1: jasne okładki przyciemniamy mocniej, żeby biały tekst był czytelny na żywym tle
     lum = lum / (d.length / 4) / 255;
     $('#music').style.setProperty('--mbg-dim', Math.max(0, Math.min(0.5, (lum - 0.35) * 0.9)).toFixed(2));
@@ -90,7 +113,8 @@ function drawProgress() {
   const m = st.media; if (!m || !m.has) return;
   const frac = m.end > 1 ? mediaPos() / m.end : 0;
   const x = frac * w, cy = h / 2, t = performance.now() / 1000;
-  const col = (st.S.musicBackground === 'solid' && albumColor) || st.accent;
+  // tło z okładki: kontrastowy kolor z okładki; jednolite tło: kolor okładki; bez okładki: akcent
+  const col = (st.S.musicBackground === 'solid' ? albumColor : $('#card').classList.contains('album') && progColor) || st.accent;
   const style = st.S.progressBar;
   pctx.lineCap = 'round';
   pctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--row-hi'); pctx.lineWidth = 3;
@@ -181,7 +205,7 @@ W.on('media', m => {
   st.media = m; renderMusic(); update();
 });
 let titleKey = '', titleTimer = 0;
-W.on('thumb', d => { st.thumb = d || null; albumColor = null; if (d) extractColor(d); renderMusic(); update(); });
+W.on('thumb', d => { st.thumb = d || null; albumColor = null; progColor = null; if (d) extractColor(d); renderMusic(); update(); });
 W.on('vol', v => { st.vol = v; renderVol(); renderCall(); });
 W.on('lyrics', l => {
   st.lyricsLoading = l === 'loading'; if (st.lyricsLoading) { l = null; clearTimeout(st.lyricsLoadT); st.lyricsLoadT = setTimeout(() => { st.lyricsLoading = false; update(); }, 8000); }
