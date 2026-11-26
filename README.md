@@ -7,9 +7,13 @@
 
 # Aura
 
+[English](README.en.md) · **Polski**
+
 **Aura** to darmowa „wyspa” u góry ekranu Windowsa: muzyka, półka na pliki, schowek, widżety, przypomnienia, komunikaty systemowe i agenci AI w jednej pigułce, która rozwija się po najechaniu kursorem. Szkło jest prawdziwe: wyspa na żywo rozmywa i załamuje to, co jest pod nią.
 
-*A free Dynamic-Island-style notch for Windows 10/11 and macOS (Electron). UI in Polish. MIT license.*
+*A free Dynamic-Island-style notch for Windows 10/11 and macOS (Electron). UI in Polish and English — **[read in English](README.en.md)**. MIT license.*
+
+Aplikacja jest po polsku i po angielsku: domyślnie w języku systemu, zmienisz to w **Ustawienia → Ogólne → Język**. Po każdej aktualizacji okno **Co nowego** pokazuje listę zmian.
 
 > Aura jest niezależnym projektem open source. Nie jest powiązana z Apple; „Dynamic Island” to znak towarowy Apple Inc.
 

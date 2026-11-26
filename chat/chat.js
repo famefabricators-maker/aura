@@ -32,13 +32,13 @@ function applySettings(S) {
 function setState(s) {
   if (!s) return;
   channel = s.channel || '';
-  $('#chan').textContent = channel ? '#' + channel : 'Czat transmisji';
+  $('#chan').textContent = channel ? '#' + channel : L('Czat transmisji', 'Stream chat');
   const live = $('#live'), st = $('#state');
   live.className = 'live' + (s.connected ? ' on' : s.error ? ' err' : '');
-  st.textContent = s.error ? s.error : !s.enabled ? 'wyłączony' : s.connected ? 'połączono · tylko odczyt' : 'łączę…';
+  st.textContent = s.error ? s.error : !s.enabled ? L('wyłączony', 'off') : s.connected ? L('połączono · tylko odczyt', 'connected · read only') : L('łączę…', 'connecting…');
   $('#emptyText').textContent = !s.enabled
-    ? 'Wpisz kanał Twitch w Ustawieniach → Streaming, a czat pojawi się tutaj.'
-    : s.error ? s.error : `Czekam na wiadomości z #${channel}`;
+    ? L('Wpisz kanał Twitch w Ustawieniach → Streaming, a czat pojawi się tutaj.', 'Enter a Twitch channel in Settings → Streaming and the chat will show up here.')
+    : s.error ? s.error : L(`Czekam na wiadomości z #${channel}`, `Waiting for messages from #${channel}`);
 }
 
 // ---------- wiadomości ----------
@@ -47,7 +47,7 @@ function render(m) {
   row.className = 'msg' + (m.action ? ' action' : '') + (m.highlight ? ' hl' : '');
   row.dataset.id = m.id; row.dataset.login = m.login;
   for (const b of ['broadcaster', 'moderator', 'vip']) if ((m.badges || []).includes(b)) {
-    const i = document.createElement('span'); i.className = 'badge'; i.innerHTML = ICON[b]; i.title = { broadcaster: 'Nadawca', moderator: 'Moderator', vip: 'VIP' }[b]; row.append(i);
+    const i = document.createElement('span'); i.className = 'badge'; i.innerHTML = ICON[b]; i.title = { broadcaster: L('Nadawca', 'Sender'), moderator: 'Moderator', vip: 'VIP' }[b]; row.append(i);
   }
   const name = document.createElement('span'); name.className = 'name'; name.textContent = m.user; name.style.color = readable(m.color); row.append(name);
   const txt = document.createElement('span'); txt.className = 'txt'; if (m.action) txt.style.color = readable(m.color);
@@ -77,7 +77,7 @@ function add(m, quiet) {
 }
 function remove(r) {
   const rows = r.id ? list.querySelectorAll(`[data-id="${CSS.escape(r.id)}"]`) : r.login ? list.querySelectorAll(`[data-login="${CSS.escape(r.login)}"]`) : list.children;
-  for (const row of [...rows]) { row.classList.add('gone'); const t = row.querySelector('.txt'); if (t) t.textContent = 'wiadomość usunięta'; }
+  for (const row of [...rows]) { row.classList.add('gone'); const t = row.querySelector('.txt'); if (t) t.textContent = L('wiadomość usunięta', 'message deleted'); }
 }
 list.addEventListener('scroll', () => { atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40; if (atBottom) more.classList.remove('on'); });
 more.onclick = () => { list.scrollTo({ top: list.scrollHeight, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
@@ -99,8 +99,8 @@ W.invoke('chat-recent').then(r => { if (!r) return; setState(r.state); (r.messag
 // ---------- tryb demo (podgląd bez Electrona) ----------
 function demoBridge() {
   const handlers = {};
-  const users = [['Kasia_Gra', '#FF69B4'], ['tomek', ''], ['ModRobot', '#00FF7F', ['moderator']], ['Nadawca', '#9147ff', ['broadcaster']], ['zuzia_k', '#1E90FF'], ['Bartek88', '#0000FF'], ['vip_ola', '#DAA520', ['vip']]];
-  const lines = ['hej wszystkim!', 'ale gra 🔥', 'GG WP', 'kiedy następny stream?', 'Kappa', 'to było mocne', 'pozdro z Nowego Targu', 'ta muzyka w tle jest super', 'LUL', 'dzięki za stream!'];
+  const users = [['Kasia_Gra', '#FF69B4'], ['tomek', ''], ['ModRobot', '#00FF7F', ['moderator']], [L('Nadawca', 'Sender'), '#9147ff', ['broadcaster']], ['zuzia_k', '#1E90FF'], ['Bartek88', '#0000FF'], ['vip_ola', '#DAA520', ['vip']]];
+  const lines = [L('hej wszystkim!', 'hi everyone!'), 'ale gra 🔥', 'GG WP', L('kiedy następny stream?', 'when’s the next stream?'), 'Kappa', L('to było mocne', 'that was intense'), L('pozdro z Nowego Targu', 'greetings from the mountains'), L('ta muzyka w tle jest super', 'this background music is great'), 'LUL', L('dzięki za stream!', 'thanks for the stream!')];
   let n = 0;
   const make = () => {
     const [user, color, badges] = users[n % users.length]; const text = lines[(n * 7) % lines.length]; n++;

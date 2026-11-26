@@ -59,7 +59,7 @@ window.ICONS = (() => {
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
     globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.6 3.6 5.4 3.6 8.5s-1.1 5.9-3.6 8.5c-2.5-2.6-3.6-5.4-3.6-8.5s1.1-5.9 3.6-8.5z"/>',
     game: '<rect x="2.5" y="7" width="19" height="11" rx="5.5"/><path d="M7 11v3M5.5 12.5h3"/><circle cx="15.5" cy="11.5" r=".8" fill="currentColor"/><circle cx="17.5" cy="13.5" r=".8" fill="currentColor"/>',
-    lyrics: '<path d="M4 6.5h11M4 11h11M4 15.5h6"/><path d="M18 18V8.5l3-1"/><circle cx="16.2" cy="18" r="1.9"/>',
+    lyrics: '<rect x="3.5" y="3.5" width="17" height="17" rx="4.6" fill="currentColor" stroke="none"/><path d="M10 8v8h5" stroke="#000" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>', // plakietka „L” (tekst piosenki)
     calendar: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   };
   const svg = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;

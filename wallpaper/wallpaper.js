@@ -27,7 +27,7 @@ function unloadVideo() {
   savedTime = v.currentTime || 0; unloaded = true;
   v.classList.remove('on'); v.removeAttribute('src'); v.load();
 }
-v.addEventListener('error', () => { document.title = 'Aura – tapeta (błąd filmu)'; });
+v.addEventListener('error', () => { document.title = L('Aura – tapeta (błąd filmu)', 'Aura – wallpaper (video error)'); });
 
 setFilters({ hue: q.get('hue'), saturation: q.get('saturation'), brightness: q.get('brightness'), contrast: q.get('contrast') });
 load();

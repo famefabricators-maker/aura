@@ -1,9 +1,9 @@
 /* Wyspa — zawartość kart. Korzysta z W, T, I, st, $, $$, fmt, setTab, update z island.js. */
-const ago = ts => { const s = (Date.now() - ts) / 1000; if (s < 60) return 'teraz'; if (s < 3600) return Math.floor(s / 60) + 'm'; if (s < 86400) return Math.floor(s / 3600) + 'h'; return Math.floor(s / 86400) + 'd'; };
+const ago = ts => { const s = (Date.now() - ts) / 1000; if (s < 60) return L('teraz', 'now'); if (s < 3600) return Math.floor(s / 60) + 'm'; if (s < 86400) return Math.floor(s / 3600) + 'h'; return Math.floor(s / 86400) + 'd'; };
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const txt = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; e.textContent = text; return e; };
 const setIco = (sel, name) => { const e = $(sel); if (e) e.innerHTML = I.svg(name); };
-const clock = d => d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', hour12: st.S.timeFormat === '12' });
+const clock = d => d.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit', hour12: st.S.timeFormat === '12' });
 
 // statyczne ikony
 [['#mArtNote', 'music'], ['#mEmptyIco', 'music'], ['#nEmptyIco', 'bell'], ['#shPhoneIco', 'phone'], ['#wRemIco', 'bell'],
@@ -18,7 +18,7 @@ const SPOTIFY_BADGE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="1
 W.on('app-icon', a => { appIcons[a.id] = a.icon; renderMusic(); });
 function prettyApp(id) {
   if (!id) return '';
-  for (const [re, n] of [[/spotify/i, 'Spotify'], [/opera/i, 'Opera'], [/msedge|edge/i, 'Edge'], [/chrome/i, 'Chrome'], [/firefox/i, 'Firefox'], [/zunemusic|mediaplayer/i, 'Odtwarzacz'], [/vlc/i, 'VLC'], [/tidal/i, 'Tidal'], [/deezer/i, 'Deezer'], [/brave/i, 'Brave'], [/apple/i, 'Apple Music']])
+  for (const [re, n] of [[/spotify/i, 'Spotify'], [/opera/i, 'Opera'], [/msedge|edge/i, 'Edge'], [/chrome/i, 'Chrome'], [/firefox/i, 'Firefox'], [/zunemusic|mediaplayer/i, L('Odtwarzacz', 'Player')], [/vlc/i, 'VLC'], [/tidal/i, 'Tidal'], [/deezer/i, 'Deezer'], [/brave/i, 'Brave'], [/apple/i, 'Apple Music']])
     if (re.test(id)) return n;
   return id.split('!').pop().replace(/\.exe$/i, '').split('.').pop();
 }
@@ -51,7 +51,7 @@ function renderMusic() {
   if (!has) { $('#mBg').classList.remove('on'); $('#card').classList.remove('album'); return; }
   // bez zmian w DOM, gdy nic się nie zmieniło: podmiana elementów pod kursorem co aktualizację dawała migotanie
   const mTitleKey = (m.title || '') + '|' + st.tab + '|' + !!st.S.lyrics;
-  if (renderMusic.title !== mTitleKey) { renderMusic.title = mTitleKey; $('#mTitle').textContent = m.title || 'Bez tytułu';
+  if (renderMusic.title !== mTitleKey) { renderMusic.title = mTitleKey; $('#mTitle').textContent = m.title || L('Bez tytułu', 'Untitled');
   const t = $('.m-title'); t.classList.remove('marquee');
   requestAnimationFrame(() => { const span = $('#mTitle'); if (span.scrollWidth > t.clientWidth + 2) { t.classList.add('marquee'); if (!span.dataset.dup) { span.textContent = (m.title + '  ').repeat(2); span.dataset.dup = '1'; } } else span.dataset.dup = ''; }); }
   $('#mArtist').textContent = m.artist || prettyApp(m.app);
@@ -65,7 +65,7 @@ function renderMusic() {
   const bgImg = st.thumb ? `url("${st.thumb}")` : '';
   if (renderMusic.bg !== bgImg) { renderMusic.bg = bgImg; bg.style.backgroundImage = bgImg; }
   const app = prettyApp(m.app); const badge = $('#mBadge');
-  badge.title = app; $('.m-art').title = `Otwórz: ${app}`;
+  badge.title = app; $('.m-art').title = L(`Otwórz: ${app}`, `Open: ${app}`);
   const icon = appIcons[m.app];
   const badgeKey = icon ? 'i:' + icon : /spotify/i.test(m.app) ? 'spotify' : 'music';
   if (renderMusic.badge !== badgeKey) {
@@ -79,7 +79,7 @@ function renderMusic() {
   const playIco = m.playing ? 'pause' : 'play';
   if (renderMusic.play !== playIco) { renderMusic.play = playIco; $('#bPlay').innerHTML = I.svg(playIco); }
   $('#bNext').disabled = !m.canNext; $('#bPrev').disabled = !m.canPrev;
-  $('#mEnd').textContent = m.end > 1 ? '-' + fmt(m.end - mediaPos()) : (m.playing ? 'na żywo' : '');
+  $('#mEnd').textContent = m.end > 1 ? '-' + fmt(m.end - mediaPos()) : (m.playing ? L('na żywo', 'live') : '');
 }
 const prog = $('#mProg'), pctx = prog.getContext('2d');
 function drawProgress() {
@@ -226,16 +226,16 @@ function renderWeb() {
     const logo = txt('span', 'wl', brand[2]); logo.style.background = brand[1]; b.append(logo);
     const t = el('div'); t.append(txt('b', '', p.name)); let host = ''; try { host = new URL(p.url).hostname.replace(/^www\./, ''); } catch {} t.append(txt('small', '', host)); b.append(t);
     b.style.background = `linear-gradient(135deg, ${brand[1]}2e, var(--row) 70%)`;
-    const x = el('button', 'x', I.svg('x')); x.title = 'Usuń'; x.onclick = e => { e.stopPropagation(); W.send('web-pins', pins.filter((_, j) => j !== i)); }; b.append(x);
+    const x = el('button', 'x', I.svg('x')); x.title = L('Usuń', 'Remove'); x.onclick = e => { e.stopPropagation(); W.send('web-pins', pins.filter((_, j) => j !== i)); }; b.append(x);
     b.onclick = () => W.send('web-open', p.url);
     grid.append(b);
   });
-  if (pins.length < 12) { const add = el('button', 'wtile add'); add.append(el('span', 'ico', I.svg('plus')), document.createTextNode('Dodaj stronę')); add.onclick = () => { $('#webAdd').classList.add('on'); $('#webName').focus(); }; grid.append(add); }
+  if (pins.length < 12) { const add = el('button', 'wtile add'); add.append(el('span', 'ico', I.svg('plus')), document.createTextNode(L('Dodaj stronę', 'Add page'))); add.onclick = () => { $('#webAdd').classList.add('on'); $('#webName').focus(); }; grid.append(add); }
 }
 function webSave() {
   let url = $('#webUrl').value.trim(); if (!url) return;
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-  let name = $('#webName').value.trim(); if (!name) { try { name = new URL(url).hostname.replace(/^www\./, '').split('.')[0]; name = name[0].toUpperCase() + name.slice(1); } catch { name = 'Strona'; } }
+  let name = $('#webName').value.trim(); if (!name) { try { name = new URL(url).hostname.replace(/^www\./, '').split('.')[0]; name = name[0].toUpperCase() + name.slice(1); } catch { name = L('Strona', 'Page'); } }
   W.send('web-pins', [...(st.S.webPins || []), { name, url }]);
   $('#webName').value = ''; $('#webUrl').value = ''; $('#webAdd').classList.remove('on');
 }
@@ -253,7 +253,7 @@ function renderNotices() {
     row.append(el('div', 'tile', I.svg({ script: 'script', agent: 'agent', phone: 'phone', capture: 'shot', reminder: 'bell', tool: 'color', download: 'drop', app: 'bell', web: 'globe' }[n.kind] || 'bell')));
     const t = el('div', 'txt'); t.append(txt('b', '', n.title)); if (n.body) t.append(txt('span', '', n.body)); row.append(t);
     row.append(txt('span', 'when mono', st.S.noticeClockTime ? clock(new Date(n.ts)) : ago(n.ts)));
-    const x = el('button', 'x', I.svg('x')); x.title = 'Usuń'; x.onclick = e => { e.stopPropagation(); W.send('notice-remove', n.id); }; row.append(x);
+    const x = el('button', 'x', I.svg('x')); x.title = L('Usuń', 'Remove'); x.onclick = e => { e.stopPropagation(); W.send('notice-remove', n.id); }; row.append(x);
     if (n.path) { row.style.cursor = 'pointer'; row.onclick = () => W.send('notice-open', n.id); }
     list.append(row);
   }
@@ -266,7 +266,7 @@ W.on('notices', n => { st.notices = n || []; renderNotices(); });
 $('#nClear').onclick = () => W.send('notices-clear');
 
 // =============== AGENCI ===============
-const STATE_TXT = { working: 'pracuje', needs: 'czeka na Ciebie', done: 'skończył' };
+const STATE_TXT = { working: L('pracuje', 'working'), needs: L('czeka na Ciebie', 'waiting for you'), done: L('skończył', 'finished') };
 function renderAgents() {
   const list = $('#aList'); list.textContent = '';
   for (const a of st.agents) {
@@ -294,9 +294,9 @@ function renderAgents() {
   const n = st.agents.filter(a => a.state === 'needs').length, w = st.agents.filter(a => a.state === 'working').length;
   $('#aCount').textContent = st.agents.length ? `Czeka: ${n} · pracuje: ${w}` : '';
 }
-const STEP_VERB = { Bash: 'Polecenie', PowerShell: 'Polecenie', Read: 'Czyta', Edit: 'Edytuje', MultiEdit: 'Edytuje', Write: 'Zapisuje', NotebookEdit: 'Edytuje', Grep: 'Szuka', Glob: 'Szuka plików', WebFetch: 'Pobiera stronę', WebSearch: 'Szuka w sieci', Task: 'Zleca zadanie', Agent: 'Zleca zadanie', TodoWrite: 'Aktualizuje plan' };
+const STEP_VERB = { Bash: L('Polecenie', 'Command'), PowerShell: L('Polecenie', 'Command'), Read: L('Czyta', 'Reading'), Edit: L('Edytuje', 'Editing'), MultiEdit: L('Edytuje', 'Editing'), Write: L('Zapisuje', 'Writing'), NotebookEdit: L('Edytuje', 'Editing'), Grep: L('Szuka', 'Searching'), Glob: L('Szuka plików', 'Finding files'), WebFetch: L('Pobiera stronę', 'Fetching a page'), WebSearch: L('Szuka w sieci', 'Searching the web'), Task: L('Zleca zadanie', 'Delegating a task'), Agent: L('Zleca zadanie', 'Delegating a task'), TodoWrite: L('Aktualizuje plan', 'Updating the plan') };
 function stepLabel(s) {
-  const verb = STEP_VERB[s.tool] || s.tool || 'Krok';
+  const verb = STEP_VERB[s.tool] || s.tool || L('Krok', 'Step');
   let t = String(s.text || '');
   if (/^(Read|Edit|MultiEdit|Write|NotebookEdit)$/.test(s.tool)) t = t.split(/[\\/]/).pop(); // sama nazwa pliku (ścieżki z \ i /)
   if (s.tool === 'TodoWrite') t = '';
@@ -310,17 +310,17 @@ let files = [];
 function renderShelf() {
   const box = $('#shTiles'); box.textContent = '';
   for (const f of files) {
-    const t = el('div', 'ftile'); t.draggable = true; t.title = `${f.path}\nDwuklik: otwórz · prawy przycisk: folder i konwersja zdjęć`;
+    const t = el('div', 'ftile'); t.draggable = true; t.title = L(`${f.path}\nDwuklik: otwórz · prawy przycisk: folder i konwersja zdjęć`, `${f.path}\nDouble-click: open · right-click: folder and image conversion`);
     if (f.thumb) { const img = el('img'); img.src = f.thumb; img.alt = ''; t.append(img); } else t.append(el('span', 'ico', I.svg('file')));
     t.append(txt('span', '', f.name)); if (f.info) t.append(txt('small', 'mono', f.info));
-    const x = el('button', 'x', I.svg('x')); x.title = 'Zdejmij z półki'; x.onclick = async e => { e.stopPropagation(); setFiles(await W.invoke('file-remove', f.path)); }; t.append(x);
+    const x = el('button', 'x', I.svg('x')); x.title = L('Zdejmij z półki', 'Remove from shelf'); x.onclick = async e => { e.stopPropagation(); setFiles(await W.invoke('file-remove', f.path)); }; t.append(x);
     t.ondblclick = () => W.send('file-open', f.path);
     t.oncontextmenu = e => { e.preventDefault(); W.send('file-menu', f.path); }; // pokaż w folderze, konwersja zdjęć
     t.ondragstart = e => { e.preventDefault(); W.send('file-drag', f.path); };
     box.append(t);
   }
   $('#shelf').classList.toggle('has', files.length > 0);
-  $('#shTitle').textContent = files.length ? `Półka · ${files.length} ${files.length === 1 ? 'plik' : (files.length % 10 >= 2 && files.length % 10 <= 4 && (files.length % 100 < 12 || files.length % 100 > 14)) ? 'pliki' : 'plików'}` : 'Półka';
+  $('#shTitle').textContent = files.length ? L(`Półka · ${files.length} ${files.length === 1 ? 'plik' : (files.length % 10 >= 2 && files.length % 10 <= 4 && (files.length % 100 < 12 || files.length % 100 > 14)) ? 'pliki' : 'plików'}`, `Shelf · ${files.length} ${files.length === 1 ? 'file' : 'files'}`) : L('Półka', 'Shelf');
   $('#shClear').style.display = files.length ? '' : 'none';
 }
 function setFiles(l) { files = l || []; renderShelf(); }
@@ -359,14 +359,14 @@ $('#shAirdropIco').innerHTML = I.svg('airdrop');
 // karta AirDrop: logo, stan wysyłania (otwieram / wysłano / anulowano)
 let adT = 0;
 $('#adLogo').innerHTML = I.svg('airdrop');
-const AD_HINT = 'Przeciągnij tu plik — wybierzesz iPhone’a albo Maca, na który go wysłać.';
+const AD_HINT = L('Przeciągnij tu plik — wybierzesz iPhone’a albo Maca, na który go wysłać.', 'Drop a file here — you’ll choose the iPhone or Mac to send it to.');
 W.on('airdrop-state', s => {
   const z = $('#adZone'), h = $('#adHint'); if (!s) return;
   z.classList.toggle('sent', s.state === 'sent');
-  h.textContent = s.state === 'opening' ? `Wybierz urządzenie w oknie AirDrop: ${s.name}` : s.state === 'sent' ? `Wysłano: ${s.name}` : s.state === 'cancel' ? 'Anulowano — przeciągnij plik jeszcze raz.'
-    : s.state === 'fallback' ? 'AirDrop jest wyłączony (Wi-Fi albo Bluetooth) — wybierz sposób wysłania z menu.'
-    : s.state === 'denied' ? 'macOS nie pozwala Aurze czytać tego folderu. Zezwól w Ustawieniach systemowych → Prywatność i ochrona → Pliki i foldery.'
-    : s.state === 'error' ? 'Nie udało się otworzyć AirDrop — wybierz sposób wysłania z menu.' : AD_HINT;
+  h.textContent = s.state === 'opening' ? L(`Wybierz urządzenie w oknie AirDrop: ${s.name}`, `Pick a device in the AirDrop window: ${s.name}`) : s.state === 'sent' ? L(`Wysłano: ${s.name}`, `Sent: ${s.name}`) : s.state === 'cancel' ? L('Anulowano — przeciągnij plik jeszcze raz.', 'Cancelled — drag the file again.')
+    : s.state === 'fallback' ? L('AirDrop jest wyłączony (Wi-Fi albo Bluetooth) — wybierz sposób wysłania z menu.', 'AirDrop is off (Wi-Fi or Bluetooth) — choose how to send from the menu.')
+    : s.state === 'denied' ? L('macOS nie pozwala Aurze czytać tego folderu. Zezwól w Ustawieniach systemowych → Prywatność i ochrona → Pliki i foldery.', 'macOS doesn’t let Aura read this folder. Allow it in System Settings → Privacy & Security → Files and Folders.')
+    : s.state === 'error' ? L('Nie udało się otworzyć AirDrop — wybierz sposób wysłania z menu.', 'Couldn’t open AirDrop — choose how to send from the menu.') : AD_HINT;
   clearTimeout(z._t); if (s.state !== 'opening') z._t = setTimeout(() => { h.textContent = AD_HINT; z.classList.remove('sent'); }, 6000);
 });
 $('#shAirdrop').onclick = () => { if (files.length) W.send('airdrop', files.map(f => f.path)); else { $('#shAirdrop').classList.add('over'); setTimeout(() => $('#shAirdrop').classList.remove('over'), 600); } };
@@ -420,16 +420,16 @@ function renderClips() {
   const shown = clips.filter(c => clipFilter === 'all' || (clipFilter === 'pinned' ? c.pinned : c.type === clipFilter));
   for (const c of shown) {
     const card = el('div', 'ccard');
-    const h = el('div', 'ch'); h.append(txt('span', c.pinned ? 't-pin' : c.type === 'image' ? 't-img' : '', c.pinned ? 'Przypięte' : c.type === 'image' ? 'Obraz' : 'Tekst')); h.append(txt('span', 'mono', ago(c.ts))); card.append(h);
+    const h = el('div', 'ch'); h.append(txt('span', c.pinned ? 't-pin' : c.type === 'image' ? 't-img' : '', c.pinned ? L('Przypięte', 'Pinned') : c.type === 'image' ? L('Obraz', 'Image') : L('Tekst', 'Text'))); h.append(txt('span', 'mono', ago(c.ts))); card.append(h);
     const b = el('div', 'cb');
     if (c.type === 'image') { const img = el('img'); img.src = c.img; img.alt = ''; b.append(img); } else b.textContent = c.text.replace(/\s+/g, ' ').trim();
     card.append(b);
     const f = el('div', 'cf'); f.append(txt('span', 'mono', c.type === 'image' ? c.text : `${c.len} zn.`)); card.append(f);
     const acts = el('div', 'acts');
-    const pin = el('button', '', I.svg('pin')); pin.title = c.pinned ? 'Odepnij' : 'Przypnij (nie znika)'; pin.onclick = e => { e.stopPropagation(); W.send('clip-pin', c.id); };
-    const x = el('button', '', I.svg('x')); x.title = 'Usuń'; x.onclick = e => { e.stopPropagation(); W.send('clip-remove', c.id); };
+    const pin = el('button', '', I.svg('pin')); pin.title = c.pinned ? L('Odepnij', 'Unpin') : L('Przypnij (nie znika)', 'Pin (stays)'); pin.onclick = e => { e.stopPropagation(); W.send('clip-pin', c.id); };
+    const x = el('button', '', I.svg('x')); x.title = L('Usuń', 'Remove'); x.onclick = e => { e.stopPropagation(); W.send('clip-remove', c.id); };
     acts.append(pin, x); card.append(acts);
-    card.title = c.type === 'text' ? c.text.slice(0, 400) : 'Kliknij, żeby skopiować';
+    card.title = c.type === 'text' ? c.text.slice(0, 400) : L('Kliknij, żeby skopiować', 'Click to copy');
     // przeciąganie do innych aplikacji: obraz jako plik PNG (systemowo), tekst jako zwykły tekst
     card.draggable = true;
     if (c.type === 'text') card.onmousedown = () => { if (c.len > c.text.length) W.invoke('clip-text', c.id).then(t => { card._full = t; }); };
@@ -451,16 +451,16 @@ $('#clLayout').onclick = () => W.invoke('settings-set', { clipboardLayout: st.S.
 $('#clList').addEventListener('wheel', e => { if (st.S.clipboardLayout !== 'list' && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { $('#clList').scrollLeft += e.deltaY; e.stopPropagation(); } });
 
 // =============== WIDŻETY ===============
-const DAYS = ['N', 'P', 'W', 'Ś', 'C', 'P', 'S'];
+const DAYS = L(['N', 'P', 'W', 'Ś', 'C', 'P', 'S'], ['S', 'M', 'T', 'W', 'T', 'F', 'S']);
 function weekNo(d) { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day); const y = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y) / 864e5 + 1) / 7); }
 function renderToday() {
   const d = new Date(), box = $('#wToday'); box.textContent = '';
   const left = el('div'); left.append(txt('div', 'big', d.getDate()));
   const next = (st.calendar || []).find(e => e.end > Date.now());
-  const right = el('div'); right.append(txt('div', 'dn', d.toLocaleDateString('pl-PL', { weekday: 'short' }).toUpperCase()), txt('div', 'mo', d.toLocaleDateString('pl-PL', { month: 'short' }).toUpperCase()));
-  if (!next) right.append(txt('div', 'wk', `Tydzień ${weekNo(d)}`));
+  const right = el('div'); right.append(txt('div', 'dn', d.toLocaleDateString(LOC, { weekday: 'short' }).toUpperCase()), txt('div', 'mo', d.toLocaleDateString(LOC, { month: 'short' }).toUpperCase()));
+  if (!next) right.append(txt('div', 'wk', L(`Tydzień ${weekNo(d)}`, `Week ${weekNo(d)}`)));
   box.append(left, right);
-  if (next) { const ev = el('div', 'ev'); ev.title = next.title; ev.append(txt('b', '', next.allDay ? 'cały dzień' : next.start <= Date.now() ? 'teraz' : clock(new Date(next.start)))); ev.append(document.createTextNode(next.title)); box.append(ev); }
+  if (next) { const ev = el('div', 'ev'); ev.title = next.title; ev.append(txt('b', '', next.allDay ? L('cały dzień', 'all day') : next.start <= Date.now() ? L('teraz', 'now') : clock(new Date(next.start)))); ev.append(document.createTextNode(next.title)); box.append(ev); }
   const days = el('div', 'days'); const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   for (let i = 0; i < 7; i++) { const x = new Date(mon); x.setDate(mon.getDate() + i); days.append(txt('span', x.toDateString() === d.toDateString() ? 'on' : '', DAYS[x.getDay()])); }
   box.append(days);
@@ -468,8 +468,8 @@ function renderToday() {
 const WICON = c => c === 0 || c === 1 ? 'sunny' : c <= 3 ? 'cloud' : c <= 48 ? 'fog' : c <= 67 || (c >= 80 && c <= 82) ? 'rain' : c <= 86 ? 'snow' : 'storm';
 function renderWeather() {
   const w = st.weather, box = $('#wWeather'); box.textContent = '';
-  if (!w) { box.append(txt('small', '', 'Pobieram pogodę…')); return; }
-  if (w.error) { box.append(txt('small', '', 'Pogoda niedostępna. Ustaw miejsce w Ustawieniach → Widżety.')); return; }
+  if (!w) { box.append(txt('small', '', L('Pobieram pogodę…', 'Getting the weather…'))); return; }
+  if (w.error) { box.append(txt('small', '', L('Pogoda niedostępna. Ustaw miejsce w Ustawieniach → Widżety.', 'Weather unavailable. Set a place in Settings → Widgets.'))); return; }
   const top = el('div', 'wt'); top.append(txt('div', 'tmp', `${w.temp}°`)); top.append(el('span', 'wi', I.svg(WICON(w.code)))); box.append(top);
   box.append(txt('small', '', `${w.text}\nMaks. ${w.max}° · Min. ${w.min}°${w.place ? ' · ' + w.place : ''}`));
   box.lastChild.style.whiteSpace = 'pre-line';
@@ -487,7 +487,7 @@ function buildStats() {
   const box = $('#wStats'); box.textContent = '';
   for (const [k, label] of [['cpu', 'CPU'], ['gpu', 'GPU'], ['ram', 'RAM']]) { const r = el('div', 'srow'); r.append(txt('b', '', label), el('canvas'), txt('span', 'v mono', '–')); r.dataset.k = k; box.append(r); }
   const n = el('div', 'snet mono'); n.id = 'sNet'; box.append(n);
-  const ram = box.querySelector('.srow[data-k="ram"]'); ram.title = 'Kliknij: co zużywa pamięć'; ram.onclick = openMem;
+  const ram = box.querySelector('.srow[data-k="ram"]'); ram.title = L('Kliknij: co zużywa pamięć', 'Click: what’s using memory'); ram.onclick = openMem;
 }
 // RAM: lista programów, które zużywają najwięcej pamięci (zsumowane po aplikacji), odświeżana co 3 s
 let memTimer = 0;
@@ -496,18 +496,18 @@ async function loadMem() {
   let d; try { d = await W.invoke('mem-top'); } catch { return; }
   if (!d || !$('#wMem').classList.contains('on')) return;
   const totalMb = d.total / 1048576, list = $('#wMemList');
-  $('#wMemSum').textContent = `${fmtMem(Math.round(d.used / 1048576))} z ${fmtMem(Math.round(totalMb))}`;
+  $('#wMemSum').textContent = L(`${fmtMem(Math.round(d.used / 1048576))} z ${fmtMem(Math.round(totalMb))}`, `${fmtMem(Math.round(d.used / 1048576))} of ${fmtMem(Math.round(totalMb))}`);
   const rows = d.list || [], top = Math.max(1, ...rows.map(r => r.mb));
   list.textContent = '';
-  if (!rows.length) { list.append(txt('small', '', 'Nie udało się odczytać listy programów.')); return; }
+  if (!rows.length) { list.append(txt('small', '', L('Nie udało się odczytać listy programów.', 'Couldn’t read the list of programs.'))); return; }
   for (const r of rows) {
-    const row = el('div', 'mem-row'); row.title = `${r.name}: ${fmtMem(r.mb)} (${Math.round(100 * r.mb / totalMb)}% pamięci)`;
+    const row = el('div', 'mem-row'); row.title = L(`${r.name}: ${fmtMem(r.mb)} (${Math.round(100 * r.mb / totalMb)}% pamięci)`, `${r.name}: ${fmtMem(r.mb)} (${Math.round(100 * r.mb / totalMb)}% of memory)`);
     row.append(txt('b', '', r.name), txt('span', 'mono', fmtMem(r.mb)));
     const bar = el('i'); bar.style.setProperty('--s', (r.mb / top).toFixed(3)); row.append(bar);
     list.append(row);
   }
 }
-function openMem() { $('#wMem').classList.add('on'); $('#wMemList').textContent = ''; $('#wMemList').append(txt('small', '', 'Sprawdzam…')); loadMem(); clearInterval(memTimer); memTimer = setInterval(loadMem, 3000); }
+function openMem() { $('#wMem').classList.add('on'); $('#wMemList').textContent = ''; $('#wMemList').append(txt('small', '', L('Sprawdzam…', 'Checking…'))); loadMem(); clearInterval(memTimer); memTimer = setInterval(loadMem, 3000); }
 function closeMem() { $('#wMem').classList.remove('on'); clearInterval(memTimer); }
 $('#wMemBack').onclick = closeMem;
 buildStats();
@@ -540,7 +540,7 @@ function renderFocus() {
   $('#fRing').style.strokeDashoffset = 169.6 * (1 - left / total);
   $('#fPlay').innerHTML = I.svg(F.running ? 'pause' : 'play');
   W.send('focus-state', { running: !!F.running, left: Math.round(left), mode: F.mode });
-  $('#wFocus').title = `${F.mode === 'break' ? 'Przerwa' : 'Skupienie'} · ${st.S.focusMinutes} + ${st.S.breakMinutes} min`;
+  $('#wFocus').title = `${F.mode === 'break' ? L('Przerwa', 'Break') : L('Skupienie', 'Focus')} · ${st.S.focusMinutes} + ${st.S.breakMinutes} min`;
 }
 function focusToggle() {
   if (F.running) { F.running = false; F.left = Math.max(0, (F.end - Date.now()) / 1000); }
@@ -563,8 +563,8 @@ setInterval(() => {
   F.left = Math.max(0, Math.ceil((F.end - Date.now()) / 1000));
   if (F.left <= 0) {
     F.running = false; const was = F.mode; F.mode = was === 'focus' ? 'break' : 'focus'; F.total = 0; F.left = 0;
-    showAlert({ icon: 'focus', title: was === 'focus' ? 'Koniec skupienia' : 'Koniec przerwy', body: was === 'focus' ? `Czas na ${st.S.breakMinutes} min przerwy` : 'Wracamy do pracy?',
-      actions: [{ label: 'Później', fn: () => closeAlert() }, { label: was === 'focus' ? 'Start przerwy' : 'Start skupienia', accent: true, fn: () => { closeAlert(); focusToggle(); } }] });
+    showAlert({ icon: 'focus', title: was === 'focus' ? L('Koniec skupienia', 'Focus finished') : L('Koniec przerwy', 'Break finished'), body: was === 'focus' ? L(`Czas na ${st.S.breakMinutes} min przerwy`, `Time for a ${st.S.breakMinutes} min break`) : L('Wracamy do pracy?', 'Back to work?'),
+      actions: [{ label: L('Później', 'Later'), fn: () => closeAlert() }, { label: was === 'focus' ? L('Start przerwy', 'Start break') : L('Start skupienia', 'Start focus'), accent: true, fn: () => { closeAlert(); focusToggle(); } }] });
   }
   renderFocus(); if (st.mode === 'pill') update();
 }, 500);
@@ -586,13 +586,13 @@ function renderReminders() {
     const row = el('div', 'row'); row.style.minHeight = '34px';
     row.append(el('div', 'tile', I.svg('bell')));
     const t = el('div', 'txt'); t.append(txt('b', '', r.text)); const d = new Date(r.at);
-    t.append(txt('span', 'mono', `${d.toDateString() === new Date().toDateString() ? 'Dziś' : d.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' })} ${clock(d)}${r.repeat !== 'once' ? ' · ' + { daily: 'codziennie', weekdays: 'dni robocze', weekly: 'co tydzień' }[r.repeat] : ''}`)); row.append(t);
-    const x = el('button', 'x', I.svg('x')); x.title = 'Usuń'; x.onclick = async () => { reminders = await W.invoke('reminder-remove', r.id); renderReminders(); }; row.append(x);
+    t.append(txt('span', 'mono', `${d.toDateString() === new Date().toDateString() ? L('Dziś', 'Today') : d.toLocaleDateString(LOC, { weekday: 'short', day: 'numeric', month: 'short' })} ${clock(d)}${r.repeat !== 'once' ? ' · ' + L({ daily: 'codziennie', weekdays: 'dni robocze', weekly: 'co tydzień' }, { daily: 'daily', weekdays: 'weekdays', weekly: 'weekly' })[r.repeat] : ''}`)); row.append(t);
+    const x = el('button', 'x', I.svg('x')); x.title = L('Usuń', 'Remove'); x.onclick = async () => { reminders = await W.invoke('reminder-remove', r.id); renderReminders(); }; row.append(x);
     list.append(row);
   }
   list.style.display = reminders.length ? '' : 'none';
   const at = new Date(whenToTime(rWhen));
-  $('#rSummary').textContent = `${at.toDateString() === new Date().toDateString() ? 'Dziś' : 'Jutro'} o ${clock(at)}`;
+  $('#rSummary').textContent = L(`${at.toDateString() === new Date().toDateString() ? 'Dziś' : 'Jutro'} o ${clock(at)}`, `${at.toDateString() === new Date().toDateString() ? 'Today' : 'Tomorrow'} at ${clock(at)}`);
   const next = reminders[0];
   $('#wRemTime').textContent = next ? (next.at - Date.now() < 3600e3 ? Math.max(0, Math.round((next.at - Date.now()) / 60e3)) + 'm' : clock(new Date(next.at))) : '';
 }
@@ -603,7 +603,7 @@ $$('#rRep button').forEach(b => b.onclick = () => { rRep = b.dataset.r; $$('#rRe
 async function addReminder() {
   const text = $('#rText').value.trim(); if (!text) { $('#rText').focus(); return; }
   reminders = await W.invoke('reminder-add', { text, at: whenToTime(rWhen), repeat: rRep });
-  $('#rText').value = ''; $('#rAdd').textContent = '✓ Dodano'; setTimeout(() => { $('#rAdd').textContent = 'Ustaw przypomnienie'; }, 1400);
+  $('#rText').value = ''; $('#rAdd').textContent = '✓ Dodano'; setTimeout(() => { $('#rAdd').textContent = L('Ustaw przypomnienie', 'Set a reminder'); }, 1400);
   renderReminders();
 }
 $('#rAdd').onclick = addReminder;
@@ -614,7 +614,7 @@ $('#rClose').onclick = () => setTab('widgets');
 W.on('reminder-fire', r => {
   showAlert({ icon: 'bell', title: r.text, body: `Przypomnienie · ${clock(new Date(r.at))}`, repeat: true, actions: [
     { label: 'Drzemka 10 min', fn: () => { W.send('reminder-answer', { id: r.id, action: 'snooze' }); closeAlert(); } },
-    { label: 'Gotowe', accent: true, fn: () => { W.send('reminder-answer', { id: r.id, action: 'done' }); closeAlert(); } },
+    { label: L('Gotowe', 'Done'), accent: true, fn: () => { W.send('reminder-answer', { id: r.id, action: 'done' }); closeAlert(); } },
   ] });
 });
 
@@ -623,10 +623,10 @@ let radios = [], powerMode = '', bright = { v: -1 };
 const TOGGLES = [
   { id: 'wifi', icon: 'wifi', name: 'Wi-Fi', state: () => { const r = radios.find(x => x.kind === 'WiFi'); return r ? r.on : null; }, click: on => W.send('radio', { kind: 'WiFi', on: !on }) },
   { id: 'bt', icon: 'bt', name: 'Bluetooth', state: () => { const r = radios.find(x => x.kind === 'Bluetooth'); return r ? r.on : null; }, click: on => on === null ? W.send('open-uri', 'ms-settings:bluetooth') : W.send('radio', { kind: 'Bluetooth', on: !on }) },
-  { id: 'night', icon: 'moon', name: 'Tryb nocny', sub: 'Ustawienia', click: () => W.send('open-uri', 'ms-settings:nightlight') },
-  { id: 'mute', icon: 'volMute', name: 'Wycisz', state: () => !!(st.vol && st.vol.mute), click: on => W.send('mute', !on) },
-  { id: 'out', icon: 'headphones', name: 'Dźwięk', sub: () => st.vol ? st.vol.name : '', click: () => W.send('open-uri', 'ms-settings:sound') },
-  { id: 'mic', icon: 'mic', name: 'Mikrofon', state: () => st.mic ? !st.mic.mute : null, click: () => W.send('mic-toggle') },
+  { id: 'night', icon: 'moon', name: L('Tryb nocny', 'Night light'), sub: L('Ustawienia', 'Settings'), click: () => W.send('open-uri', 'ms-settings:nightlight') },
+  { id: 'mute', icon: 'volMute', name: L('Wycisz', 'Mute'), state: () => !!(st.vol && st.vol.mute), click: on => W.send('mute', !on) },
+  { id: 'out', icon: 'headphones', name: L('Dźwięk', 'Sound'), sub: () => st.vol ? st.vol.name : '', click: () => W.send('open-uri', 'ms-settings:sound') },
+  { id: 'mic', icon: 'mic', name: L('Mikrofon', 'Microphone'), state: () => st.mic ? !st.mic.mute : null, click: () => W.send('mic-toggle') },
 ];
 function renderToggles() {
   const box = $('#toggles'); box.textContent = '';
@@ -634,7 +634,7 @@ function renderToggles() {
     const on = t.state ? t.state() : null;
     const b = el('button', 'tg' + (on ? ' on' : ''));
     b.append(el('span', 'ti', I.svg(t.id === 'mic' && on === false ? 'micOff' : t.icon)));
-    const d = el('div'); d.append(txt('b', '', t.name)); d.append(txt('small', '', typeof t.sub === 'function' ? t.sub() : t.sub || (on === null ? '—' : on ? 'Wł.' : 'Wył.'))); b.append(d);
+    const d = el('div'); d.append(txt('b', '', t.name)); d.append(txt('small', '', typeof t.sub === 'function' ? t.sub() : t.sub || (on === null ? '—' : on ? L('Wł.', 'On') : L('Wył.', 'Off')))); b.append(d);
     b.onclick = () => t.click(on);
     box.append(b);
   }
@@ -668,8 +668,8 @@ async function renderSlots() {
   const info = await W.invoke('launch-info'); const box = $('#lSlots'); box.textContent = '';
   info.forEach((a, i) => {
     const b = el('button', 'slot' + (a ? ' has' : ''));
-    if (a) { if (a.icon) { const img = el('img'); img.src = a.icon; img.alt = ''; b.append(img); } b.append(txt('span', '', a.name)); b.title = a.path + '\nPrawy przycisk: zmień'; b.onclick = () => W.send('launch', i); b.oncontextmenu = async e => { e.preventDefault(); await W.invoke('launch-pick', i); renderSlots(); }; }
-    else { b.append(el('span', 'ico', I.svg('plus'))); b.append(txt('span', '', 'Dodaj')); b.onclick = async () => { await W.invoke('launch-pick', i); renderSlots(); }; }
+    if (a) { if (a.icon) { const img = el('img'); img.src = a.icon; img.alt = ''; b.append(img); } b.append(txt('span', '', a.name)); b.title = a.path + L('\nPrawy przycisk: zmień', '\nRight-click: change'); b.onclick = () => W.send('launch', i); b.oncontextmenu = async e => { e.preventDefault(); await W.invoke('launch-pick', i); renderSlots(); }; }
+    else { b.append(el('span', 'ico', I.svg('plus'))); b.append(txt('span', '', L('Dodaj', 'Add'))); b.onclick = async () => { await W.invoke('launch-pick', i); renderSlots(); }; }
     box.append(b);
   });
 }
@@ -689,10 +689,10 @@ async function recToggle() {
     await W.invoke('rec-start');
     recorder = new MediaRecorder(new MediaStream(tracks), { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 10e6 });
     recorder.ondataavailable = async e => { if (e.data.size) W.send('rec-chunk', await e.data.arrayBuffer()); };
-    recorder.onstop = () => { recStreams.forEach(s => s.getTracks().forEach(t => t.stop())); ctx.close(); recorder = null; st.rec.on = false; setTimeout(() => W.send('rec-stop'), 300); $('#lRec').classList.remove('rec'); $('#lRecTxt').textContent = 'Nagraj'; update(); };
+    recorder.onstop = () => { recStreams.forEach(s => s.getTracks().forEach(t => t.stop())); ctx.close(); recorder = null; st.rec.on = false; setTimeout(() => W.send('rec-stop'), 300); $('#lRec').classList.remove('rec'); $('#lRecTxt').textContent = L('Nagraj', 'Record'); update(); };
     recorder.start(1000);
     st.rec = { on: true, start: Date.now() };
-    $('#lRec').classList.add('rec'); $('#lRecTxt').textContent = 'Zatrzymaj';
+    $('#lRec').classList.add('rec'); $('#lRecTxt').textContent = L('Zatrzymaj', 'Stop');
     W.send('close-island'); update();
   } catch (e) { console.warn('rec', e); }
 }
@@ -709,31 +709,31 @@ function renderDeck() {
   $('#dkUrl').textContent = s.url || '';
   const box = $('#dkDev'); box.textContent = '';
   for (const d of s.devices || []) {
-    const r = el('div'); const dot = el('i', d.connected ? 'on' : ''); r.append(dot, txt('span', '', d.name || 'Telefon'));
-    const x = el('button', 'link', null); x.textContent = 'Odłącz'; x.onclick = () => W.send('deck-forget', d.id); r.append(x);
+    const r = el('div'); const dot = el('i', d.connected ? 'on' : ''); r.append(dot, txt('span', '', d.name || L('Telefon', 'Phone')));
+    const x = el('button', 'link', null); x.textContent = L('Odłącz', 'Unpair'); x.onclick = () => W.send('deck-forget', d.id); r.append(x);
     box.append(r);
   }
-  if (!(s.devices || []).length && s.running) box.append(txt('small', '', 'Brak sparowanych telefonów.'));
+  if (!(s.devices || []).length && s.running) box.append(txt('small', '', L('Brak sparowanych telefonów.', 'No paired phones.')));
 }
 W.on('deck', s => { deckState = s; renderDeck(); });
-$('#dkStart').onclick = async () => { $('#dkStart').textContent = 'Włączam…'; deckState = await W.invoke('deck-start'); $('#dkStart').textContent = 'Włącz PC Deck'; renderDeck(); };
+$('#dkStart').onclick = async () => { $('#dkStart').textContent = L('Włączam…', 'Turning on…'); deckState = await W.invoke('deck-start'); $('#dkStart').textContent = L('Włącz PC Deck', 'Turn on PC Deck'); renderDeck(); };
 $('#dkStop').onclick = () => W.send('deck-stop');
 $('#dkReset').onclick = () => W.send('deck-reset');
 W.on('deck-pair', r => {
-  showAlert({ icon: 'phone', title: `Połączyć telefon „${r.name || 'Telefon'}”?`, body: `Kod na telefonie: ${r.code} · ${r.ip || ''}`, actions: [
-    { label: 'Odrzuć', fn: () => { W.send('deck-answer', { id: r.id, ok: false }); closeAlert(); } },
-    { label: 'Zatwierdź', accent: true, fn: () => { W.send('deck-answer', { id: r.id, ok: true }); closeAlert(); } },
+  showAlert({ icon: 'phone', title: L(`Połączyć telefon „${r.name || 'Telefon'}”?`, `Pair the phone “${r.name || 'Phone'}”?`), body: L(`Kod na telefonie: ${r.code} · ${r.ip || ''}`, `Code on the phone: ${r.code} · ${r.ip || ''}`), actions: [
+    { label: L('Odrzuć', 'Reject'), fn: () => { W.send('deck-answer', { id: r.id, ok: false }); closeAlert(); } },
+    { label: L('Zatwierdź', 'Approve'), accent: true, fn: () => { W.send('deck-answer', { id: r.id, ok: true }); closeAlert(); } },
   ] });
 });
 
 // =============== AKTUALIZACJE ===============
 W.on('update-alert', u => {
   const ready = u.kind === 'ready';
-  showAlert({ icon: 'check', title: ready ? `Aura ${u.version} jest gotowa` : `Dostępna Aura ${u.version}`,
-    body: ready ? 'Zainstaluje się po ponownym uruchomieniu.' : 'Pobierz nową wersję ze strony wydań.',
+  showAlert({ icon: 'check', title: ready ? L(`Aura ${u.version} jest gotowa`, `Aura ${u.version} is ready`) : L(`Dostępna Aura ${u.version}`, `Aura ${u.version} is available`),
+    body: ready ? L('Zainstaluje się po ponownym uruchomieniu.', 'It will install when you restart.') : L('Pobierz nową wersję ze strony wydań.', 'Download the new version from the releases page.'),
     actions: [
-      { label: 'Później', fn: () => { W.send('update-answer', 'later'); closeAlert(); } },
-      { label: ready ? 'Uruchom ponownie' : 'Pobierz', accent: true, fn: () => { W.send('update-answer', ready ? 'install' : 'open'); closeAlert(); } },
+      { label: L('Później', 'Later'), fn: () => { W.send('update-answer', 'later'); closeAlert(); } },
+      { label: ready ? L('Uruchom ponownie', 'Restart') : L('Pobierz', 'Download'), accent: true, fn: () => { W.send('update-answer', ready ? 'install' : 'open'); closeAlert(); } },
     ] });
 });
 
@@ -741,8 +741,8 @@ W.on('update-alert', u => {
 function renderCall() {
   const m = st.mic, muted = !!(m && m.mute);
   const b = $('#cMic'); b.classList.toggle('muted', muted); setIco('#cMicIco', muted ? 'micOff' : 'mic');
-  $('#cState').textContent = muted ? 'Mikrofon wyciszony' : 'Mikrofon włączony';
-  $('#cHint').textContent = muted ? 'Kliknij, by włączyć we wszystkich aplikacjach' : 'Kliknij, by wyciszyć we wszystkich aplikacjach';
+  $('#cState').textContent = muted ? L('Mikrofon wyciszony', 'Microphone muted') : L('Mikrofon włączony', 'Microphone on');
+  $('#cHint').textContent = muted ? L('Kliknij, by włączyć we wszystkich aplikacjach', 'Click to unmute in all apps') : L('Kliknij, by wyciszyć we wszystkich aplikacjach', 'Click to mute in all apps');
   $('#cOut').textContent = st.vol ? st.vol.name : '—';
   $('#cIn').textContent = m ? m.name : '—';
 }
@@ -752,8 +752,8 @@ $('#cSound').onclick = () => W.send('open-uri', 'ms-settings:sound');
 let devices = null, pickFlow = null;
 // „Słuchawki (Arctis 7 Game)” -> [„Arctis 7 Game”, „Słuchawki”]: to, co odróżnia urządzenia, na pierwszym planie
 function devLabel(name) {
-  const m = String(name || 'Urządzenie').match(/^(.*?)\s*\(([^()]+)\)\s*$/);
-  if (!m) return [name || 'Urządzenie', ''];
+  const m = String(name || L('Urządzenie', 'Device')).match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+  if (!m) return [name || L('Urządzenie', 'Device'), ''];
   const generic = /^(słuchawki|głośniki|głośnik|zestaw słuchawkowy|mikrofon.*|headphones|speakers?|headset.*|microphone.*|wejście.*|line in.*)$/i;
   return generic.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
 }
@@ -761,8 +761,8 @@ function renderPick() {
   const list = $('#cList'); list.innerHTML = '';
   const items = devices ? devices[pickFlow] || [] : [];
   list.classList.toggle('two', items.length > 3);
-  $('#cPickT').textContent = pickFlow === 'in' ? 'Mikrofon' : 'Głośniki';
-  if (!items.length) { const s = el('small'); s.style.color = 'var(--dim)'; s.textContent = devices ? 'Brak urządzeń.' : 'Wczytuję urządzenia…'; list.append(s); return; }
+  $('#cPickT').textContent = pickFlow === 'in' ? L('Mikrofon', 'Microphone') : L('Głośniki', 'Speakers');
+  if (!items.length) { const s = el('small'); s.style.color = 'var(--dim)'; s.textContent = devices ? L('Brak urządzeń.', 'No devices.') : L('Wczytuję urządzenia…', 'Loading devices…'); list.append(s); return; }
   for (const d of items) {
     const b = el('button', 'c-opt' + (d.def ? ' on' : '')); const n = el('span'); const [main, sub] = devLabel(d.name);
     const nb = el('b'); nb.textContent = main; n.append(nb); if (sub) { const ns = el('small'); ns.textContent = sub; n.append(ns); }
@@ -783,10 +783,10 @@ $('#cInBtn').onclick = () => openPick('in');
 $('#cBack').onclick = closePick;
 W.on('devices', d => { devices = d; if (pickFlow) renderPick(); });
 let camStream = null;
-function camStop() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } $('#cVideo').classList.remove('on'); $('#cCam').lastChild.textContent = 'Sprawdź kamerę'; }
+function camStop() { if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } $('#cVideo').classList.remove('on'); $('#cCam').lastChild.textContent = L('Sprawdź kamerę', 'Check the camera'); }
 $('#cCam').onclick = async () => {
   if (camStream) return camStop();
-  try { camStream = await navigator.mediaDevices.getUserMedia({ video: true }); const v = $('#cVideo'); v.srcObject = camStream; await v.play(); v.classList.add('on'); $('#cCam').lastChild.textContent = 'Wyłącz kamerę'; } catch { $('#cHint').textContent = 'Nie udało się włączyć kamery.'; }
+  try { camStream = await navigator.mediaDevices.getUserMedia({ video: true }); const v = $('#cVideo'); v.srcObject = camStream; await v.play(); v.classList.add('on'); $('#cCam').lastChild.textContent = L('Wyłącz kamerę', 'Turn off the camera'); } catch { $('#cHint').textContent = L('Nie udało się włączyć kamery.', 'Couldn’t turn on the camera.'); }
 };
 
 // =============== ZWIERZAK (kot) ===============

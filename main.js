@@ -9,6 +9,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const QRCode = require('qrcode');
+const { L, LANG } = require('./lib/lang'); // teksty: L('po polsku', 'in English')
 const { Store } = require('./lib/store');
 const { Helper } = require('./lib/helper');
 const { LocalEndpoint, PhoneShare } = require('./lib/servers');
@@ -62,6 +63,7 @@ function migrateFromWyspa() {
   } catch {}
 }
 const S = () => store.settings;
+ipcMain.on('aura-lang', e => { e.returnValue = LANG; }); // preload: język stron (wybrany przy starcie)
 // macOS: własny pomocnik (AppleScript zamiast PowerShella), okno nad paskiem menu wokół fabrycznego notcha
 const IS_MAC = process.platform === 'darwin';
 const helper = IS_MAC ? new (require('./lib/helper-mac').MacHelper)() : new Helper();
@@ -235,8 +237,10 @@ function applySettings(patch) {
   if (k.includes('surface') || k.includes('hideFromCaptures') || k.includes('glassInShots')) applyGlassProtection();
   if (k.includes('hotkeys') || k.includes('tabHotkeys')) registerHotkeys();
   if (k.includes('autostart')) setAutostart();
+  // nowy język: teksty wybierane są przy starcie, więc Aura uruchamia się ponownie (pasek Windows wraca przy zamknięciu)
+  if (k.includes('lang') && (S().lang === 'auto' ? require('./lib/lang').systemLang() : S().lang) !== LANG) setTimeout(() => { app.relaunch(); app.quit(); }, 400);
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
-  if (k.includes('hideInFullscreen') && !S().hideInFullscreen) { fsHidden = false; applyVisibility(); }
+  if (k.includes('hideInFullscreen') || k.includes('gamerOverlay')) applyFullscreen();
   if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
   if (k.includes('edge') && helper.setEdge) helper.setEdge(S().edge === 'bottom');
   if (k.includes('downloads')) configureDownloads();
@@ -245,6 +249,7 @@ function applySettings(patch) {
   if (k.includes('lyrics')) { lyricsKey = ''; if (S().lyrics) onTrack(sys.media); else send('lyrics', null); } // włączone w trakcie utworu: tekst od razu
   if (k.some(x => ['hudVolume', 'hudBrightness', 'macHudKeys'].includes(x))) configureMacKeys();
   if (k.includes('devBattery')) configureDevBattery();
+  if (taskbar && ['surface', 'glassBlur', 'glassInShots', 'accent', 'accentColor'].some(x => k.includes(x))) taskbar.push(); // pasek „jak wyspa”
   if (k.includes('dock')) configureDock(); else if (k.some(x => /^dock[A-Z]/.test(x))) { if (taskbar) taskbar.push(); if (k.includes('dockSize')) place(); }
   if (k.some(x => x.startsWith('weather'))) refreshWeather(true);
   if (k.includes('calendarIcs')) refreshCalendar();
@@ -428,15 +433,18 @@ helper.on('media', m => {
 });
 ipcMain.handle('app-icon', (_, id) => appIcons.get(id) || null);
 helper.on('thumb', m => { sys.thumb = m.data; send('thumb', m.data); if (taskbar) taskbar.setMedia(dockMedia()); });
-let gameOn = false;
-helper.on('fs', m => {
-  const on = !!m.on;
-  if (taskbar) taskbar.setFullscreen(on); // pasek zadań Aury nie wisi nad grami i filmami
-  // pasek dla graczy: zamiast chować wyspę, pokazuje wąski pasek CPU/GPU/RAM nad grą
-  gameOn = on && S().gamerOverlay;
-  fsHidden = on && S().hideInFullscreen && !gameOn;
+let gameOn = false, fsOn = false;
+// pasek dla graczy: zamiast chować wyspę, pokazuje wąski pasek CPU/GPU/RAM nad grą (też po włączeniu opcji w trakcie gry)
+function applyFullscreen() {
+  gameOn = fsOn && !!S().gamerOverlay;
+  fsHidden = fsOn && S().hideInFullscreen && !gameOn;
   send('game', gameOn);
   applyVisibility();
+}
+helper.on('fs', m => {
+  const on = fsOn = !!m.on;
+  if (taskbar) taskbar.setFullscreen(on); // pasek zadań Aury nie wisi nad grami i filmami
+  applyFullscreen();
   try { if (wpState && wpState.running) { if (on) wp.pause(); else wp.resume(); } } catch {} // tapeta pauzuje pod grą
 });
 helper.on('clip', m => { clearTimeout(clipTimer); clipTimer = setTimeout(() => onClipboardChange(0, !!m.private), 120); });
@@ -456,7 +464,7 @@ function configureMacKeys() {
   const r = macNative().startKeys({ ask: !!store.data.welcomeDone && !keysAsked, volume: !!S().hudVolume, bright: !!S().hudBrightness, onHud: h => { lastKeyHud = Date.now(); send('hud', h); } });
   if (process.env.WYSPA_SHOT) console.log('wyspa: klawisze głośności/jasności:', r, macNative().error ? String(macNative().error) : '');
   if (r === 'brak-zgody') {
-    if (!keysAsked && store.data.welcomeDone) { keysAsked = true; addNotice({ kind: 'tool', title: 'Głośność i jasność na wyspie', body: 'Pozwól Aurze w Ustawieniach systemowych → Prywatność i ochrona → Dostępność, a okienko głośności i jasności pokaże się na wyspie zamiast systemowego.' }); }
+    if (!keysAsked && store.data.welcomeDone) { keysAsked = true; addNotice({ kind: 'tool', title: L('Głośność i jasność na wyspie', 'Volume and brightness on the island'), body: L('Pozwól Aurze w Ustawieniach systemowych → Prywatność i ochrona → Dostępność, a okienko głośności i jasności pokaże się na wyspie zamiast systemowego.', 'Allow Aura in System Settings → Privacy & Security → Accessibility, and the volume and brightness popup will show on the island instead of the system one.') }); }
     keysRetry = setTimeout(configureMacKeys, 5000); // zgoda dana w Ustawieniach: kran rusza sam, bez restartu
   }
 }
@@ -515,7 +523,7 @@ helper.on('devbat', m => {
     const was = devCharging.get(d.name); devCharging.set(d.name, !!d.charging);
     if (d.charging && was === false && S().hudBattery) send('hud', { kind: 'devbat', name: d.name, level: Number(d.level), kind2: d.kind }); // podpięte do ładowania
     const low = Number(d.level) <= 15 && !d.charging;
-    if (low && !devLow.has(d.name)) { devLow.add(d.name); addNotice({ kind: 'device', title: `${d.name}: ${d.level}% baterii`, body: 'Czas naładować.' }); }
+    if (low && !devLow.has(d.name)) { devLow.add(d.name); addNotice({ kind: 'device', title: `${d.name}: ${d.level}% baterii`, body: L('Czas naładować.', 'Time to charge.') }); }
     if (!low && Number(d.level) >= 25) devLow.delete(d.name);
   }
 });
@@ -526,7 +534,7 @@ helper.on('net', m => { sys.net = m; });
 helper.on('color', m => {
   clipboard.writeText(m.hex);
   send('hud', { kind: 'color', hex: m.hex });
-  addNotice({ kind: 'tool', title: `Kolor ${m.hex}`, body: 'Skopiowano kod koloru' });
+  addNotice({ kind: 'tool', title: `Kolor ${m.hex}`, body: L('Skopiowano kod koloru', 'Colour code copied') });
 });
 function toggleMic() { const mute = !(sys.mic && sys.mic.mute); helper.send({ c: 'micmute', on: mute }); }
 
@@ -546,7 +554,7 @@ ipcMain.on('audio-set', (_, id) => { // tylko id z ostatniej listy od Windows
 });
 ipcMain.on('radio', (_, r) => helper.send({ c: 'radio', kind: r.kind, on: r.on }));
 ipcMain.on('controls-refresh', () => { helper.send({ c: 'brightget' }); helper.send({ c: 'power' }); helper.send({ c: 'radios' }); });
-ipcMain.on('open-uri', (_, uri) => { if (/^ms-settings:|^ms-screenclip:/.test(uri)) shell.openExternal(uri); });
+ipcMain.on('open-uri', (_, uri) => { if (/^ms-settings:|^ms-screenclip:|^https:\/\/github\.com\/famefabricators-maker\/aura\/releases$/.test(uri)) shell.openExternal(uri); });
 // strona autora (tylko ten adres)
 const AUTHOR_URL = 'https://famefabricators.pl';
 ipcMain.on('open-author', () => shell.openExternal(AUTHOR_URL));
@@ -631,7 +639,7 @@ ipcMain.on('clip-drag', (e, id) => {
     const dir = path.join(app.getPath('temp'), 'Aura-schowek'); fs.mkdirSync(dir, { recursive: true });
     for (const f of fs.readdirSync(dir)) { const p = path.join(dir, f); try { if (Date.now() - fs.statSync(p).mtimeMs > 86400e3) fs.unlinkSync(p); } catch {} } // stare (ponad dobę) sprzątamy
     const d = new Date(c.ts || Date.now()), pad = n => String(n).padStart(2, '0');
-    const file = path.join(dir, `Obraz ze schowka ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}.png`);
+    const file = path.join(dir, L('Obraz ze schowka', 'Clipboard image') + ` ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}.png`);
     if (!fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(images.get(id)));
     const img = nativeImage.createFromPath(file);
     e.sender.startDrag({ file, icon: img.isEmpty() ? nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 32 }) : img.resize({ width: 64 }) });
@@ -715,14 +723,14 @@ function dlScan() {
 function dlTick() {
   dlScan();
   const now = Date.now();
-  if (gameDl && dlN++ % 3 === 0) { try { gameActive = gameDl.tick(name => addNotice({ kind: 'download', title: 'Pobrano grę', body: name })); } catch (e) { logError('gamedl', e); } }
+  if (gameDl && dlN++ % 3 === 0) { try { gameActive = gameDl.tick(name => addNotice({ kind: 'download', title: L('Pobrano grę', 'Game downloaded'), body: name })); } catch (e) { logError('gamedl', e); } }
   for (const [p, d] of dls) {
     let s; try { s = fs.statSync(p); } catch { s = null; }
     if (!s) { // zniknął plik tymczasowy: pobrane (jest plik bez końcówki) albo anulowane
       dls.delete(p);
       const final = p.replace(DL_TMP, '');
       if (final !== p && fs.existsSync(final) && !/^Unconfirmed \d+/i.test(path.basename(final))) {
-        addNotice({ kind: 'download', title: 'Pobrano', body: path.basename(final), path: final });
+        addNotice({ kind: 'download', title: L('Pobrano', 'Downloaded'), body: path.basename(final), path: final });
         if (S().downloadsToShelf !== false) addFiles([final]);
       }
       continue;
@@ -746,7 +754,7 @@ let convWin = null;
 async function convertImage(p, fmt, opts = {}) {
   const mime = IMG_MIME[path.extname(p).slice(1).toLowerCase()];
   const outMime = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' }[fmt];
-  if (!mime || !outMime) throw new Error('To nie jest obsługiwany obraz');
+  if (!mime || !outMime) throw new Error(L('To nie jest obsługiwany obraz', 'This image type isn’t supported'));
   const data = (await fs.promises.readFile(p)).toString('base64');
   if (!convWin || convWin.isDestroyed()) {
     convWin = new BrowserWindow({ show: false, webPreferences: { offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false } });
@@ -803,7 +811,7 @@ ipcMain.on('airdrop', (e, paths) => {
   execFile('/usr/bin/osascript', ['-l', 'JavaScript', path.join(__dirname, 'native', 'airdrop-mac.js'), ...list], { timeout: 11 * 60e3, env }, (err, out) => {
     const o = String(out || '');
     if (/niedostępny/.test(o)) { logError('airdrop', new Error(o.trim() || 'niedostępny')); send('airdrop-state', { state: /usługa/.test(o) ? 'fallback' : 'error', name }); shareMenu(); return; }
-    if (/wysłano/.test(o)) { send('airdrop-state', { state: 'sent', name }); addNotice({ kind: 'phone', title: 'Wysłano przez AirDrop', body: name }); return; }
+    if (/wysłano/.test(o)) { send('airdrop-state', { state: 'sent', name }); addNotice({ kind: 'phone', title: L('Wysłano przez AirDrop', 'Sent with AirDrop'), body: name }); return; }
     if (/anulowano/.test(o)) { send('airdrop-state', { state: 'cancel', name }); return; }
     if (err && !/ok/.test(o)) { logError('airdrop', new Error((err.message || '') + ' | ' + o.trim())); send('airdrop-state', { state: 'error', name }); shareMenu(); return; }
     send('airdrop-state', { state: 'idle', name });
@@ -811,19 +819,19 @@ ipcMain.on('airdrop', (e, paths) => {
 });
 ipcMain.on('file-menu', (e, p) => {
   if (!store.data.files.includes(p)) return;
-  const conv = (fmt, o) => () => convertImage(p, fmt, o).catch(err => addNotice({ kind: 'tool', title: 'Konwersja się nie udała', body: err.message }));
+  const conv = (fmt, o) => () => convertImage(p, fmt, o).catch(err => addNotice({ kind: 'tool', title: L('Konwersja się nie udała', 'Conversion failed'), body: err.message }));
   const ext = path.extname(p).slice(1).toLowerCase();
-  const tpl = [{ label: IS_MAC ? 'Pokaż w Finderze' : 'Pokaż w folderze', click: () => shell.showItemInFolder(p) }];
-  if (IS_MAC) tpl.push({ label: 'Udostępnij (AirDrop…)', role: 'shareMenu', sharingItem: { filePaths: [p] } }); // AirDrop na telefon
+  const tpl = [{ label: IS_MAC ? L('Pokaż w Finderze', 'Show in Finder') : L('Pokaż w folderze', 'Show in folder'), click: () => shell.showItemInFolder(p) }];
+  if (IS_MAC) tpl.push({ label: L('Udostępnij (AirDrop…)', 'Share (AirDrop…)'), role: 'shareMenu', sharingItem: { filePaths: [p] } }); // AirDrop na telefon
   if (IMG_MIME[ext]) {
     const same = ext === 'jpeg' ? 'jpg' : ['png', 'jpg', 'webp'].includes(ext) ? ext : 'png';
     tpl.push({ type: 'separator' },
-      { label: 'Zapisz jako PNG', enabled: ext !== 'png', click: conv('png') },
-      { label: 'Zapisz jako JPG', enabled: ext !== 'jpg' && ext !== 'jpeg', click: conv('jpg') },
-      { label: 'Zapisz jako WebP (na strony www)', enabled: ext !== 'webp', click: conv('webp') },
+      { label: L('Zapisz jako PNG', 'Save as PNG'), enabled: ext !== 'png', click: conv('png') },
+      { label: L('Zapisz jako JPG', 'Save as JPG'), enabled: ext !== 'jpg' && ext !== 'jpeg', click: conv('jpg') },
+      { label: L('Zapisz jako WebP (na strony www)', 'Save as WebP (for websites)'), enabled: ext !== 'webp', click: conv('webp') },
       { type: 'separator' },
-      { label: 'Zmniejsz o połowę', click: conv(same, { scale: 0.5, suffix: '-50%' }) },
-      { label: 'Zmniejsz do 1920 px szerokości', click: conv(same, { maxW: 1920, suffix: '-1920' }) });
+      { label: L('Zmniejsz o połowę', 'Halve the size'), click: conv(same, { scale: 0.5, suffix: '-50%' }) },
+      { label: L('Zmniejsz do 1920 px szerokości', 'Shrink to 1920 px wide'), click: conv(same, { maxW: 1920, suffix: '-1920' }) });
   }
   Menu.buildFromTemplate(tpl).popup({ window: BrowserWindow.fromWebContents(e.sender) || undefined });
 });
@@ -836,13 +844,13 @@ ipcMain.on('file-drag', (e, p) => {
 
 // ---------- telefon ----------
 phone.on('received', async p => { await addFiles([p]); addNotice({ kind: 'phone', title: 'Z telefonu', body: path.basename(p), path: p }); });
-phone.on('text', async t => { suppress = false; await clipboard.writeText(t); addNotice({ kind: 'phone', title: 'Tekst z telefonu', body: t.slice(0, 80) }); });
-phone.on('sent', p => addNotice({ kind: 'phone', title: 'Wysłano na telefon', body: path.basename(p) }));
+phone.on('text', async t => { suppress = false; await clipboard.writeText(t); addNotice({ kind: 'phone', title: L('Tekst z telefonu', 'Text from the phone'), body: t.slice(0, 80) }); });
+phone.on('sent', p => addNotice({ kind: 'phone', title: L('Wysłano na telefon', 'Sent to the phone'), body: path.basename(p) }));
 phone.on('stopped', () => send('phone', null));
 ipcMain.handle('phone-start', async () => {
-  if (!S().phoneShare) return { error: 'Wysyłanie na telefon jest wyłączone w ustawieniach.' };
+  if (!S().phoneShare) return { error: L('Wysyłanie na telefon jest wyłączone w ustawieniach.', 'Sending to the phone is turned off in settings.') };
   try { const info = await phone.start(); return { ...info, qr: await QRCode.toDataURL(info.url, { margin: 1, width: 220, color: { dark: '#000000', light: '#ffffff' } }) }; }
-  catch (e) { return { error: e.message || 'Nie udało się uruchomić.' }; }
+  catch (e) { return { error: e.message || L('Nie udało się uruchomić.', 'Couldn’t launch it.') }; }
 });
 ipcMain.on('phone-stop', () => phone.stop());
 
@@ -883,9 +891,9 @@ endpoint.on('agent', d => {
   agents.set(id, a);
   send('agents', agentsOut());
   const where = a.project ? ` · ${a.project}` : '';
-  if (a.state === 'needs' && prev.state !== 'needs') addNotice({ kind: 'agent', title: `${a.harness} czeka na Ciebie${where}`, body: a.message || a.title });
+  if (a.state === 'needs' && prev.state !== 'needs') addNotice({ kind: 'agent', title: L(`${a.harness} czeka na Ciebie${where}`, `${a.harness} is waiting for you${where}`), body: a.message || a.title });
   // Codex zgłasza tylko koniec tury (bez „pracuje”), więc dla niego komunikat od razu
-  if (a.state === 'done' && (prev.state === 'working' || a.harness === 'Codex') && S().agentsNotifyDone) addNotice({ kind: 'agent', title: `${a.harness} skończył${where}`, body: a.message || a.title });
+  if (a.state === 'done' && (prev.state === 'working' || a.harness === 'Codex') && S().agentsNotifyDone) addNotice({ kind: 'agent', title: L(`${a.harness} skończył${where}`, `${a.harness} finished${where}`), body: a.message || a.title });
 });
 
 // ---------- powiadomienia innych aplikacji (WhatsApp, Discord…) na wyspie ----------
@@ -898,7 +906,7 @@ helper.on('toast', t => {
   if (/^(aura|electron|wyspa)$/i.test(app)) return;
   const ignore = (S().appNotificationsIgnore || []).map(x => String(x).toLowerCase());
   if (ignore.includes(app.toLowerCase())) return;
-  addNotice({ kind: 'app', title: t.title ? `${app}: ${t.title}` : app || 'Powiadomienie', body: t.body || '', aumid: t.aumid });
+  addNotice({ kind: 'app', title: t.title ? `${app}: ${t.title}` : app || L('Powiadomienie', 'Notification'), body: t.body || '', aumid: t.aumid });
 });
 
 // ---------- limity Claude (karta Agenci) ----------
@@ -911,18 +919,18 @@ async function refreshClaudeUsage(force) {
   usageAt = Date.now();
   let token = null;
   try { const c = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.claude', '.credentials.json'), 'utf8')); token = c && c.claudeAiOauth && c.claudeAiOauth.accessToken; } catch {}
-  if (!token) { claudeUsage = { error: 'Zaloguj się w Claude Code (claude, potem /login).' }; return send('ai-usage', claudeUsage); }
+  if (!token) { claudeUsage = { error: L('Zaloguj się w Claude Code (claude, potem /login).', 'Sign in to Claude Code (claude, then /login).') }; return send('ai-usage', claudeUsage); }
   try {
     const r = await net.fetch('https://api.anthropic.com/api/oauth/usage', { headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' } });
-    if (r.status === 401) claudeUsage = { error: 'Sesja Claude Code wygasła — uruchom claude, żeby ją odświeżyć.' };
-    else if (r.status === 429) { if (!claudeUsage || claudeUsage.error) claudeUsage = { error: 'Serwer prosi o chwilę przerwy — spróbuję za kilka minut.' }; } // zostaw ostatni dobry wynik
-    else if (!r.ok) claudeUsage = { error: `Limity chwilowo niedostępne (${r.status}).` };
+    if (r.status === 401) claudeUsage = { error: L('Sesja Claude Code wygasła — uruchom claude, żeby ją odświeżyć.', 'The Claude Code session expired — run claude to refresh it.') };
+    else if (r.status === 429) { if (!claudeUsage || claudeUsage.error) claudeUsage = { error: L('Serwer prosi o chwilę przerwy — spróbuję za kilka minut.', 'The server asks for a short break — I’ll try again in a few minutes.') }; } // zostaw ostatni dobry wynik
+    else if (!r.ok) claudeUsage = { error: L(`Limity chwilowo niedostępne (${r.status}).`, `Limits temporarily unavailable (${r.status}).`) };
     else {
       const j = await r.json();
       const pick = x => (x && x.utilization != null ? { pct: Math.round(x.utilization <= 1 ? x.utilization * 100 : x.utilization), reset: x.resets_at || null } : null);
       claudeUsage = { five: pick(j.five_hour), week: pick(j.seven_day) };
     }
-  } catch { claudeUsage = { error: 'Brak połączenia z serwerem.' }; }
+  } catch { claudeUsage = { error: L('Brak połączenia z serwerem.', 'No connection to the server.') }; }
   send('ai-usage', claudeUsage);
 }
 setInterval(() => refreshClaudeUsage(), 10 * 60e3); // serwer ogranicza częstotliwość pytań
@@ -940,8 +948,8 @@ endpoint.on('ask', (d, respond) => {
   const id = newId();
   const finish = decision => { const x = asks.get(id); if (!x) return; clearTimeout(x.timer); asks.delete(id); x.respond({ decision }); send('agent-ask-done', id); };
   asks.set(id, { respond, timer: setTimeout(() => finish('ask'), 28000), session: String(d.session || ''), key }); // bez odpowiedzi: pytanie wraca do terminala
-  const tool = String(d.tool || 'narzędzie').slice(0, 40);
-  send('agent-ask', { id, title: `${String(d.harness || 'Agent').slice(0, 30)} prosi o zgodę: ${tool}${d.project ? ' · ' + String(d.project).slice(0, 40) : ''}`, body: String(d.summary || '').slice(0, 220) });
+  const tool = String(d.tool || L('narzędzie', 'tool')).slice(0, 40);
+  send('agent-ask', { id, title: L(`${String(d.harness || 'Agent').slice(0, 30)} prosi o zgodę: ${tool}${d.project ? ' · ' + String(d.project).slice(0, 40) : ''}`, `${String(d.harness || 'Agent').slice(0, 30)} asks for permission: ${tool}${d.project ? ' · ' + String(d.project).slice(0, 40) : ''}`), body: String(d.summary || '').slice(0, 220) });
   alertActive = true; applyVisibility();
 });
 endpoint.on('ask-cancel', d => { for (const [id, x] of asks) if (x.session === String(d.session || '')) { clearTimeout(x.timer); asks.delete(id); send('agent-ask-done', id); } });
@@ -994,9 +1002,9 @@ function claudeStatus() {
 ipcMain.handle('claude-status', () => claudeStatus());
 ipcMain.handle('claude-connect', async (_, on) => {
   const r = await dialog.showMessageBox(settingsWin || undefined, {
-    type: 'question', buttons: [on ? 'Połącz' : 'Odłącz', 'Anuluj'], defaultId: 0, cancelId: 1, title: 'Claude Code',
-    message: on ? 'Dodać hooki Aury do ustawień Claude Code?' : 'Usunąć hooki Aury z ustawień Claude Code?',
-    detail: `Plik: ${claudeSettings}\nPrzed zmianą zapiszę kopię .aura-backup. Hooki wysyłają stan sesji tylko na 127.0.0.1.`,
+    type: 'question', buttons: [on ? L('Połącz', 'Connect') : L('Odłącz', 'Unpair'), L('Anuluj', 'Cancel')], defaultId: 0, cancelId: 1, title: 'Claude Code',
+    message: on ? L('Dodać hooki Aury do ustawień Claude Code?', 'Add Aura hooks to the Claude Code settings?') : L('Usunąć hooki Aury z ustawień Claude Code?', 'Remove Aura hooks from the Claude Code settings?'),
+    detail: L(`Plik: ${claudeSettings}\nPrzed zmianą zapiszę kopię .aura-backup. Hooki wysyłają stan sesji tylko na 127.0.0.1.`, `File: ${claudeSettings}\nBefore changing it I’ll save a .aura-backup copy. The hooks send the session state only to 127.0.0.1.`),
   });
   if (r.response !== 0) return claudeStatus();
   writeClaudeHooks(on);
@@ -1016,9 +1024,9 @@ function codexStatus() {
 ipcMain.handle('codex-status', () => codexStatus());
 ipcMain.handle('codex-connect', async (_, on) => {
   const r = await dialog.showMessageBox(settingsWin || undefined, {
-    type: 'question', buttons: [on ? 'Połącz' : 'Odłącz', 'Anuluj'], defaultId: 0, cancelId: 1, title: 'Codex',
-    message: on ? 'Dodać powiadomienia Aury do ustawień Codexa?' : 'Usunąć powiadomienia Aury z ustawień Codexa?',
-    detail: `Plik: ${codexConfig}\nPrzed zmianą zapiszę kopię .aura-backup. Dotychczasowy program powiadomień (np. aplikacja Codex) dalej będzie je dostawał.`,
+    type: 'question', buttons: [on ? L('Połącz', 'Connect') : L('Odłącz', 'Unpair'), L('Anuluj', 'Cancel')], defaultId: 0, cancelId: 1, title: 'Codex',
+    message: on ? L('Dodać powiadomienia Aury do ustawień Codexa?', 'Add Aura notifications to the Codex settings?') : L('Usunąć powiadomienia Aury z ustawień Codexa?', 'Remove Aura notifications from the Codex settings?'),
+    detail: L(`Plik: ${codexConfig}\nPrzed zmianą zapiszę kopię .aura-backup. Dotychczasowy program powiadomień (np. aplikacja Codex) dalej będzie je dostawał.`, `File: ${codexConfig}\nBefore changing it I’ll save a .aura-backup copy. Your existing notification program (e.g. the Codex app) will keep receiving them.`),
   });
   if (r.response !== 0) return codexStatus();
   let t = ''; try { t = fs.readFileSync(codexConfig, 'utf8'); fs.copyFileSync(codexConfig, codexConfig + '.aura-backup'); } catch {}
@@ -1029,7 +1037,7 @@ ipcMain.handle('codex-connect', async (_, on) => {
       let arr = null;
       try { arr = JSON.parse(raw); } catch { try { arr = JSON.parse(raw.replace(/'([^']*)'/g, (_, s) => JSON.stringify(s))); } catch {} } // też TOML 'dosłowne'
       if (!Array.isArray(arr)) { // nie ruszamy cudzego ustawienia, którego nie umiemy odtworzyć
-        await dialog.showMessageBox(settingsWin || undefined, { type: 'warning', title: 'Codex', message: 'Nie udało się odczytać obecnego ustawienia „notify” w Codexie.', detail: 'Niczego nie zmieniłem w pliku config.toml.' });
+        await dialog.showMessageBox(settingsWin || undefined, { type: 'warning', title: 'Codex', message: L('Nie udało się odczytać obecnego ustawienia „notify” w Codexie.', 'Couldn’t read the current “notify” setting in Codex.'), detail: L('Niczego nie zmieniłem w pliku config.toml.', 'Nothing was changed in config.toml.') });
         return codexStatus();
       }
       fs.writeFileSync(codexOrig, JSON.stringify(arr));
@@ -1067,7 +1075,7 @@ ipcMain.on('reminder-answer', (_, { id, action }) => {
   if (!r) return;
   if (action === 'snooze') { r.at = Date.now() + 10 * 60e3; r.fired = false; }
   else {
-    addNotice({ kind: 'reminder', title: `Przypomnienie · ${r.text}`, body: 'Gotowe', banner: false });
+    addNotice({ kind: 'reminder', title: `Przypomnienie · ${r.text}`, body: L('Gotowe', 'Done'), banner: false });
     if (r.repeat && r.repeat !== 'once') { r.at = nextRepeat(r); r.fired = false; }
     else store.data.reminders = store.data.reminders.filter(x => x.id !== id);
   }
@@ -1103,9 +1111,9 @@ async function takeScreenshot() {
       suppress = true;
       await clipboard.write([new ClipboardItem({ 'image/png': new Blob([fs.readFileSync(saved[0])], { type: 'image/png' }) })]).catch(() => { suppress = false; });
       if (S().capturesToShelf) await addFiles(saved);
-      addNotice({ kind: 'capture', title: 'Zrzut ekranu zapisany', body: path.basename(saved[0]), path: saved[0] });
+      addNotice({ kind: 'capture', title: L('Zrzut ekranu zapisany', 'Screenshot saved'), body: path.basename(saved[0]), path: saved[0] });
     }
-  } catch (e) { addNotice({ kind: 'capture', title: 'Zrzut się nie udał', body: e.message }); }
+  } catch (e) { addNotice({ kind: 'capture', title: L('Zrzut się nie udał', 'Screenshot failed'), body: e.message }); }
 }
 ipcMain.on('screenshot', () => setTimeout(takeScreenshot, 350));
 // wycinek: Windows — narzędzie Wycinanie; macOS — zaznaczenie do schowka (jak Cmd+Ctrl+Shift+4)
@@ -1124,14 +1132,14 @@ ipcMain.on('rec-stop', async () => {
   if (!recStream) return;
   const p = recPath; recStream.end(); recStream = null;
   if (S().capturesToShelf) await addFiles([p]);
-  addNotice({ kind: 'capture', title: 'Nagranie zapisane', body: path.basename(p), path: p });
+  addNotice({ kind: 'capture', title: L('Nagranie zapisane', 'Recording saved'), body: path.basename(p), path: p });
 });
 
 // ---------- launcher ----------
 ipcMain.handle('launch-pick', async (_, i) => {
   const r = await dialog.showOpenDialog(settingsWin || island, {
-    title: 'Wybierz aplikację lub plik', defaultPath: path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
-    properties: ['openFile'], filters: [{ name: 'Aplikacje i skróty', extensions: ['exe', 'lnk', 'url', 'bat', 'cmd'] }, { name: 'Wszystko', extensions: ['*'] }],
+    title: L('Wybierz aplikację lub plik', 'Choose an app or file'), defaultPath: path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    properties: ['openFile'], filters: [{ name: L('Aplikacje i skróty', 'Apps and shortcuts'), extensions: ['exe', 'lnk', 'url', 'bat', 'cmd'] }, { name: L('Wszystko', 'All files'), extensions: ['*'] }],
   });
   if (r.canceled || !r.filePaths[0]) return S().launchApps;
   const list = [...S().launchApps]; list[i] = r.filePaths[0];
@@ -1175,7 +1183,7 @@ const wpFilters = () => ({ hue: S().wpHue, saturation: S().wpSaturation, brightn
 function configureWallpaper() { if (IS_MAC) return; wp.start(S().liveWallpaper ? S().liveWallpaperFile : '', wpFilters()).catch(e => both('wallpaper', { running: false, error: e.message })); }
 ipcMain.handle('wallpaper-state', () => wpState);
 ipcMain.handle('wallpaper-pick', async () => {
-  const r = await dialog.showOpenDialog(settingsWin || undefined, { title: 'Wybierz film na tapetę', defaultPath: app.getPath('videos'), properties: ['openFile'], filters: [{ name: 'Filmy', extensions: ['mp4', 'mov', 'mkv', 'webm', 'wmv', 'avi'] }] });
+  const r = await dialog.showOpenDialog(settingsWin || undefined, { title: L('Wybierz film na tapetę', 'Choose a video for the wallpaper'), defaultPath: app.getPath('videos'), properties: ['openFile'], filters: [{ name: L('Filmy', 'Videos'), extensions: ['mp4', 'mov', 'mkv', 'webm', 'wmv', 'avi'] }] });
   if (!r.canceled && r.filePaths[0]) applySettings({ liveWallpaperFile: r.filePaths[0], liveWallpaper: true });
   return S();
 });
@@ -1201,15 +1209,15 @@ const deck = new Deck({
     if (name === 'mic') toggleMic();
     else if (name === 'screenshot') takeScreenshot();
     else if (name === 'record') send('record-toggle');
-    else if (name === 'restart' || name === 'shutdown') addNotice({ kind: 'phone', title: name === 'restart' ? 'Ponowne uruchomienie z telefonu' : 'Wyłączanie z telefonu', body: `Za ${info && info.delay ? info.delay : 30} s · zapisz pracę` });
-    else if (name === 'cancel') addNotice({ kind: 'phone', title: 'Anulowano z telefonu', body: 'Komputer zostaje włączony' });
+    else if (name === 'restart' || name === 'shutdown') addNotice({ kind: 'phone', title: name === 'restart' ? L('Ponowne uruchomienie z telefonu', 'Restart from the phone') : L('Wyłączanie z telefonu', 'Shutdown from the phone'), body: L(`Za ${info && info.delay ? info.delay : 30} s · zapisz pracę`, `In ${info && info.delay ? info.delay : 30} s · save your work`) });
+    else if (name === 'cancel') addNotice({ kind: 'phone', title: L('Anulowano z telefonu', 'Cancelled from the phone'), body: L('Komputer zostaje włączony', 'The computer stays on') });
   },
   // „Edytuj” na telefonie zmienia miejsca launchera
   setApp: async (slot, p) => { if (slot < 0 || slot > 5) return; const l = [...S().launchApps]; l[slot] = p || ''; applySettings({ launchApps: l }); },
 });
 let deckState = null;
 deck.on('state', s => { deckState = s; both('deck', s); });
-deck.on('need-accessibility', () => addNotice({ kind: 'phone', title: 'PC Deck: daj Aurze dostęp', body: 'Ustawienia systemowe → Prywatność i ochrona → Dostępność → włącz Aurę. Bez tego Mac ignoruje ruchy z telefonu.' }));
+deck.on('need-accessibility', () => addNotice({ kind: 'phone', title: L('PC Deck: daj Aurze dostęp', 'PC Deck: give Aura access'), body: L('Ustawienia systemowe → Prywatność i ochrona → Dostępność → włącz Aurę. Bez tego Mac ignoruje ruchy z telefonu.', 'System Settings → Privacy & Security → Accessibility → turn on Aura. Without it the Mac ignores input from the phone.') }));
 deck.on('pair-request', r => { alertActive = true; applyVisibility(); send('deck-pair', r); });
 ipcMain.handle('deck-state', () => deckState);
 ipcMain.handle('deck-start', async () => { try { return await deck.start(); } catch (e) { return { running: false, error: e.message }; } });
@@ -1292,15 +1300,15 @@ setInterval(async () => {
 ipcMain.on('stats-on', (_, on) => { statsOn = !!on; });
 
 let weather = null, weatherAt = 0;
-const WMO = { 0: 'Bezchmurnie', 1: 'Przeważnie słonecznie', 2: 'Częściowe zachmurzenie', 3: 'Pochmurno', 45: 'Mgła', 48: 'Szadź', 51: 'Mżawka', 53: 'Mżawka', 55: 'Mżawka', 61: 'Deszcz', 63: 'Deszcz', 65: 'Ulewa', 66: 'Marznący deszcz', 67: 'Marznący deszcz', 71: 'Śnieg', 73: 'Śnieg', 75: 'Śnieżyca', 77: 'Krupa', 80: 'Przelotny deszcz', 81: 'Przelotny deszcz', 82: 'Ulewa', 85: 'Przelotny śnieg', 86: 'Przelotny śnieg', 95: 'Burza', 96: 'Burza z gradem', 99: 'Burza z gradem' };
+const WMO = { 0: L('Bezchmurnie', 'Clear sky'), 1: L('Przeważnie słonecznie', 'Mostly sunny'), 2: L('Częściowe zachmurzenie', 'Partly cloudy'), 3: L('Pochmurno', 'Cloudy'), 45: L('Mgła', 'Fog'), 48: L('Szadź', 'Rime fog'), 51: L('Mżawka', 'Drizzle'), 53: L('Mżawka', 'Drizzle'), 55: L('Mżawka', 'Drizzle'), 61: L('Deszcz', 'Rain'), 63: L('Deszcz', 'Rain'), 65: L('Ulewa', 'Heavy rain'), 66: L('Marznący deszcz', 'Freezing rain'), 67: L('Marznący deszcz', 'Freezing rain'), 71: L('Śnieg', 'Snow'), 73: L('Śnieg', 'Snow'), 75: L('Śnieżyca', 'Snowstorm'), 77: L('Krupa', 'Snow grains'), 80: L('Przelotny deszcz', 'Rain showers'), 81: L('Przelotny deszcz', 'Rain showers'), 82: L('Ulewa', 'Heavy rain'), 85: L('Przelotny śnieg', 'Snow showers'), 86: L('Przelotny śnieg', 'Snow showers'), 95: L('Burza', 'Thunderstorm'), 96: L('Burza z gradem', 'Thunderstorm with hail'), 99: L('Burza z gradem', 'Thunderstorm with hail') };
 async function refreshWeather(force) {
   if (!force && Date.now() - weatherAt < 20 * 60e3 && weather) return send('weather', weather);
   try {
     let { weatherLat: lat, weatherLon: lon, weatherCity: city } = S();
     if (lat == null || lon == null) {
       const q = city || (Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop() || 'Warsaw').replace(/_/g, ' ');
-      const g = await (await net.fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&language=pl&name=${encodeURIComponent(q)}`)).json();
-      if (!g.results || !g.results[0]) throw new Error('Nie znaleziono miejsca');
+      const g = await (await net.fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&language=${LANG}&name=${encodeURIComponent(q)}`)).json();
+      if (!g.results || !g.results[0]) throw new Error(L('Nie znaleziono miejsca', 'Place not found'));
       lat = g.results[0].latitude; lon = g.results[0].longitude;
       store.set({ weatherLat: lat, weatherLon: lon, weatherName: g.results[0].name });
     }
@@ -1380,7 +1388,7 @@ const { Obs } = require('./lib/obs');
 const obs = new Obs();
 let obsState = null;
 obs.on('state', s => { obsState = s; both('obs', s); });
-obs.on('recorded', async p => { if (S().capturesToShelf) await addFiles([p]); addNotice({ kind: 'capture', title: 'Nagranie OBS zapisane', body: path.basename(p), path: p }); });
+obs.on('recorded', async p => { if (S().capturesToShelf) await addFiles([p]); addNotice({ kind: 'capture', title: L('Nagranie OBS zapisane', 'OBS recording saved'), body: path.basename(p), path: p }); });
 function configureObs() { obs.configure({ enabled: S().obsEnabled, auto: S().obsAuto, port: Number(S().obsPort) || 4455, password: S().obsPassword || '' }); }
 ipcMain.handle('obs-local', () => Obs.findLocal());
 ipcMain.handle('obs-state', () => obsState);
@@ -1485,19 +1493,19 @@ ipcMain.on('web-notify', (e, n) => {
 ipcMain.on('web-pins', (_, pins) => { if (Array.isArray(pins)) applySettings({ webPins: pins.filter(p => p && /^https?:\/\//i.test(p.url)).slice(0, 12) }); });
 
 // ---------- widżety: wybór i kolejność (prawy przycisk na widżecie) ----------
-const WIDGET_NAMES = { today: 'Dzisiaj', focus: 'Skupienie', weather: 'Pogoda', stats: 'Statystyki komputera', todo: 'Zadania', notes: 'Notatka', timers: 'Minutniki', forecast: 'Prognoza godzinowa' };
+const WIDGET_NAMES = { today: L('Dzisiaj', 'Today'), focus: L('Skupienie', 'Focus'), weather: L('Pogoda', 'Weather'), stats: L('Statystyki komputera', 'Computer stats'), todo: L('Zadania', 'Tasks'), notes: L('Notatka', 'Note'), timers: L('Minutniki', 'Timers'), forecast: L('Prognoza godzinowa', 'Hourly forecast') };
 ipcMain.on('widgets-menu', (e, id) => {
   const cur = (Array.isArray(S().widgets) && S().widgets.length ? S().widgets : ['today', 'focus', 'weather', 'stats']).filter(k => WIDGET_NAMES[k]);
   const tpl = [];
   if (id && cur.includes(id)) {
     const i = cur.indexOf(id);
     const move = d => () => { const a = [...cur]; [a[i], a[i + d]] = [a[i + d], a[i]]; applySettings({ widgets: a }); };
-    tpl.push({ label: `${WIDGET_NAMES[id]}: przesuń wcześniej`, enabled: i > 0, click: move(-1) },
-      { label: `${WIDGET_NAMES[id]}: przesuń dalej`, enabled: i < cur.length - 1, click: move(1) },
+    tpl.push({ label: L(`${WIDGET_NAMES[id]}: przesuń wcześniej`, `${WIDGET_NAMES[id]}: move earlier`), enabled: i > 0, click: move(-1) },
+      { label: L(`${WIDGET_NAMES[id]}: przesuń dalej`, `${WIDGET_NAMES[id]}: move later`), enabled: i < cur.length - 1, click: move(1) },
       { label: `Ukryj: ${WIDGET_NAMES[id]}`, enabled: cur.length > 1, click: () => applySettings({ widgets: cur.filter(x => x !== id) }) },
       { type: 'separator' });
   }
-  tpl.push({ label: 'Widżety na karcie', enabled: false });
+  tpl.push({ label: L('Widżety na karcie', 'Widgets on the card'), enabled: false });
   for (const [k, name] of Object.entries(WIDGET_NAMES)) {
     tpl.push({ label: name, type: 'checkbox', checked: cur.includes(k), enabled: !(cur.length === 1 && cur.includes(k)),
       click: () => applySettings({ widgets: cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k] }) });
@@ -1561,11 +1569,11 @@ function setAutostart() {
 function updateTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Otwórz wyspę', click: () => HOTKEY_ACTIONS.open() },
-    { label: userHidden ? 'Pokaż wyspę' : 'Ukryj wyspę', click: () => HOTKEY_ACTIONS.hide() },
-    { label: 'Ustawienia…', click: () => openSettings() },
+    { label: L('Otwórz wyspę', 'Open the island'), click: () => HOTKEY_ACTIONS.open() },
+    { label: userHidden ? L('Pokaż wyspę', 'Show the island') : L('Ukryj wyspę', 'Hide the island'), click: () => HOTKEY_ACTIONS.hide() },
+    { label: L('Ustawienia…', 'Settings…'), click: () => openSettings() },
     { type: 'separator' },
-    { label: 'Zakończ Aurę', click: () => app.quit() },
+    { label: L('Zakończ Aurę', 'Quit Aura'), click: () => app.quit() },
   ]));
 }
 
@@ -1641,6 +1649,17 @@ app.whenReady().then(async () => {
     store.data.welcomed = true; store.data.macWelcomed = true; store.saveData();
     setTimeout(() => openSettings('welcome'), 1500);
   }
+  // po aktualizacji: ustawienia z okienkiem „Co nowego” (nie przy pierwszej instalacji — wtedy jest wprowadzenie)
+  {
+    const cur = app.getVersion(), last = store.data.lastVersion;
+    if (last !== cur && !process.env.WYSPA_SHOT) {
+      store.data.lastVersion = cur; store.saveData();
+      const ver = v => String(v || '0').split('.').map(Number), gt = (a, b) => { a = ver(a); b = ver(b); for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); return false; };
+      // wcześniejsze wersje nie zapisywały numeru: znane ustawienia (po wprowadzeniu) = aktualizacja z 2.2.9
+      const from = last || (store.data.welcomeDone ? '2.2.9' : null);
+      if (from && gt(cur, from)) setTimeout(() => openSettings('whatsnew:' + from), 2500);
+    }
+  }
   if (IS_MAC && !store.data.macWelcomed && !process.env.WYSPA_SHOT) { store.data.macWelcomed = true; store.saveData(); openSettings(); }
   readyAt = Date.now();
   if (process.env.WYSPA_SHOT) testShots(process.env.WYSPA_SHOT);
@@ -1665,7 +1684,7 @@ async function testShots(dir) {
     const real = !!process.env.WYSPA_VIZ_REAL; // prawdziwy utwór ze Spotify zamiast udawanego
     if (!real) { helper.removeAllListeners('media'); helper.removeAllListeners('thumb'); } // tylko udawany utwór, nie to, co gra naprawdę
     helper.removeAllListeners('covered'); helper.removeAllListeners('fs'); sys.covered = !!process.env.WYSPA_VIZ_COVERED; fsHidden = false; send('covered', sys.covered); applyVisibility(); // bez „cienkiej linii” pod oknami na ekranie
-    const fakeWeather = () => { weather = { temp: 4, code: 3, day: true, text: 'Pochmurno', max: 7, min: 1, place: 'Warszawa' }; weatherAt = Date.now(); send('weather', weather); }; // nie prawdziwe miasto
+    const fakeWeather = () => { weather = { temp: 4, code: 3, day: true, text: L('Pochmurno', 'Cloudy'), max: 7, min: 1, place: 'Warszawa' }; weatherAt = Date.now(); send('weather', weather); }; // nie prawdziwe miasto
     fakeWeather(); setTimeout(fakeWeather, 3000);
     calendar = [{ title: 'Spotkanie z klientem', start: Date.now() + 2 * 3600e3, end: Date.now() + 3 * 3600e3, allDay: false, location: '' }]; send('calendar', calendar);
     await wait(5000); await shot('mac-1-spoczynek');

@@ -21,6 +21,7 @@ public static class WyspaWin {
   }
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowLongW(IntPtr h, int i);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr h, uint f);
   [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
@@ -68,8 +69,9 @@ public static class WyspaWin {
     GetClassName(h, sb, 256);
     string c = sb.ToString();
     if (c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd") return false;
-    // zmaksymalizowane okno to nie pełny ekran (gdy pasek Windows jest schowany, też zajmuje cały monitor)
-    if (IsZoomed(h)) return false;
+    // zwykłe zmaksymalizowane okno (z paskiem tytułu) to nie pełny ekran — gdy pasek Windows jest schowany, też zajmuje
+    // cały monitor. Gry „pełny ekran bez ramki” bywają zmaksymalizowane, ale nie mają paska tytułu — to pełny ekran.
+    if (IsZoomed(h) && (GetWindowLongW(h, -16) & 0x00C00000) == 0x00C00000) return false;
     RECT r;
     if (!GetWindowRect(h, out r)) return false;
     IntPtr m = MonitorFromWindow(h, 2);

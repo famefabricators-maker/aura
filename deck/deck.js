@@ -8,14 +8,14 @@ const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch {
 const ls = { get: (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} }, del: k => { try { localStorage.removeItem(k); } catch {} } };
 let creds = null; try { creds = JSON.parse(ls.get(STORE, null) || ls.get('wyspaDeck:' + token, null) || 'null'); } catch {} // dane sprzed zmiany nazwy też działają
 let ws = null, opened = false, fails = 0, retry = null;
-let hello = { name: 'Komputer', os: '', apps: [], editable: false, stats: false };
+let hello = { name: L('Komputer', 'Computer'), os: '', apps: [], editable: false, stats: false };
 
 // ---------- parowanie ----------
 function guessName() {
   const ua = navigator.userAgent;
   if (/iPhone/.test(ua)) return 'iPhone'; if (/iPad/.test(ua)) return 'iPad';
   const m = ua.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/); if (m && !/^K$/.test(m[1])) return m[1].trim();
-  return /Android/.test(ua) ? 'Telefon z Androidem' : 'Telefon';
+  return /Android/.test(ua) ? L('Telefon z Androidem', 'Android phone') : L('Telefon', 'Phone');
 }
 $('#devName').value = guessName();
 let pairId = null, pairTimer = null;
@@ -24,10 +24,10 @@ $('#pairBtn').onclick = async () => {
   try {
     const r = await fetch(base + 'pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('#devName').value.trim() }) });
     const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Nie udało się.');
+    if (!r.ok) throw new Error(j.error || L('Nie udało się.', 'Something went wrong.'));
     pairId = j.id; $('#pairCode').textContent = j.code; $('#pair').classList.add('waiting');
     poll();
-  } catch (e) { $('#pairMsg').textContent = e.message || 'Brak połączenia z komputerem. Czy jesteś w tej samej sieci Wi-Fi?'; }
+  } catch (e) { $('#pairMsg').textContent = e.message || L('Brak połączenia z komputerem. Czy jesteś w tej samej sieci Wi-Fi?', 'Can’t reach the computer. Are you on the same Wi-Fi network?'); }
 };
 $('#pairCancel').onclick = () => { clearTimeout(pairTimer); pairId = null; $('#pair').classList.remove('waiting'); };
 async function poll() {
@@ -35,8 +35,8 @@ async function poll() {
   try {
     const j = await (await fetch(base + 'pair/' + pairId, { cache: 'no-store' })).json();
     if (j.status === 'approved') { creds = { id: j.id, key: j.key }; ls.set(STORE, JSON.stringify(creds)); buzz(20); showMain(); return; }
-    if (j.status === 'denied') { $('#pair').classList.remove('waiting'); $('#pairMsg').textContent = 'Komputer odrzucił połączenie.'; return; }
-    if (j.status === 'expired') { $('#pair').classList.remove('waiting'); $('#pairMsg').textContent = 'Prośba wygasła. Spróbuj jeszcze raz.'; return; }
+    if (j.status === 'denied') { $('#pair').classList.remove('waiting'); $('#pairMsg').textContent = L('Komputer odrzucił połączenie.', 'The computer rejected the connection.'); return; }
+    if (j.status === 'expired') { $('#pair').classList.remove('waiting'); $('#pairMsg').textContent = L('Prośba wygasła. Spróbuj jeszcze raz.', 'The request expired. Try again.'); return; }
   } catch {}
   pairTimer = setTimeout(poll, 1200);
 }
@@ -58,21 +58,21 @@ function connect() {
   ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } onMsg(m); };
   ws.onclose = e => {
     setConn(false);
-    if (e.code === 4001) return showPair('Ten telefon został usunięty na komputerze. Połącz go ponownie.');
-    if (e.code === 4000) { $('#conn').textContent = 'otwarte na innej karcie'; return; }
-    if (!opened && ++fails >= 3) return showPair('Komputer nie rozpoznaje już tego telefonu. Połącz go ponownie.');
+    if (e.code === 4001) return showPair(L('Ten telefon został usunięty na komputerze. Połącz go ponownie.', 'This phone was removed on the computer. Pair it again.'));
+    if (e.code === 4000) { $('#conn').textContent = L('otwarte na innej karcie', 'open in another tab'); return; }
+    if (!opened && ++fails >= 3) return showPair(L('Komputer nie rozpoznaje już tego telefonu. Połącz go ponownie.', 'The computer no longer recognises this phone. Pair it again.'));
     retry = setTimeout(connect, Math.min(8000, 800 * (fails + 1)));
   };
 }
-function setConn(on) { $('#dot').classList.toggle('on', on); $('#conn').textContent = on ? 'połączono' : 'łączę…'; }
-const send = m => { if (ws && ws.readyState === 1) { ws.send(JSON.stringify(m)); return true; } toast('Brak połączenia z komputerem', true); return false; };
+function setConn(on) { $('#dot').classList.toggle('on', on); $('#conn').textContent = on ? L('połączono', 'connected') : L('łączę…', 'connecting…'); }
+const send = m => { if (ws && ws.readyState === 1) { ws.send(JSON.stringify(m)); return true; } toast(L('Brak połączenia z komputerem', 'No connection to the computer'), true); return false; };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && creds && (!ws || ws.readyState > 1)) connect(); syncStats(); });
 
 function onMsg(m) {
   switch (m.t) {
     case 'hello':
       hello = { ...hello, ...m };
-      $('#pcName').textContent = $('#pcName2').textContent = m.name || 'Komputer';
+      $('#pcName').textContent = $('#pcName2').textContent = m.name || L('Komputer', 'Computer');
       $('#pcOs').textContent = m.os || '';
       $('#editBtn').style.display = m.editable ? '' : 'none';
       renderSlots(m.apps || []);
@@ -125,8 +125,8 @@ document.addEventListener('click', e => {
 // ---------- Teraz ----------
 function renderMedia(m) {
   const has = !!(m && m.title);
-  $('#nowTitle').textContent = has ? m.title : 'Nic nie gra';
-  $('#nowArtist').textContent = has ? (m.artist || '') : 'Włącz muzykę na komputerze';
+  $('#nowTitle').textContent = has ? m.title : L('Nic nie gra', 'Nothing playing');
+  $('#nowArtist').textContent = has ? (m.artist || '') : L('Włącz muzykę na komputerze', 'Play some music on the computer');
   $('#playBtn').classList.toggle('playing', !!(m && m.playing));
   const img = $('#artImg');
   if (m && m.art && /^data:image\//.test(m.art)) { img.src = m.art; $('#art').classList.add('has'); }
@@ -219,23 +219,23 @@ function renderSlots(apps) {
     if (a) {
       if (a.icon && /^data:image\//.test(a.icon)) { const img = document.createElement('img'); img.src = a.icon; img.alt = ''; b.append(img); }
       else { const l = document.createElement('div'); l.className = 'ltr'; l.textContent = letter(a.name); b.append(l); }
-      const s = document.createElement('span'); s.textContent = a.name || 'Aplikacja'; b.append(s);
+      const s = document.createElement('span'); s.textContent = a.name || L('Aplikacja', 'App'); b.append(s);
     } else {
       b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
-      const s = document.createElement('span'); s.textContent = editing ? 'Dodaj' : 'Puste'; b.append(s);
+      const s = document.createElement('span'); s.textContent = editing ? L('Dodaj', 'Add') : L('Puste', 'Empty'); b.append(s);
     }
     b.onclick = () => {
       buzz(10);
       if (editing) return openAppSheet(i);
       if (a) { send({ t: 'launch', i }); toast(`Uruchamiam: ${a.name || 'aplikacja'}`); }
-      else if (hello.editable) toast('Stuknij „Edytuj”, aby dodać aplikację');
+      else if (hello.editable) toast(L('Stuknij „Edytuj”, aby dodać aplikację', 'Tap “Edit” to add an app'));
     };
     box.append(b);
   });
 }
 $('#editBtn').onclick = () => {
   editing = !editing;
-  $('#editBtn').classList.toggle('on', editing); $('#editBtn').textContent = editing ? 'Gotowe' : 'Edytuj';
+  $('#editBtn').classList.toggle('on', editing); $('#editBtn').textContent = editing ? L('Gotowe', 'Done') : L('Edytuj', 'Edit');
   $('#slots').classList.toggle('edit', editing); $('#editNote').classList.toggle('on', editing);
   renderSlots(hello.apps || []);
 };
@@ -245,7 +245,7 @@ function openAppSheet(i) {
   $('#slotClear').style.display = (hello.apps || [])[i] ? '' : 'none';
   $('#appSearch').value = '';
   openSheet('#appSheet');
-  if (appCache) drawAppList(); else { $('#appList').innerHTML = '<p class="note">Wczytuję aplikacje z komputera…</p>'; send({ t: 'applist' }); }
+  if (appCache) drawAppList(); else { $('#appList').innerHTML = L('<p class="note">Wczytuję aplikacje z komputera…</p>', '<p class="note">Loading apps from the computer…</p>'); send({ t: 'applist' }); }
 }
 function renderAppList(m) {
   if (m.error) { $('#appList').innerHTML = ''; const p = document.createElement('p'); p.className = 'note'; p.textContent = m.error; $('#appList').append(p); return; }
@@ -255,7 +255,7 @@ function drawAppList() {
   const q = $('#appSearch').value.trim().toLowerCase();
   const box = $('#appList'); box.innerHTML = '';
   const items = appCache.filter(a => !q || a.name.toLowerCase().includes(q)).slice(0, 120);
-  if (!items.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = q ? 'Nic nie pasuje.' : 'Nie znaleziono aplikacji w menu Start.'; box.append(p); return; }
+  if (!items.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = q ? L('Nic nie pasuje.', 'Nothing matches.') : L('Nie znaleziono aplikacji w menu Start.', 'No apps found in the Start menu.'); box.append(p); return; }
   for (const a of items) {
     const b = document.createElement('button');
     const l = document.createElement('span'); l.className = 'ltr'; l.textContent = letter(a.name);
@@ -309,9 +309,9 @@ function renderStats(m) {
 
 // ---------- Komputer: zasilanie ----------
 const CONFIRM = {
-  sleep: ['Uśpić komputer?', 'Komputer przejdzie w stan uśpienia. Obudzisz go klawiaturą albo myszą.', 'Uśpij', false],
-  restart: ['Uruchomić ponownie?', 'Komputer uruchomi się ponownie za 30 sekund. Do tego czasu możesz to anulować tutaj, a na komputerze pojawi się komunikat.', 'Uruchom ponownie', true],
-  shutdown: ['Wyłączyć komputer?', 'Komputer wyłączy się za 30 sekund. Do tego czasu możesz to anulować tutaj. Niezapisana praca może przepaść.', 'Wyłącz', true],
+  sleep: [L('Uśpić komputer?', 'Put the computer to sleep?'), L('Komputer przejdzie w stan uśpienia. Obudzisz go klawiaturą albo myszą.', 'The computer will go to sleep. Wake it with the keyboard or mouse.'), L('Uśpij', 'Sleep'), false],
+  restart: [L('Uruchomić ponownie?', 'Restart?'), L('Komputer uruchomi się ponownie za 30 sekund. Do tego czasu możesz to anulować tutaj, a na komputerze pojawi się komunikat.', 'The computer will restart in 30 seconds. Until then you can cancel it here, and a message will appear on the computer.'), L('Uruchom ponownie', 'Restart'), true],
+  shutdown: [L('Wyłączyć komputer?', 'Shut down the computer?'), L('Komputer wyłączy się za 30 sekund. Do tego czasu możesz to anulować tutaj. Niezapisana praca może przepaść.', 'The computer will shut down in 30 seconds. Until then you can cancel it here. Unsaved work may be lost.'), L('Wyłącz', 'Shut down'), true],
 };
 let confirmAct = null;
 $$('[data-power]').forEach(b => b.onclick = () => {
@@ -332,7 +332,7 @@ function renderPower(p) {
   clearInterval(powerTick);
   const bar = $('#powerBar');
   if (!p) { bar.classList.remove('on'); return; }
-  const label = p.kind === 'restart' ? 'Restart' : 'Wyłączenie';
+  const label = p.kind === 'restart' ? 'Restart' : L('Wyłączenie', 'Shut down');
   const until = Date.now() + (Number.isFinite(p.left) ? p.left : 30) * 1000; // zegar telefonu może się różnić od komputera
   const tickFn = () => {
     const s = Math.max(0, Math.ceil((until - Date.now()) / 1000));

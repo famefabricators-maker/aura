@@ -18,10 +18,10 @@ $('.wgrid').addEventListener('contextmenu', e => {
 let todos = [];
 function renderTodos() {
   const box = $('#tdList'); box.textContent = '';
-  if (!todos.length) { box.append(txt('small', 'tm-empty', 'Brak zadań')); return; }
+  if (!todos.length) { box.append(txt('small', 'tm-empty', L('Brak zadań', 'No tasks'))); return; }
   todos.forEach((t, i) => {
     const r = el('div', 'td-item' + (t.d ? ' done' : '')); r.append(el('i'), txt('span', '', t.t));
-    const x = el('button', '', I.svg('x')); x.title = 'Usuń'; x.onclick = e => { e.stopPropagation(); todos.splice(i, 1); saveTodos(); };
+    const x = el('button', '', I.svg('x')); x.title = L('Usuń', 'Remove'); x.onclick = e => { e.stopPropagation(); todos.splice(i, 1); saveTodos(); };
     r.append(x); r.onclick = () => { t.d = !t.d; saveTodos(); }; box.append(r);
   });
 }
@@ -49,10 +49,10 @@ for (const m of [1, 5, 10, 25]) {
 }
 function renderTimers() {
   const box = $('#tmList'); box.textContent = '';
-  if (!timers.length) { box.append(txt('small', 'tm-empty', 'Dodaj minutnik')); return; }
+  if (!timers.length) { box.append(txt('small', 'tm-empty', L('Dodaj minutnik', 'Add a timer'))); return; }
   timers.sort((a, b) => a.end - b.end).forEach((t, i) => {
     const r = el('div', 'tm-item'); r.append(txt('b', '', fmt(Math.ceil((t.end - Date.now()) / 1000))), txt('small', '', `${t.m} min`));
-    const x = el('button', '', I.svg('x')); x.title = 'Usuń'; x.onclick = () => { timers.splice(i, 1); renderTimers(); };
+    const x = el('button', '', I.svg('x')); x.title = L('Usuń', 'Remove'); x.onclick = () => { timers.splice(i, 1); renderTimers(); };
     r.append(x); box.append(r);
   });
 }
@@ -60,7 +60,7 @@ setInterval(() => {
   if (!timers.length) return;
   for (let i = timers.length - 1; i >= 0; i--) if (timers[i].end <= Date.now()) {
     const t = timers.splice(i, 1)[0];
-    showAlert({ icon: 'clock', title: 'Minutnik', body: `Minęło ${t.m} min`, actions: [{ label: 'OK', accent: true, fn: () => closeAlert() }] });
+    showAlert({ icon: 'clock', title: L('Minutnik', 'Timer'), body: L(`Minęło ${t.m} min`, `${t.m} min passed`), actions: [{ label: 'OK', accent: true, fn: () => closeAlert() }] });
   }
   if (st.open && st.tab === 'widgets') renderTimers();
 }, 1000);
@@ -70,8 +70,8 @@ renderTimers();
 function renderForecast() {
   const box = $('#wForecast'); box.textContent = '';
   const w = st.weather;
-  if (!w || w.error || !Array.isArray(w.hours) || !w.hours.length) { box.append(txt('small', '', w && w.error ? 'Pogoda niedostępna' : 'Pobieram prognozę…')); return; }
-  box.append(txt('small', '', `Najbliższe godziny${w.place ? ' · ' + w.place : ''}`));
+  if (!w || w.error || !Array.isArray(w.hours) || !w.hours.length) { box.append(txt('small', '', w && w.error ? L('Pogoda niedostępna', 'Weather unavailable') : L('Pobieram prognozę…', 'Getting the forecast…'))); return; }
+  box.append(txt('small', '', L(`Najbliższe godziny${w.place ? ' · ' + w.place : ''}`, `Next hours${w.place ? ' · ' + w.place : ''}`)));
   const row = el('div', 'fc-row');
   for (const h of w.hours.slice(0, 6)) {
     const c = el('div', 'fc-h'); c.append(txt('small', '', h.h), el('span', 'ico', I.svg(WICON(h.code))), txt('b', '', `${h.temp}°`)); row.append(c);
@@ -86,13 +86,13 @@ function resetText(iso) {
   if (!iso) return '';
   const d = new Date(iso); if (isNaN(d)) return '';
   const today = d.toDateString() === new Date().toDateString();
-  return 'reset ' + (today ? '' : d.toLocaleDateString('pl-PL', { weekday: 'short' }) + ' ') + d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  return 'reset ' + (today ? '' : d.toLocaleDateString(LOC, { weekday: 'short' }) + ' ') + d.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' });
 }
 W.on('ai-usage', u => {
   const box = $('#aUsage'); box.textContent = '';
   if (!u) return;
   if (u.error) { box.append(txt('span', 'err', `Limity Claude: ${u.error}`)); return; }
-  for (const [label, x] of [['5 godzin', u.five], ['Tydzień', u.week]]) {
+  for (const [label, x] of [['5 godzin', u.five], [L('Tydzień', 'Week'), u.week]]) {
     if (!x) continue;
     const c = el('div', 'u'); const head = el('div'); head.append(txt('b', '', `${label}: ${x.pct}%`), document.createTextNode(x.reset ? ` · ${resetText(x.reset)}` : ''));
     const bar = el('div', 'bar'); const fill = el('i', x.pct >= 80 ? 'hi' : ''); fill.style.width = Math.min(100, x.pct) + '%'; bar.append(fill);

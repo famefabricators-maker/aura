@@ -26,13 +26,13 @@ const lyricsPanel = () => {
 };
 const cardW = () => (st.tab === 'music' && lyricsPanel() ? 722 : 420);
 const TABS = [
-  { id: 'music', icon: 'music', name: 'Muzyka' }, { id: 'web', icon: 'globe', name: 'Web', key: 'tabWeb' },
-  { id: 'notices', icon: 'bell', name: 'Powiadomienia', key: 'tabNotices' },
-  { id: 'agents', icon: 'agent', name: 'Agenci AI', key: 'tabAgents' }, { id: 'shelf', icon: 'shelf', name: 'Półka', key: 'tabShelf' },
-  { id: 'clips', icon: 'clip', name: 'Schowek', key: 'tabClips' }, { id: 'widgets', icon: 'widgets', name: 'Widżety', key: 'tabWidgets' },
-  { id: 'controls', icon: 'controls', name: 'Sterowanie', key: 'tabControls' }, { id: 'launcher', icon: 'launcher', name: 'Launcher', key: 'tabLauncher' },
-  { id: 'deck', icon: 'phone', name: 'Telefon (PC Deck)', key: 'tabDeck' },
-  { id: 'call', icon: 'call', name: 'Rozmowa', key: 'tabCall' },
+  { id: 'music', icon: 'music', name: L('Muzyka', 'Music') }, { id: 'web', icon: 'globe', name: 'Web', key: 'tabWeb' },
+  { id: 'notices', icon: 'bell', name: L('Powiadomienia', 'Notifications'), key: 'tabNotices' },
+  { id: 'agents', icon: 'agent', name: L('Agenci AI', 'AI agents'), key: 'tabAgents' }, { id: 'shelf', icon: 'shelf', name: L('Półka', 'Shelf'), key: 'tabShelf' },
+  { id: 'clips', icon: 'clip', name: L('Schowek', 'Clipboard'), key: 'tabClips' }, { id: 'widgets', icon: 'widgets', name: L('Widżety', 'Widgets'), key: 'tabWidgets' },
+  { id: 'controls', icon: 'controls', name: L('Sterowanie', 'Controls'), key: 'tabControls' }, { id: 'launcher', icon: 'launcher', name: 'Launcher', key: 'tabLauncher' },
+  { id: 'deck', icon: 'phone', name: L('Telefon (PC Deck)', 'Phone (PC Deck)'), key: 'tabDeck' },
+  { id: 'call', icon: 'call', name: L('Rozmowa', 'Call'), key: 'tabCall' },
   { id: 'airdrop', icon: 'airdrop', name: 'AirDrop', key: 'tabAirdrop', mac: true }, // tylko macOS
 ];
 
@@ -340,13 +340,13 @@ function renderPill() {
   }
   else if (st.focus.running || (st.focus.total && st.focus.left > 0)) time.textContent = fmt(st.focus.left);
   else if (callActive()) { time.textContent = fmt((Date.now() - callSince()) / 1000); time.classList.add('call'); }
-  else if (agentWorking() && !play) { const a = st.agents.find(x => x.state === 'needs') || st.agents[0]; text.textContent = a.state === 'needs' ? 'Czeka na Ciebie' : 'Pracuje…'; }
+  else if (agentWorking() && !play) { const a = st.agents.find(x => x.state === 'needs') || st.agents[0]; text.textContent = a.state === 'needs' ? L('Czeka na Ciebie', 'Waiting for you') : L('Pracuje…', 'Working…'); }
   if (!hasLive() && st.S.idleShows !== 'none') {
     const d = new Date();
-    if (st.S.idleShows === 'clock') text.textContent = d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', hour12: st.S.timeFormat === '12' });
-    if (st.S.idleShows === 'date') text.textContent = d.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' });
+    if (st.S.idleShows === 'clock') text.textContent = d.toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit', hour12: st.S.timeFormat === '12' });
+    if (st.S.idleShows === 'date') text.textContent = d.toLocaleDateString(LOC, { weekday: 'short', day: 'numeric', month: 'short' });
     if (st.S.idleShows === 'weather' && st.weather && !st.weather.error) text.textContent = `${st.weather.temp}° ${st.weather.text}`;
-    if (st.S.idleShows === 'event') { const e = (st.calendar || []).find(x => x.end > Date.now()); text.textContent = e ? `${e.start > Date.now() ? new Date(e.start).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : 'teraz'} ${e.title}` : 'Brak wydarzeń'; }
+    if (st.S.idleShows === 'event') { const e = (st.calendar || []).find(x => x.end > Date.now()); text.textContent = e ? L(`${e.start > Date.now() ? new Date(e.start).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) : 'teraz'} ${e.title}`, `${e.start > Date.now() ? new Date(e.start).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) : 'now'} ${e.title}`) : L('Brak wydarzeń', 'No events'); }
   }
   $('#pet').classList.toggle('on', !hasLive() && st.S.idleShows === 'pet');
   $('#viz').classList.toggle('on', play);
@@ -574,10 +574,10 @@ function showHud(h) {
       st.keys = { caps: h.caps, num: h.num };
       break;
     }
-    case 'mic': icon.innerHTML = I.svg(h.mute ? 'micOff' : 'mic'); text.textContent = h.mute ? 'Mikrofon wyciszony' : 'Mikrofon włączony'; dot.className = 'hdot ' + (h.mute ? 'off' : 'on'); break;
+    case 'mic': icon.innerHTML = I.svg(h.mute ? 'micOff' : 'mic'); text.textContent = h.mute ? L('Mikrofon wyciszony', 'Microphone muted') : L('Mikrofon włączony', 'Microphone on'); dot.className = 'hdot ' + (h.mute ? 'off' : 'on'); break;
     case 'device': icon.innerHTML = I.svg('headphones'); text.textContent = h.text; break;
-    case 'devbat': icon.innerHTML = I.svg('plug'); text.textContent = `${String(h.name).replace(/^SteelSeries /, '')}: ładowanie · ${h.level}%`; dot.className = 'hdot on'; break;
-    case 'battery': icon.innerHTML = I.svg(h.plugged ? 'plug' : 'battery'); text.textContent = h.plugged ? 'Ładowanie' : 'Na baterii'; if (navigator.getBattery) navigator.getBattery().then(b => { text.textContent += ` · ${Math.round(b.level * 100)}%`; }); break;
+    case 'devbat': icon.innerHTML = I.svg('plug'); text.textContent = L(`${String(h.name).replace(/^SteelSeries /, '')}: ładowanie · ${h.level}%`, `${String(h.name).replace(/^SteelSeries /, '')}: charging · ${h.level}%`); dot.className = 'hdot on'; break;
+    case 'battery': icon.innerHTML = I.svg(h.plugged ? 'plug' : 'battery'); text.textContent = h.plugged ? L('Ładowanie', 'Charging') : 'Na baterii'; if (navigator.getBattery) navigator.getBattery().then(b => { text.textContent += ` · ${Math.round(b.level * 100)}%`; }); break;
     case 'color': icon.innerHTML = I.svg('color'); text.textContent = `${h.hex} skopiowany`; dot.className = 'hdot swatch'; dot.style.background = h.hex; break;
   }
   clearTimeout(hudTimer);
@@ -665,7 +665,7 @@ $('#gear').onclick = () => W.send('open-settings');
 // prośba agenta o zgodę: Zezwól / Odmów / W terminalu (bez odpowiedzi po ~28 s wraca do terminala)
 let askId = null;
 W.on('agent-ask', a => { askId = a.id; const ans = d => () => { W.send('agent-answer', { id: a.id, decision: d }); askId = null; closeAlert(); };
-  showAlert({ icon: 'agent', title: a.title, body: a.body, actions: [{ label: 'Odmów', fn: ans('deny') }, { label: 'Zawsze', fn: ans('always') }, { label: 'Zezwól', accent: true, fn: ans('allow') }] }); });
+  showAlert({ icon: 'agent', title: a.title, body: a.body, actions: [{ label: L('Odmów', 'Deny'), fn: ans('deny') }, { label: L('Zawsze', 'Always'), fn: ans('always') }, { label: L('Zezwól', 'Allow'), accent: true, fn: ans('allow') }] }); });
 W.on('agent-ask-done', id => { if (id === askId) { askId = null; closeAlert(); } });
 W.on('download', d => { st.download = d || null; update(); });
 W.on('goto-tab', n => { const t = enabledTabs()[Number(n) - 1]; if (t) { st.open = true; setTab(t.id); update(); } });

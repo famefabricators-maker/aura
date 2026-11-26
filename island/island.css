@@ -169,7 +169,7 @@ section.on { opacity: 1; pointer-events: auto; transition: opacity .2s ease .05s
 #music:hover .m-pal { display: grid; }
 /* przełącznik tekstu piosenki: zawsze widoczny, przygaszony; akcent, gdy włączony */
 .m-lyr { position: absolute; top: -2px; right: 18px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--dim); opacity: .55; }
-.m-lyr .i { width: 13px; height: 13px; }
+.m-lyr .i { width: 15px; height: 15px; }
 .m-lyr:hover { opacity: 1; background: var(--row); }
 .m-lyr.on { color: var(--accent); opacity: 1; }
 .m-lyric:empty { display: none; }

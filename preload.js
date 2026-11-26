@@ -22,4 +22,5 @@ contextBridge.exposeInMainWorld('wyspa', {
   on: (ch, fn) => { if (ON.includes(ch)) ipcRenderer.on(ch, (_, d) => fn(d)); },
   pathsFor: files => Array.from(files).map(f => webUtils.getPathForFile(f)).filter(Boolean),
   platform: process.platform,
+  lang: ipcRenderer.sendSync('aura-lang') === 'en' ? 'en' : 'pl', // język wybrany przy starcie Aury
 });
