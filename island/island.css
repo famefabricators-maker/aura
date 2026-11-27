@@ -391,6 +391,10 @@ body.notch .ngap { display: block; flex: 0 0 var(--gap); }
 body.notch .pill { padding: 0 10px; gap: 0; }
 body.notch .pill .p-left, body.notch .pill .p-right { flex: 1; display: flex; justify-content: center; }
 body.notch .pill .p-mid { flex: 0 0 var(--gap); visibility: hidden; }
+/* spoczynek przy notchu: zwierzak chodzi po lewym skrzydełku, tekst (godzina, pogoda…) w prawym */
+body.notch .pill .p-left { position: relative; height: 100%; align-items: center; }
+body.notch .pill .p-right { min-width: 0; overflow: hidden; }
+body.notch .pill .p-right #pText { max-width: 100%; font-size: 12px; }
 body.notch .pill.idle > * { visibility: hidden; }
 body.notch .hud { padding: 0 12px; gap: 0; }
 body.notch .hud > .ico { flex: 1; display: grid; place-items: center; }

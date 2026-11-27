@@ -93,10 +93,17 @@ function notchTarget(mode) {
     case 'alert': return { w: Math.max(384 * s, nw + 100), h: nh + 104 * s, r: 22 * s, ear: 8, z: s };
     case 'banner': return { w: Math.max(384 * s, nw + 100), h: nh + 64 * s, r: 20 * s, ear: 8, z: s };
     case 'hud': return { w: nw + 2 * 92 * s, h: nh, r: 12, ear: 6, z: s };   // ikona po lewej, pasek po prawej
-    default: return { w: hasLive() ? nw + 2 * 78 * s : nw, h: nh, r: 12, ear: 6, z: s }; // w spoczynku = sam notch (niewidoczna)
+    // w spoczynku = sam notch (niewidoczna); gdy wybrano, co pokazywać w spoczynku (zwierzak, godzina…) — skrzydełka po bokach
+    default: { const iw = notchIdleWing(); return { w: hasLive() ? nw + 2 * 78 * s : iw ? nw + 2 * iw * s : nw, h: nh, r: 12, ear: 6, z: s }; }
   }
 }
 
+// szerokość skrzydełka przy notchu dla treści spoczynku (zwierzak po lewej, tekst po prawej — pod notchem byłyby niewidoczne)
+function notchIdleWing() {
+  if (hasLive()) return 0;
+  if (st.S.idleShows === 'weather' && (!st.weather || st.weather.error)) return 0; // pogody jeszcze nie ma: bez pustych skrzydełek
+  return { pet: 70, clock: 64, date: 92, weather: 100, event: 124 }[st.S.idleShows || 'none'] || 0;
+}
 function targetFor(mode) {
   if (hasNotch()) return notchTarget(mode);
   const s = st.S.size / 100, o = st.S.openSize / 100, r = rnd();
@@ -283,7 +290,7 @@ function update() {
     document.body.style.setProperty('--gap', (st.screen.notch.w / s) + 'px');
     document.body.style.setProperty('--nh-s', (nh / s) + 'px');
     document.body.style.setProperty('--nh-o', (nh / oz) + 'px');
-    $('#pill').classList.toggle('idle', !hasLive());
+    $('#pill').classList.toggle('idle', !hasLive() && !notchIdleWing()); // treść spoczynku (zwierzak, godzina) widać w skrzydełkach
   }
   renderPill();
   sendRects();
@@ -351,6 +358,16 @@ function renderPill() {
     if (st.S.idleShows === 'event') { const e = (st.calendar || []).find(x => x.end > Date.now()); text.textContent = e ? L(`${e.start > Date.now() ? new Date(e.start).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) : 'teraz'} ${e.title}`, `${e.start > Date.now() ? new Date(e.start).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit' }) : 'now'} ${e.title}`) : L('Brak wydarzeń', 'No events'); }
   }
   $('#pet').classList.toggle('on', !hasLive() && st.S.idleShows === 'pet');
+  // Mac z notchem: środek pigułki jest pod wycięciem — w spoczynku zwierzak idzie do lewego skrzydełka, tekst do prawego
+  // (z ikoną po lewej); poza spoczynkiem wszystko wraca na środek
+  const nIdle = hasNotch() && !!notchIdleWing(), mid = $('#pill .p-mid');
+  const petHome = nIdle && st.S.idleShows === 'pet' ? $('#pill .p-left') : mid, txtHome = nIdle ? $('#pill .p-right') : mid;
+  if ($('#pet').parentElement !== petHome) petHome.append($('#pet'));
+  if (text.parentElement !== txtHome) txtHome.prepend(text);
+  if (nIdle && st.S.idleShows !== 'pet') {
+    const w = st.weather, wIco = w && !w.error ? (w.code >= 95 ? 'storm' : w.code >= 71 && w.code <= 86 ? 'snow' : w.code >= 51 ? 'rain' : w.code >= 45 ? 'fog' : w.code >= 2 ? 'cloud' : w.day === false ? 'moon' : 'sunny') : 'cloud';
+    icon.innerHTML = I.svg({ clock: 'clock', date: 'calendar', event: 'calendar', weather: wIco }[st.S.idleShows] || 'clock');
+  }
   $('#viz').classList.toggle('on', play);
   const dot = $('#pDot');
   const ignore = st.S.privacyIgnore || [];
