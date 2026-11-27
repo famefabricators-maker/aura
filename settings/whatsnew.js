@@ -36,6 +36,7 @@ window.WhatsNew = (() => {
     const nav = document.createElement('div'); nav.className = 'wl-nav'; nav.append(ok);
     foot.append(all_, document.createElement('span'), nav);
     root.append(card, foot); document.body.append(root);
+    if (from) W.send('whatsnew-seen'); // po aktualizacji: pokazane — Aura zapamięta wersję
     document.addEventListener('keydown', onKey, true);
     ok.focus();
   }

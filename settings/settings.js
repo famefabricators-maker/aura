@@ -481,7 +481,12 @@ $('#search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('#se
 $('#author').onclick = () => W.send('open-author');
 W.on('settings', s => { S = s; applyTheme(); if (!document.activeElement || document.activeElement.type !== 'range') render(); });
 W.on('hotkey-errors', e => { hkErrors = e || []; if (page === 'keys') render(); });
-W.on('goto', p => { if (p === 'welcome') { if (window.Welcome) Welcome.open(); return; } if (/^whatsnew/.test(p)) { WhatsNew.open(p.split(':')[1]); return; } page = p; query = ''; render(); });
+// welcome.js i whatsnew.js wczytują się po tym pliku, a odpowiedzi z procesu głównego potrafią przyjść wcześniej —
+// wtedy „Co nowego” po aktualizacji (i wprowadzenie) po cichu się nie otwierały. Otwieramy je dopiero po wczytaniu strony.
+const whenLoaded = fn => (document.readyState === 'complete' ? setTimeout(fn, 0) : addEventListener('load', () => setTimeout(fn, 0), { once: true }));
+const openWelcome = () => whenLoaded(() => window.Welcome && Welcome.open());
+const openWhatsNew = from => whenLoaded(() => window.WhatsNew && WhatsNew.open(from));
+W.on('goto', p => { if (p === 'welcome') { openWelcome(); return; } if (/^whatsnew/.test(p)) { openWhatsNew(p.split(':')[1]); return; } page = p; query = ''; render(); });
 W.on('obs', () => { if (page === 'streaming') render(); });
 let updateView = null;
 W.on('update-state', s => { if (updateView && page === 'about') updateView(s); });
@@ -492,7 +497,7 @@ W.on('wallpaper', s => { if (page === 'wallpaper' && s && s.error) { const m = $
   claude = await W.invoke('claude-status');
   codex = await W.invoke('codex-status').catch(() => 'missing');
   W.invoke('update-state').then(s => { $('#ver').textContent = 'v' + ((s && s.current) || ''); });
-  if (page === 'welcome') { page = 'look'; setTimeout(() => window.Welcome && Welcome.open(), 0); }
-  if (/^whatsnew/.test(page)) { const from = page.split(':')[1]; page = 'about'; setTimeout(() => WhatsNew.open(from), 0); } // po aktualizacji
+  if (page === 'welcome') { page = 'look'; openWelcome(); }
+  if (/^whatsnew/.test(page)) { const from = page.split(':')[1]; page = 'about'; openWhatsNew(from); } // po aktualizacji
   applyTheme(); render();
 })();

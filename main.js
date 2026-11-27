@@ -272,6 +272,7 @@ function applySettings(patch) {
 ipcMain.handle('settings-get', () => S());
 ipcMain.handle('settings-set', (_, patch) => { applySettings(patch || {}); return S(); });
 ipcMain.on('open-settings', (_, page) => openSettings(page));
+ipcMain.on('whatsnew-seen', () => { if (store.data.lastVersion !== app.getVersion()) { store.data.lastVersion = app.getVersion(); store.saveData(); } });
 ipcMain.on('welcome-done', () => { if (!store.data.welcomeDone) { store.data.welcomeDone = true; store.saveData(); if (IS_MAC) setTimeout(configureMacKeys, 800); } });
 
 // macOS: Aura działa w tle (bez ikony w Docku), a okno takiej aplikacji otwiera się POD oknem aktywnego programu —
@@ -283,7 +284,12 @@ function bringFront(win, strong) {
     try { app.focus({ steal: true }); } catch {}
     win.moveTop(); win.focus();
     if (strong) { win.setAlwaysOnTop(true, 'floating'); setTimeout(() => { if (!win.isDestroyed()) win.setAlwaysOnTop(false); }, 2500); }
-  } else win.focus();
+  } else {
+    win.focus();
+    // Windows nie pozwala świeżo uruchomionej aplikacji (np. zaraz po aktualizacji) wyjść przed aktywne okno — bez tego
+    // „Co nowego” otwierało się pod przeglądarką i nikt go nie widział. Na chwilę „zawsze na wierzchu”.
+    if (strong) { win.setAlwaysOnTop(true); win.moveTop(); win.focus(); setTimeout(() => { if (!win.isDestroyed()) win.setAlwaysOnTop(false); }, 2500); }
+  }
 }
 function openSettings(page) {
   if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); bringFront(settingsWin, page === 'welcome' || /^whatsnew/.test(page || '')); if (page) send('goto', page, settingsWin); return; }
@@ -1683,11 +1689,12 @@ app.whenReady().then(async () => {
   {
     const cur = app.getVersion(), last = store.data.lastVersion;
     if (last !== cur && !process.env.WYSPA_SHOT) {
-      store.data.lastVersion = cur; store.saveData();
       const ver = v => String(v || '0').split('.').map(Number), gt = (a, b) => { a = ver(a); b = ver(b); for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); return false; };
-      // wcześniejsze wersje nie zapisywały numeru: znane ustawienia (po wprowadzeniu) = aktualizacja z 2.2.9
-      const from = last || (store.data.welcomeDone ? '2.2.9' : null);
+      // wcześniejsze wersje nie zapisywały numeru: istniejące ustawienia (nie pierwsza instalacja) = aktualizacja z 2.2.9
+      const from = last || (!store.fresh ? '2.2.9' : null);
+      // numer wersji zapisujemy dopiero, gdy okienko naprawdę się pokazało ('whatsnew-seen') — inaczej przy następnym starcie znowu
       if (from && gt(cur, from)) setTimeout(() => openSettings('whatsnew:' + from), 2500);
+      else { store.data.lastVersion = cur; store.saveData(); }
     }
   }
   if (IS_MAC && !store.data.macWelcomed && !process.env.WYSPA_SHOT) { store.data.macWelcomed = true; store.saveData(); openSettings(); }

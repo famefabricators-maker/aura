@@ -181,7 +181,8 @@ section.on { opacity: 1; pointer-events: auto; transition: opacity .2s ease .05s
 .m-volpct { font-size: 11px; min-width: 32px; text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
 .m-vol .ico { width: 14px; height: 14px; }
 /* drugi suwak: głośność aplikacji z muzyką (ikona aplikacji zamiast głośnika) */
-.m-row2 { display: none; margin-top: 6px; }
+.m-row2 { display: none; margin-top: 12px; }
+#music .m-prog { margin-top: 16px; } /* pasek postępu i suwaki niżej — wcześniej pod suwakami zostawał pusty pas */
 .m-row2 .m-sp { visibility: hidden; } /* niewidoczne odpowiedniki czasu — suwak stoi dokładnie pod pierwszym */
 .m-row2.on { display: flex; }
 .m-appvol .ico img { width: 14px; height: 14px; border-radius: 3px; display: block; object-fit: cover; }
