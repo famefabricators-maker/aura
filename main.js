@@ -427,6 +427,28 @@ ipcMain.on('media-app', () => {
   if (IS_MAC) { execFile('/usr/bin/open', ['-a', /music/i.test(m.app) ? 'Music' : 'Spotify'], () => {}); return; }
   helper.send({ c: 'focusapp', proc: mediaProcName(m.app), hint: m.title || '', id: m.app });
 });
+// Głośność samej aplikacji z muzyką (drugi suwak w karcie muzyki): Windows — sesje dźwięku tej aplikacji (jak Mikser
+// głośności), Mac — „sound volume” Spotify / Muzyki przez AppleScript (inne aplikacje na Macu tego nie udostępniają)
+const macVolApp = id => (/spotify/i.test(id) ? 'Spotify' : /music/i.test(id) ? 'Music' : null);
+function appVolGet() {
+  const m = sys.media; if (!m || !m.has || !m.app) return send('appvol', null);
+  if (IS_MAC) {
+    const a = macVolApp(m.app); if (!a) return send('appvol', null);
+    execFile('/usr/bin/osascript', ['-e', `tell application "${a}" to sound volume`], { timeout: 3000 }, (e, out) => {
+      const v = parseInt(out, 10); send('appvol', e || !Number.isFinite(v) ? null : { id: m.app, level: v / 100, mute: false });
+    });
+    return;
+  }
+  helper.send({ c: 'appvol', proc: mediaProcName(m.app), id: m.app });
+}
+helper.on('appvol', r => { const [lv, mu] = String(r.v || '').split('|'); send('appvol', r.v ? { id: r.id, level: Number(lv), mute: mu === '1' } : null); });
+ipcMain.on('appvol-get', appVolGet);
+ipcMain.on('app-volume', (_, level) => {
+  const m = sys.media; if (!m || !m.app) return;
+  level = Math.max(0, Math.min(1, Number(level) || 0));
+  if (IS_MAC) { const a = macVolApp(m.app); if (a) execFile('/usr/bin/osascript', ['-e', `tell application "${a}" to set sound volume to ${Math.round(level * 100)}`], { timeout: 3000 }, () => {}); return; }
+  helper.send({ c: 'appvolset', proc: mediaProcName(m.app), level });
+});
 helper.on('focusapp', r => {
   if (!r || r.ok) return;
   const name = mediaProcName(r.id || ''), exe = appExe.get(r.id);

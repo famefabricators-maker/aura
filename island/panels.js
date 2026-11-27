@@ -196,6 +196,39 @@ function renderVol() {
 mVol.addEventListener('pointerdown', () => { volDrag = true; W.send('hold', true); });
 addEventListener('pointerup', () => { if (volDrag) { volDrag = false; W.send('hold', false); } });
 mVol.oninput = () => { mVol.style.setProperty('--v', mVol.value + '%'); $('#mVolPct').textContent = mVol.value + '%'; sendVolume(mVol.value / 100); };
+// Drugi suwak: głośność samej aplikacji, z której gra muzyka (Spotify, przeglądarka…), a nie całego systemu.
+// Widać go, gdy aplikacja ma sesję dźwięku (Windows) albo to Spotify / Muzyka (Mac).
+const mApp = $('#mAppVol');
+let appVol = null, appDrag = false, appT = 0, appPending = null, appTimer = null, appVolApp = '';
+const APP_STEP = W.platform === 'darwin' ? 90 : 30; // Mac: każda zmiana to osobne polecenie AppleScript
+window.appVolShown = () => !!(appVol && st.media && st.media.has);
+function sendAppVol(v) {
+  appPending = v;
+  const now = performance.now();
+  if (now - appT >= APP_STEP) { appT = now; W.send('app-volume', v); appPending = null; }
+  else { clearTimeout(appTimer); appTimer = setTimeout(() => { if (appPending != null) { appT = performance.now(); W.send('app-volume', appPending); appPending = null; } }, APP_STEP); }
+}
+function renderAppVol() {
+  const has = window.appVolShown(), row = $('#mAppRow');
+  if (row.classList.contains('on') !== has) { row.classList.toggle('on', has); update(); } // wysokość karty
+  if (!has) return;
+  const pct = Math.round((appVol.mute ? 0 : appVol.level) * 100);
+  $('#mPosSp').textContent = $('#mPos').textContent; $('#mEndSp').textContent = $('#mEnd').textContent;
+  if (!appDrag) { mApp.value = pct; mApp.style.setProperty('--v', pct + '%'); $('#mAppPct').textContent = pct + '%'; }
+  const ic = appIcons[st.media.app], box = $('#mAppIco');
+  if (ic) { if (box.dataset.src !== ic) { box.dataset.src = ic; box.innerHTML = ''; const img = new Image(); img.src = ic; img.alt = ''; box.append(img); } }
+  else if (box.dataset.src !== 'ico') { box.dataset.src = 'ico'; box.innerHTML = I.svg('music'); }
+  $('#mAppVolBox').title = L(`Głośność: ${prettyApp(st.media.app)} (tylko ta aplikacja)`, `Volume: ${prettyApp(st.media.app)} (this app only)`);
+}
+W.on('appvol', v => { if (v && st.media && v.id && v.id !== st.media.app) return; if (appDrag) return; appVol = v; renderAppVol(); });
+mApp.addEventListener('pointerdown', () => { appDrag = true; W.send('hold', true); });
+addEventListener('pointerup', () => { if (appDrag) { appDrag = false; W.send('hold', false); setTimeout(appVolTick, 500); } });
+mApp.oninput = () => { mApp.style.setProperty('--v', mApp.value + '%'); $('#mAppPct').textContent = mApp.value + '%'; if (appVol) appVol = { ...appVol, level: mApp.value / 100, mute: false }; sendAppVol(mApp.value / 100); };
+// odczyt przy otwarciu karty muzyki, przy zmianie aplikacji i co 3 s, póki karta muzyki jest otwarta
+// (zmiany suwakiem w samej aplikacji albo w Mikserze głośności)
+function appVolTick() { if (st.open && st.tab === 'music' && st.media && st.media.has && !appDrag) W.send('appvol-get'); }
+setInterval(appVolTick, 3000);
+document.addEventListener('tab', () => setTimeout(appVolTick, 30));
 W.on('media', m => {
   // tuż po przewinięciu odtwarzacz bywa spóźniony — zostaw lokalną pozycję, żeby pasek nie skakał w tył
   if (Date.now() < seekGuard && st.media && m.title === st.media.title) { m.pos = st.media.pos; m.upd = st.media.upd; }
@@ -203,6 +236,7 @@ W.on('media', m => {
   const key = m && m.has ? `${m.title}|${m.artist}` : '';
   if (key && key !== titleKey) { titleKey = key; st.titleUntil = Date.now() + 3000; clearTimeout(titleTimer); titleTimer = setTimeout(update, 3050); } // tytuł po zmianie utworu: 3 s
   st.media = m; renderMusic(); update();
+  if (m && m.app !== appVolApp) { appVolApp = m && m.app || ''; appVol = null; renderAppVol(); appVolTick(); } // inna aplikacja gra
 });
 let titleKey = '', titleTimer = 0;
 W.on('thumb', d => { st.thumb = d || null; albumColor = null; progColor = null; if (d) extractColor(d); renderMusic(); update(); });

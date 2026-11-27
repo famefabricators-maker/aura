@@ -180,6 +180,11 @@ section.on { opacity: 1; pointer-events: auto; transition: opacity .2s ease .05s
 .m-vol { display: flex; align-items: center; gap: 6px; flex: 0 1 168px; color: var(--dim); }
 .m-volpct { font-size: 11px; min-width: 32px; text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
 .m-vol .ico { width: 14px; height: 14px; }
+/* drugi suwak: głośność aplikacji z muzyką (ikona aplikacji zamiast głośnika) */
+.m-row2 { display: none; margin-top: 6px; }
+.m-row2 .m-sp { visibility: hidden; } /* niewidoczne odpowiedniki czasu — suwak stoi dokładnie pod pierwszym */
+.m-row2.on { display: flex; }
+.m-appvol .ico img { width: 14px; height: 14px; border-radius: 3px; display: block; object-fit: cover; }
 input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; flex: 1; background: linear-gradient(to right, var(--fg) var(--v, 50%), var(--row-hi) var(--v, 50%)); outline: none; }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%; background: var(--fg); }
 .m-lyric { text-align: center; font-size: 12.5px; font-weight: 650; color: var(--accent); margin-top: 6px; min-height: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }

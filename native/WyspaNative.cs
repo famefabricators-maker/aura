@@ -266,6 +266,14 @@ interface IAudioSessionControl2 {
   int GetSessionInstanceIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id);
   int GetProcessId(out uint pid);
 }
+// Głośność jednej aplikacji (ta sama sesja audio co IAudioSessionControl2 — jak w Mikserze głośności Windows)
+[ComImport, Guid("87CE5498-68D6-44E5-9215-6DA47EF883D8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface ISimpleAudioVolume {
+  int SetMasterVolume(float level, ref Guid ctx);
+  int GetMasterVolume(out float level);
+  int SetMute(bool mute, ref Guid ctx);
+  int GetMute(out bool mute);
+}
 [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IAudioSessionEnumerator {
   int GetCount(out int n);
@@ -396,6 +404,51 @@ public static class WyspaAudio {
     } catch { }
     names.Sort();
     return string.Join("|", names.ToArray());
+  }
+  // Głośność aplikacji, z której gra muzyka: wszystkie jej sesje odtwarzania (np. przeglądarka ma ich kilka).
+  // Lista sesji pamiętana 3 s — przy przeciąganiu suwaka nie wyliczamy jej przy każdym ruchu.
+  static string sesProc = ""; static DateTime sesAt; static List<ISimpleAudioVolume> sesList = new List<ISimpleAudioVolume>();
+  static List<ISimpleAudioVolume> AppSessions(string proc) {
+    if (proc == sesProc && (DateTime.Now - sesAt).TotalSeconds < 3 && sesList.Count > 0) return sesList;
+    var list = new List<ISimpleAudioVolume>();
+    try {
+      if (en == null) en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+      IMMDeviceCollection col; en.EnumAudioEndpoints(0, 1, out col); // odtwarzanie, aktywne urządzenia
+      uint n; col.GetCount(out n);
+      Guid iid = typeof(IAudioSessionManager2).GUID;
+      for (uint i = 0; i < n; i++) {
+        try {
+          IMMDevice dev; col.Item(i, out dev);
+          object o; dev.Activate(ref iid, 23, IntPtr.Zero, out o);
+          IAudioSessionEnumerator se; ((IAudioSessionManager2)o).GetSessionEnumerator(out se);
+          int c; se.GetCount(out c);
+          for (int j = 0; j < c; j++) {
+            try {
+              IAudioSessionControl2 s; se.GetSession(j, out s);
+              uint pid; s.GetProcessId(out pid); if (pid == 0) continue;
+              string name = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+              if (string.Equals(name, proc, StringComparison.OrdinalIgnoreCase)) list.Add((ISimpleAudioVolume)s);
+            } catch { }
+          }
+        } catch { }
+      }
+    } catch { }
+    sesProc = proc; sesAt = DateTime.Now; sesList = list;
+    return list;
+  }
+  // "poziom|wyciszona" albo "" (aplikacja nie ma teraz sesji dźwięku)
+  public static string AppVolume(string proc) {
+    sesAt = DateTime.MinValue; // odczyt zawsze ze świeżej listy (np. nowa karta przeglądarki)
+    var l = AppSessions(proc); if (l.Count == 0) return "";
+    float max = 0; bool allMuted = true;
+    foreach (var s in l) { try { float v; bool m; s.GetMasterVolume(out v); s.GetMute(out m); if (v > max) max = v; if (!m) allMuted = false; } catch { } }
+    return max.ToString(System.Globalization.CultureInfo.InvariantCulture) + "|" + (allMuted ? "1" : "0");
+  }
+  public static bool SetAppVolume(string proc, float level) {
+    var l = AppSessions(proc); if (l.Count == 0) return false;
+    Guid g = Guid.Empty; bool ok = false;
+    foreach (var s in l) { try { s.SetMasterVolume(Math.Max(0f, Math.Min(1f, level)), ref g); if (level > 0) s.SetMute(false, ref g); ok = true; } catch { } }
+    return ok;
   }
   // Wycisza / wlacza WSZYSTKIE aktywne mikrofony - dziala we wszystkich aplikacjach naraz.
   public static void MuteAllMics(bool mute) {

@@ -2,7 +2,7 @@
 // Podgląd w ustawieniach (island/index.html?preview): ta sama wyspa, ale nie rusza prawdziwej — nie zgłasza obszaru
 // klikania ani przytrzymania, nie zapisuje stanu; działa tylko sterowanie muzyką i głośnością. Szkło bez obrazu ekranu.
 const PREVIEW = new URLSearchParams(location.search).has('preview');
-const PREVIEW_SEND = new Set(['media-app', 'media', 'seek', 'volume', 'mute', 'controls-refresh', 'stats-on', 'weather-refresh', 'ai-usage-refresh']);
+const PREVIEW_SEND = new Set(['media-app', 'appvol-get', 'app-volume', 'media', 'seek', 'volume', 'mute', 'controls-refresh', 'stats-on', 'weather-refresh', 'ai-usage-refresh']);
 const W = PREVIEW ? { ...window.wyspa, send: (ch, ...a) => { if (PREVIEW_SEND.has(ch)) window.wyspa.send(ch, ...a); } } : window.wyspa;
 const T = window.WYSPA_THEME, I = window.ICONS;
 if (PREVIEW) document.documentElement.classList.add('preview');
@@ -13,7 +13,7 @@ const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 268, shel
 // widżety: własny układ (Ustawienia albo prawy przycisk na widżecie); karta rośnie o kolejne rzędy
 const WIDGETS_DEFAULT = ['today', 'focus', 'weather', 'stats'];
 const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? st.S.widgets : WIDGETS_DEFAULT);
-const tabH = tab => { if (tab === 'music' && lyricsPanel()) return 196; if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
+const tabH = tab => { if (tab === 'music') return (lyricsPanel() ? 196 : TAB_H.music) + (window.appVolShown && window.appVolShown() ? 24 : 0); if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
 // tekst piosenki na żywo: karta muzyki poszerza się o kolumnę tekstu (gdy teksty włączone i utwór ma tekst z czasami)
 // kolumna tekstu także w trakcie szukania tekstu nowego utworu i przez 2,5 s przerwy między utworami
 // (bez tego karta zwężała się i rozszerzała przy każdej zmianie utworu)
