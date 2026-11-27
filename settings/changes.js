@@ -2,6 +2,11 @@
    Nowa wersja = nowy wpis NA GÓRZE, po polsku i po angielsku. */
 window.AURA_CHANGES = [
   {
+    v: '2.2.15', date: '2026-11-27',
+    pl: ['Mac z notchem: zwierzak, godzina, data, pogoda albo wydarzenie w spoczynku wychodzą w skrzydełkach po bokach notcha, zamiast chować się pod wycięciem.'],
+    en: ['Mac with a notch: the pet, time, date, weather or event at rest shows in wings beside the notch instead of hiding under the cut-out.'],
+  },
+  {
     v: '2.2.14', date: '2026-11-27',
     pl: [
       'Okno „Co nowego” pokazuje się po każdej aktualizacji, na wierzchu innych okien (wcześniej czasem w ogóle się nie otwierało).',
