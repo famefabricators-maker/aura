@@ -44,6 +44,13 @@ if (process.platform === 'darwin') app.commandLine.appendSwitch('use-mock-keycha
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
 const WIN_W = 780, WIN_H = 500;
+// Rozmiar okna wyspy rośnie razem z kartą: karta muzyki z tekstem ma 722 px, a „Rozmiar po otwarciu” do 150% —
+// przy stałym oknie 780×500 większa karta była ucinana po bokach (okładka, tekst piosenki) i od dołu (widżety)
+function winSize() {
+  const o = (Number(S().openSize) || 100) / 100, rows = Math.max(1, Math.ceil(((S().widgets || []).length || 1) / 2));
+  const maxH = Math.max(268, 46 + rows * 104 + (rows - 1) * 8); // najwyższa karta (widżety albo przypomnienia)
+  return { width: Math.max(WIN_W, Math.ceil((722 + 32) * o) + 26), height: Math.max(WIN_H, Math.ceil(maxH * o) + 90) };
+}
 migrateFromWyspa();
 const store = new Store();
 
@@ -95,16 +102,17 @@ function place() {
   if (!island) return;
   const d = screen.getPrimaryDisplay().bounds;
   const m = Number(S().edgeMargin) || 24, pad = 34; // pad = odstęp wyspy od krawędzi okna (renderer)
-  let x = d.x + (d.width - WIN_W) / 2;
+  const { width: W, height: H } = winSize();
+  let x = d.x + (d.width - W) / 2;
   const centered = notchActive(); // na Macu z notchem (wyspa u góry) wyspa otacza wycięcie
   if (!centered && S().position === 'left') x = d.x + m - pad;
-  if (!centered && S().position === 'right') x = d.x + d.width - m + pad - WIN_W;
+  if (!centered && S().position === 'right') x = d.x + d.width - m + pad - W;
   // na dole: okno stoi nad paskiem zadań (obszar roboczy), wyspa przy jego dolnej krawędzi
   const wa = screen.getPrimaryDisplay().workArea;
   // na dole z paskiem zadań Aury: wyspa pływa tuż nad paskiem (dolna krawędź ekranu zostaje dla paska)
   // na dole: okno przy dolnej krawędzi obszaru roboczego; nad pasek zadań Aury wyspę unosi sam widok (dockLift)
-  const y = !centered && S().edge === 'bottom' ? wa.y + wa.height - WIN_H : d.y;
-  island.setBounds({ x: Math.round(x), y, width: WIN_W, height: WIN_H });
+  const y = !centered && S().edge === 'bottom' ? wa.y + wa.height - H : d.y;
+  island.setBounds({ x: Math.round(x), y, width: W, height: H });
   send('screen', screenInfo());
 }
 function screenInfo() {
@@ -122,7 +130,7 @@ let macNativeMod = null;
 const macNative = () => macNativeMod || (macNativeMod = IS_MAC ? require('./lib/mac-native') : { pinWindow: () => null, startKeys: () => 'błąd', stopKeys() {}, keysActive: () => false, dragState: () => null, dragFiles: () => [] });
 function createIsland() {
   island = new BrowserWindow({
-    width: WIN_W, height: WIN_H, frame: false, transparent: true, resizable: false, movable: false,
+    ...winSize(), frame: false, transparent: true, resizable: false, movable: false,
     minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, hasShadow: false,
     alwaysOnTop: true, show: false, backgroundColor: '#00000000', title: 'Aura',
     // macOS: hiddenInMissionControl — w Mission Control / widoku wszystkich okien wyspa nie jest układana razem
@@ -241,7 +249,7 @@ function applySettings(patch) {
   if (k.includes('lang') && (S().lang === 'auto' ? require('./lib/lang').systemLang() : S().lang) !== LANG) setTimeout(() => { app.relaunch(); app.quit(); }, 400);
   if (k.includes('notifyPort') || k.includes('agentsEnabled') || k.includes('notifyEndpoint')) startEndpoint();
   if (k.includes('hideInFullscreen') || k.includes('gamerOverlay')) applyFullscreen();
-  if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge')) place();
+  if (k.includes('position') || k.includes('edgeMargin') || k.includes('edge') || k.includes('openSize') || k.includes('widgets')) place(); // okno rośnie razem z kartą
   if (k.includes('edge') && helper.setEdge) helper.setEdge(S().edge === 'bottom');
   if (k.includes('downloads')) configureDownloads();
   if (k.includes('claudeUsage')) refreshClaudeUsage(true);
@@ -1426,7 +1434,7 @@ ipcMain.on('web-open', (_, url) => {
   const d = screen.getPrimaryDisplay().workArea;
   const w = 480, h = Math.min(760, d.height - 90);
   const b = island.getBounds();
-  const x = Math.round(Math.min(Math.max(d.x + 8, b.x + WIN_W / 2 - w / 2), d.x + d.width - w - 8));
+  const x = Math.round(Math.min(Math.max(d.x + 8, b.x + b.width / 2 - w / 2), d.x + d.width - w - 8));
   const webY = S().edge === 'bottom' ? d.y + d.height - h - 70 : d.y + 70; // przy wyspie na dole — nad nią
   if (!webWin || webWin.isDestroyed()) {
     webWin = new BrowserWindow({
