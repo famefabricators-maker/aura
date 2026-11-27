@@ -227,7 +227,7 @@ function drawGL(now) {
   WyspaGL.draw({
     b2: devCapsule(),
     x: anchorX(w), y: atBottom() ? topY() + liftX : topY(), w, h, r: spring.r.x, ear: isIslandShape() ? 0 : spring.ear.x, island: isIslandShape(), flip: atBottom(), soft: isMac(),
-    band: notchActiveTop() ? st.screen.notch.h - (st.screen.winY || 0) : 0,
+    band: notchActiveTop() ? st.screen.notch.h - (st.screen.winY || 0) : 0, bandk: 1 - Math.min(1, openness / 0.2), // czerń tylko przy zwiniętej (skrzydełka, okienko głośności)
     base: albumBase(T.hexToRgb(surf.base), openness), glass: !!surf.glass, blur: (st.S.glassBlur ?? 50) / 100,
     tint: surf.glass ? 0.72 - openness * 0.2 : 0, ...regionUniforms(),
     accent: T.hexToRgb(st.accent), time: (now - t0) / 1000, open: openness, fx: surf.fx || 0, light: surf.light,
