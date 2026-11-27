@@ -2,6 +2,23 @@
    Nowa wersja = nowy wpis NA GÓRZE, po polsku i po angielsku. */
 window.AURA_CHANGES = [
   {
+    v: '2.2.13', date: '2026-11-27',
+    pl: [
+      'Drugi suwak w karcie muzyki: głośność samej aplikacji, z której gra muzyka (np. Spotify, przeglądarka) — bez zmiany głośności całego komputera.',
+      'Mac: klawisze głośności i jasności pokazują tylko okienko Aury (bez systemowego na zmianę), a pasek przesuwa się płynnie.',
+      'Aktualizacja jednym kliknięciem: „Zaktualizuj” pobiera i instaluje nową wersję bez wchodzenia na GitHuba.',
+      'Mac z notchem: czerń przy notchu tylko przy zwiniętej wyspie — otwarta karta, szkło i kolory albumu sięgają do samej góry.',
+      'Większy „Rozmiar po otwarciu” nie ucina już karty muzyki z tekstem piosenki ani widżetów.',
+    ],
+    en: [
+      'A second slider on the music card: the volume of just the app playing music (e.g. Spotify, a browser) — without changing the whole computer’s volume.',
+      'Mac: volume and brightness keys show only Aura’s popup (no system one in between), and the bar moves smoothly.',
+      'One-click updates: “Update” downloads and installs the new version without going to GitHub.',
+      'Mac with a notch: black next to the notch only while the island is closed — the open card, glass and album colours reach the top.',
+      'A larger “Size when open” no longer cuts off the music card with lyrics or the widgets.',
+    ],
+  },
+  {
     v: '2.2.12', date: '2026-11-26',
     pl: ['Schowany pasek zadań nie zostawia już zaokrągleń ani cienia w rogach ekranu.'],
     en: ['The hidden taskbar no longer leaves rounded corners or a shadow at the bottom of the screen.'],
