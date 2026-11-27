@@ -754,10 +754,10 @@ W.on('deck-pair', r => {
 W.on('update-alert', u => {
   const ready = u.kind === 'ready';
   showAlert({ icon: 'check', title: ready ? L(`Aura ${u.version} jest gotowa`, `Aura ${u.version} is ready`) : L(`Dostępna Aura ${u.version}`, `Aura ${u.version} is available`),
-    body: ready ? L('Zainstaluje się po ponownym uruchomieniu.', 'It will install when you restart.') : L('Pobierz nową wersję ze strony wydań.', 'Download the new version from the releases page.'),
+    body: ready ? L('Zainstaluje się po ponownym uruchomieniu.', 'It will install when you restart.') : u.self ? L('Pobierze się i zainstaluje sama.', 'It will download and install by itself.') : L('Pobierz nową wersję ze strony wydań.', 'Download the new version from the releases page.'),
     actions: [
       { label: L('Później', 'Later'), fn: () => { W.send('update-answer', 'later'); closeAlert(); } },
-      { label: ready ? L('Uruchom ponownie', 'Restart') : L('Pobierz', 'Download'), accent: true, fn: () => { W.send('update-answer', ready ? 'install' : 'open'); closeAlert(); } },
+      { label: ready ? L('Uruchom ponownie', 'Restart') : u.self ? L('Zaktualizuj', 'Update') : L('Pobierz', 'Download'), accent: true, fn: () => { W.send('update-answer', ready ? 'install' : u.self ? 'update' : 'open'); closeAlert(); } },
     ] });
 });
 

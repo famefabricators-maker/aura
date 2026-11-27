@@ -561,8 +561,12 @@ function showHud(h) {
   if (st.open || st.alert) return;
   st.hud = h;
   const icon = $('#hIcon'), bar = $('#hBar'), fill = $('#hFill'), text = $('#hText'), dot = $('#hDot');
-  bar.classList.remove('on'); text.textContent = ''; dot.className = 'hdot'; dot.style.background = '';
-  const setBar = (lvl, ico) => { icon.innerHTML = I.svg(ico); bar.classList.add('on'); fill.style.transform = `scaleX(${Math.max(0, Math.min(1, lvl))})`; };
+  // pasek zostaje włączony między kolejnymi naciśnięciami (głośność/jasność) — wcześniej znikał na chwilę i wypełnienie
+  // skakało bez animacji; ikona podmieniana tylko przy zmianie
+  const barKind = h.kind === 'volume' || h.kind === 'bright';
+  if (!barKind) { bar.classList.remove('on'); delete $('#hIcon').dataset.ico; } // inne okienka podmieniają ikonę same
+  text.textContent = ''; dot.className = 'hdot'; dot.style.background = '';
+  const setBar = (lvl, ico) => { if (icon.dataset.ico !== ico) { icon.dataset.ico = ico; icon.innerHTML = I.svg(ico); } bar.classList.add('on'); fill.style.transform = `scaleX(${Math.max(0, Math.min(1, lvl))})`; };
   switch (h.kind) {
     case 'volume': setBar(h.mute ? 0 : h.level, h.mute || h.level === 0 ? 'volMute' : 'vol'); break;
     case 'bright': setBar(h.level, 'sun'); break;
@@ -571,7 +575,7 @@ function showHud(h) {
       const isCaps = prev.caps !== h.caps || prev.num === h.num;
       const on = isCaps ? h.caps : h.num;
       icon.innerHTML = I.svg(isCaps ? 'caps' : 'num');
-      text.textContent = `${isCaps ? 'Caps Lock' : 'Num Lock'} ${on ? 'włączony' : 'wyłączony'}`;
+      text.textContent = `${isCaps ? 'Caps Lock' : 'Num Lock'} ${on ? L('włączony', 'on') : L('wyłączony', 'off')}`;
       dot.className = 'hdot ' + (on ? 'on' : 'off');
       st.keys = { caps: h.caps, num: h.num };
       break;
@@ -579,8 +583,8 @@ function showHud(h) {
     case 'mic': icon.innerHTML = I.svg(h.mute ? 'micOff' : 'mic'); text.textContent = h.mute ? L('Mikrofon wyciszony', 'Microphone muted') : L('Mikrofon włączony', 'Microphone on'); dot.className = 'hdot ' + (h.mute ? 'off' : 'on'); break;
     case 'device': icon.innerHTML = I.svg('headphones'); text.textContent = h.text; break;
     case 'devbat': icon.innerHTML = I.svg('plug'); text.textContent = L(`${String(h.name).replace(/^SteelSeries /, '')}: ładowanie · ${h.level}%`, `${String(h.name).replace(/^SteelSeries /, '')}: charging · ${h.level}%`); dot.className = 'hdot on'; break;
-    case 'battery': icon.innerHTML = I.svg(h.plugged ? 'plug' : 'battery'); text.textContent = h.plugged ? L('Ładowanie', 'Charging') : 'Na baterii'; if (navigator.getBattery) navigator.getBattery().then(b => { text.textContent += ` · ${Math.round(b.level * 100)}%`; }); break;
-    case 'color': icon.innerHTML = I.svg('color'); text.textContent = `${h.hex} skopiowany`; dot.className = 'hdot swatch'; dot.style.background = h.hex; break;
+    case 'battery': icon.innerHTML = I.svg(h.plugged ? 'plug' : 'battery'); text.textContent = h.plugged ? L('Ładowanie', 'Charging') : L('Na baterii', 'On battery'); if (navigator.getBattery) navigator.getBattery().then(b => { text.textContent += ` · ${Math.round(b.level * 100)}%`; }); break;
+    case 'color': icon.innerHTML = I.svg('color'); text.textContent = L(`${h.hex} skopiowany`, `${h.hex} copied`); dot.className = 'hdot swatch'; dot.style.background = h.hex; break;
   }
   clearTimeout(hudTimer);
   hudTimer = setTimeout(() => { st.hud = null; update(); }, 1400);

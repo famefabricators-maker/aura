@@ -362,8 +362,8 @@ function rowEl(r) {
       const b = el('button', 'btn', L('Sprawdź teraz', 'Check now'));
       const show = s => {
         if (!s) return;
-        const txt = { idle: '', dev: L('wersja z kodu (bez aktualizacji)', 'version from source (no updates)'), checking: 'sprawdzam…', current: L('masz najnowszą', 'you have the latest'), available: L(`dostępna ${s.latest}`, `${s.latest} available`),
-          downloading: `pobieram ${s.latest}${s.percent != null ? ' · ' + s.percent + '%' : ''}`, ready: `${s.latest} gotowa — uruchom ponownie`, error: L('nie udało się sprawdzić', 'couldn’t check') }[s.status] || '';
+        const txt = { idle: '', dev: L('wersja z kodu (bez aktualizacji)', 'version from source (no updates)'), checking: L('sprawdzam…', 'checking…'), waiting: L(`${s.latest} — czekam na pliki dla tego komputera`, `${s.latest} — waiting for the files for this computer`), current: L('masz najnowszą', 'you have the latest'), available: L(`dostępna ${s.latest}`, `${s.latest} available`),
+          downloading: L(`pobieram ${s.latest}`, `downloading ${s.latest}`) + (s.percent != null ? ' · ' + s.percent + '%' : ''), ready: L(`${s.latest} gotowa — uruchom ponownie`, `${s.latest} ready — restart`), error: L('nie udało się sprawdzić', 'couldn’t check') }[s.status] || '';
         status.textContent = `v${s.current}${txt ? ' · ' + txt : ''}`;
         b.textContent = s.status === 'ready' ? L('Uruchom ponownie', 'Restart') : s.status === 'available' && s.mode === 'notify' ? L('Pobierz', 'Download') : L('Sprawdź teraz', 'Check now');
         b.onclick = async () => {

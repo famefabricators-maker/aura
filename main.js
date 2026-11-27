@@ -278,7 +278,7 @@ function bringFront(win, strong) {
   } else win.focus();
 }
 function openSettings(page) {
-  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); bringFront(settingsWin, page === 'welcome'); if (page) send('goto', page, settingsWin); return; }
+  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.show(); bringFront(settingsWin, page === 'welcome' || /^whatsnew/.test(page || '')); if (page) send('goto', page, settingsWin); return; }
   const glass = S().surface === 'glass';
   settingsWin = new BrowserWindow({
     width: 860, height: 760, minWidth: 720, minHeight: 520, show: false, title: 'Aura — ustawienia',
@@ -291,7 +291,7 @@ function openSettings(page) {
   });
   settingsWin.setMenu(null);
   settingsWin.loadFile(path.join('settings', 'index.html'), { query: { page: page || '' } });
-  settingsWin.once('ready-to-show', () => { settingsWin.show(); bringFront(settingsWin, page === 'welcome'); });
+  settingsWin.once('ready-to-show', () => { settingsWin.show(); bringFront(settingsWin, page === 'welcome' || /^whatsnew/.test(page || '')); });
   settingsWin.on('closed', () => { if (previewView) { try { previewView.webContents.close(); } catch {} previewView = null; } settingsWin = null; }); // widok podglądu nie znika sam z oknem
   for (const ev of ['move', 'moved', 'resize', 'show', 'maximize', 'unmaximize', 'restore', 'will-move']) settingsWin.on(ev, sendSettingsPos);
   // podczas przeciągania okna Windows nie zawsze wysyła „move” na bieżąco — dopytujemy o pozycję co klatkę
@@ -1398,12 +1398,12 @@ const { Updates } = require('./lib/updates');
 const updates = new Updates({ portable: PORTABLE });
 updates.on('state', s => send('update-state', s, settingsWin));
 updates.on('ready', v => { alertActive = true; applyVisibility(); send('update-alert', { version: v, kind: 'ready' }); });
-updates.on('available', v => { if (!S().updateNotify) return; alertActive = true; applyVisibility(); send('update-alert', { version: v, kind: 'available' }); });
+updates.on('available', v => { if (!S().updateNotify) return; alertActive = true; applyVisibility(); send('update-alert', { version: v, kind: 'available', self: updates.auto || updates.macAuto }); });
 ipcMain.handle('update-state', () => updates.state);
 ipcMain.handle('update-check', () => updates.check(true));
 ipcMain.on('update-answer', (_, a) => {
   alertActive = false; applyVisibility();
-  if (a === 'install') updates.install(); else if (a === 'open') updates.openPage(); else updates.later();
+  if (a === 'install') updates.install(); else if (a === 'update') updates.updateNow(); else if (a === 'open') updates.openPage(); else updates.later();
 });
 
 // ---------- mała przeglądarka pod wyspą (karta Web) ----------
@@ -1676,6 +1676,9 @@ app.on('activate', () => {
 async function testShots(dir) {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   if (process.env.WYSPA_WEB) { await wait(4000); ipcMain.emit('web-open', {}, process.env.WYSPA_WEB); return; }
+  if (process.env.WYSPA_REEL === '2') { await reelRecord2(dir, wait); return; }
+  if (process.env.WYSPA_REEL === 'mac') { await reelRecordMac(dir, wait); return; }
+  if (process.env.WYSPA_REEL) { await reelRecord(dir, wait); return; }
   if (process.env.WYSPA_VIZ) { // zrzuty do README: Mac z notchem (razem z WYSPA_FAKE_NOTCH) albo Windows; dane przykładowe, nie prawdziwe
     const pre = process.env.WYSPA_FAKE_NOTCH ? 'mac' : 'win';
     const prev = S().surface, prevEdge = S().edge, prevW = S().widgets; if (process.env.WYSPA_VIZ_WIDGETS) applySettings({ widgets: process.env.WYSPA_VIZ_WIDGETS.split(",") }); applySettings({ surface: process.env.WYSPA_VIZ_SURFACE || 'pure', edge: process.env.WYSPA_VIZ_EDGE || prevEdge });
@@ -1890,3 +1893,227 @@ app.on('second-instance', (_, argv) => { userHidden = false; applyVisibility(); 
 app.on('before-quit', () => { quitting = true; if (taskbar && taskbar.active) taskbar.stop(); clearInterval(cursorLoop); helper.stop(); endpoint.stop(); phone.stop(); try { cal.stop(); obs.stop(); chat.stop(); deck.stop(); wp.stop(); updates.stop(); } catch {} });
 app.on('will-quit', () => { if (app.isReady()) globalShortcut.unregisterAll(); }); // druga kopia kończy się przed „ready”
 app.on('window-all-closed', () => { if (quitting) app.quit(); });
+
+// Tryb nagrania reelu (tylko z WYSPA_SHOT + WYSPA_REEL): klatki samego okna wyspy (z przezroczystością) przez kolejne
+// stany na przykładowych danych; prawdziwa zostaje tylko muzyka (Spotify). Pod wyspą stoi plansza-tapeta
+// (WYSPA_REEL_BG), żeby szkło rozmywało znany obraz, a nie pulpit. Ustawienia i półka wracają na koniec.
+async function reelRecord(dir, wait) {
+  const prev = { surface: S().surface, edge: S().edge, glassInShots: S().glassInShots, hideFromCaptures: S().hideFromCaptures, lyrics: S().lyrics, devBattery: S().devBattery };
+  const realFiles = store.data.files.slice();
+  addNotice = () => {}; // żadnych prawdziwych powiadomień na nagraniu
+  ['clip', 'devbat', 'covered', 'fs', 'toast'].forEach(e => helper.removeAllListeners(e));
+  sys.covered = false; sys.devbat = []; fsHidden = false; send('covered', false);
+  applySettings({ surface: 'glass', edge: 'top', glassInShots: false, hideFromCaptures: false, lyrics: true, devBattery: true });
+  const d = screen.getPrimaryDisplay().bounds;
+  const back = new BrowserWindow({ x: d.x, y: d.y, width: d.width, height: d.height, frame: false, focusable: false, skipTaskbar: true, show: false, backgroundColor: '#0b0d1f' });
+  if (process.env.WYSPA_REEL_BG) back.loadFile(process.env.WYSPA_REEL_BG);
+  back.showInactive(); place(); applyVisibility(); island.moveTop();
+  island.webContents.reload(); // przechwytywanie ekranu startuje od nowa już ze szkłem na żywo
+  await wait(6000);
+  const startedMusic = !!(sys.media && sys.media.has && !sys.media.playing);
+  if (startedMusic) helper.send({ c: 'media', a: 'toggle' }); // pauza → gra (tekst i wizualizer potrzebują grającego utworu)
+  await wait(4000);
+  fs.mkdirSync(path.join(dir, 'f'), { recursive: true });
+  try { fs.writeFileSync(path.join(dir, 'backdrop.png'), (await back.webContents.capturePage()).toPNG()); } catch {}
+  const t0 = Date.now(), frames = [], marks = [], mark = n => { marks.push({ n, t: Date.now() - t0 }); console.log('reel', n); };
+  let k = 0, busy = false;
+  const grab = setInterval(async () => { // ~30 kl./s; czas każdej klatki zapisany, ffmpeg wyrówna
+    if (busy) return; busy = true;
+    try { const t = Date.now() - t0; const img = await island.webContents.capturePage(); const f = `f/${String(k++).padStart(5, '0')}.png`; fs.writeFile(path.join(dir, f), img.toPNG(), () => {}); frames.push({ f, t }); } catch {}
+    busy = false;
+  }, 33);
+  const js = code => island.webContents.executeJavaScript(code);
+  const openTab = async tab => { pin = true; pinEntered = false; open = true; send('open', true); await wait(150); await js(`setTab('${tab}')`); };
+  const close = () => { pin = false; open = false; send('open', false); };
+  // 1. spoczynek → karta z muzyką i tekstem
+  mark('spoczynek'); await wait(2500);
+  mark('muzyka'); await openTab('music'); await wait(8000);
+  close(); mark('pigulka'); await wait(2500);
+  // 2. głośność (szkło nad kolorową tapetą)
+  mark('glosnosc'); for (let i = 0; i <= 12; i++) { send('hud', { kind: 'volume', level: 0.3 + i * 0.04, mute: false }); await wait(120); } await wait(2200);
+  // 3. półka: pliki wpadają po kolei, potem schowek
+  const demo = (process.env.WYSPA_REEL_FILES || '').split('|').filter(Boolean);
+  mark('polka'); await openTab('shelf'); await wait(600);
+  for (let i = 1; i <= demo.length; i++) { store.data.files = demo.slice(0, i).reverse(); const l = await filesOut(); store.data.files = realFiles.slice(); send('files', l); await wait(900); }
+  await wait(1800);
+  const now = Date.now();
+  send('clips', [
+    { id: 'c1', type: 'text', text: 'https://github.com/famefabricators-maker/aura', len: 45, img: null, ts: now - 40e3, pinned: false },
+    { id: 'c2', type: 'text', text: 'spotkanie w piątek o 18:00 🍕', len: 28, img: null, ts: now - 600e3, pinned: true },
+    { id: 'c3', type: 'text', text: '#7C5CFA', len: 7, img: null, ts: now - 3600e3, pinned: false },
+  ]);
+  mark('schowek'); await js(`setTab('clips')`); await wait(3500);
+  close(); await wait(1500);
+  // 4. baterie myszki i słuchawek
+  mark('baterie'); send('devbat', [{ name: 'Myszka', kind: 'mouse', level: 82 }, { name: 'Słuchawki', kind: 'headset', level: 45 }]); await wait(4500);
+  // 5. pobieranie gry
+  mark('pobieranie'); for (let p = 58; p <= 100; p += 2) { send('download', { name: 'Neon Drift', size: p * 4e8, speed: 9e7, pct: p, count: 1 }); await wait(160); }
+  send('download', null); send('banner', { id: 'r1', ts: Date.now(), kind: 'download', title: 'Pobrano grę', body: 'Neon Drift' }); await wait(3500);
+  send('devbat', []); await wait(800);
+  // 6. wiadomość
+  mark('wiadomosc'); send('banner', { id: 'r2', ts: Date.now(), kind: 'app', title: 'Kuba', body: 'wbijasz dziś na mecz? ⚽' }); await wait(4500);
+  // 7. telefon jako pilot (PC Deck)
+  const realDeck = deckState;
+  let qr = ''; try { qr = await require('qrcode').toDataURL('http://192.168.1.24:47901/d/aura', { margin: 1, width: 240 }); } catch {}
+  deckState = { running: true, qr, url: 'http://192.168.1.24:47901', devices: [{ id: 'p1', name: 'Mój telefon', connected: true }] }; send('deck', deckState);
+  mark('deck'); await openTab('deck'); await wait(4000);
+  deckState = realDeck; close(); await wait(800);
+  // 8. koniec: znowu sama pigułka z muzyką
+  mark('koniec'); await wait(4000);
+  clearInterval(grab); await wait(500);
+  fs.writeFileSync(path.join(dir, 'reel.json'), JSON.stringify({ bounds: island.getBounds(), display: d, scale: screen.getPrimaryDisplay().scaleFactor, frames, marks }, null, 1));
+  if (startedMusic) helper.send({ c: 'media', a: 'toggle' });
+  back.destroy(); store.data.files = realFiles; applySettings(prev); await wait(800); app.quit();
+}
+
+// Reel v5 (WYSPA_REEL=2): jedno ciągłe nagranie — karty przechodzą płynnie jedna w drugą (bez zamykania wyspy),
+// potem okno ustawień (Wygląd → kształt Wyspa/Notch, Pasek zadań → pasek Aury). Każde okno nagrywane osobno
+// (wyspa, ustawienia, podgląd w ustawieniach, pasek zadań) z położeniem na ekranie; klatki składa Remotion.
+// Dane przykładowe: pogoda, kalendarz, pliki, schowek, baterie, pobieranie, wiadomość, telefon, aplikacje na pasku.
+async function reelSetup(dir, wait, extra) {
+  const prev = { surface: S().surface, edge: S().edge, glassInShots: S().glassInShots, hideFromCaptures: S().hideFromCaptures, lyrics: S().lyrics, devBattery: S().devBattery, shape: S().shape, dock: S().dock, pillLyrics: S().pillLyrics };
+  addNotice = () => {};
+  ['clip', 'devbat', 'covered', 'fs', 'toast'].forEach(e => helper.removeAllListeners(e));
+  sys.covered = false; sys.devbat = []; fsHidden = false; send('covered', false);
+  applySettings({ edge: 'top', glassInShots: false, hideFromCaptures: false, lyrics: true, devBattery: true, pillLyrics: false, ...extra });
+  const d = screen.getPrimaryDisplay().bounds;
+  const back = new BrowserWindow({ x: d.x, y: d.y, width: d.width, height: d.height, frame: false, focusable: false, skipTaskbar: true, show: false, backgroundColor: '#0b0d1f' });
+  if (process.env.WYSPA_REEL_BG) back.loadFile(process.env.WYSPA_REEL_BG);
+  back.showInactive(); place(); applyVisibility(); island.moveTop();
+  island.webContents.reload();
+  await wait(6000);
+  const startedMusic = !!(sys.media && sys.media.has && !sys.media.playing);
+  if (startedMusic) helper.send({ c: 'media', a: 'toggle' });
+  const fakeWeather = () => { weather = { temp: 4, code: 3, day: true, text: L('Pochmurno', 'Cloudy'), max: 7, min: 1, place: 'Warszawa' }; weatherAt = Date.now(); send('weather', weather); };
+  fakeWeather(); const wTimer = setInterval(fakeWeather, 2500);
+  calendar = [{ title: 'Trening', start: Date.now() + 2 * 3600e3, end: Date.now() + 3 * 3600e3, allDay: false, location: '' }]; send('calendar', calendar);
+  await wait(4000);
+  console.log('reel utwór:', sys.media && sys.media.title, '—', sys.media && sys.media.artist);
+  // nagrywanie: wszystkie widoczne okna Aury, każde do swojego folderu, z położeniem na ekranie
+  const t0 = Date.now(), frames = [], marks = [], counters = {};
+  const mark = (n, extraData) => { marks.push({ n, t: Date.now() - t0, ...extraData }); console.log('reel', n); };
+  const targets = () => {
+    const out = [['island', island.webContents, island.getBounds()]];
+    if (settingsWin && !settingsWin.isDestroyed() && settingsWin.isVisible()) {
+      const cb = settingsWin.getContentBounds();
+      out.push(['settings', settingsWin.webContents, cb]);
+      if (previewView && !previewView.webContents.isDestroyed()) { const vb = previewView.getBounds(); if (vb.width > 10) out.push(['preview', previewView.webContents, { x: cb.x + vb.x, y: cb.y + vb.y, width: vb.width, height: vb.height }]); }
+    }
+    if (taskbar && taskbar.win && !taskbar.win.isDestroyed() && taskbar.win.isVisible()) out.push(['taskbar', taskbar.win.webContents, taskbar.win.getBounds()]);
+    return out;
+  };
+  let busy = false;
+  const grab = setInterval(async () => {
+    if (busy) return; busy = true;
+    const t = Date.now() - t0;
+    await Promise.all(targets().map(async ([key, wc, b]) => {
+      try {
+        const img = await wc.capturePage(); const n = counters[key] = (counters[key] || 0) + 1;
+        fs.mkdirSync(path.join(dir, key), { recursive: true });
+        const f = `${key}/${String(n).padStart(5, '0')}.png`; fs.writeFile(path.join(dir, f), img.toPNG(), () => {}); frames.push({ key, f, t, b });
+      } catch {}
+    }));
+    busy = false;
+  }, 33);
+  const finish = async () => {
+    clearInterval(grab); clearInterval(wTimer); await wait(600);
+    fs.writeFileSync(path.join(dir, 'reel.json'), JSON.stringify({ display: d, scale: screen.getPrimaryDisplay().scaleFactor, frames, marks }, null, 1));
+    if (startedMusic) helper.send({ c: 'media', a: 'toggle' });
+    back.destroy(); applySettings(prev); await wait(1500); app.quit();
+  };
+  return { mark, finish, js: code => island.webContents.executeJavaScript(code) };
+}
+
+async function reelRecord2(dir, wait) {
+  const realFiles = store.data.files.slice();
+  const { mark, finish, js } = await reelSetup(dir, wait, { surface: 'glass' });
+  const openTab = async tab => { pin = true; pinEntered = false; open = true; send('open', true); await wait(150); await js(`setTab('${tab}')`); };
+  const tab = t => js(`setTab('${t}')`);
+  const close = () => { pin = false; open = false; send('open', false); };
+  // przykładowe dane z góry, żeby karty były gotowe, zanim się pokażą
+  const demo = (process.env.WYSPA_REEL_FILES || '').split('|').filter(Boolean);
+  const now = Date.now();
+  const clips = [
+    { id: 'c1', type: 'text', text: 'https://github.com/famefabricators-maker/aura', len: 45, img: null, ts: now - 40e3, pinned: false },
+    { id: 'c2', type: 'text', text: 'spotkanie w piątek o 18:00 🍕', len: 28, img: null, ts: now - 600e3, pinned: true },
+    { id: 'c3', type: 'text', text: '#7C5CFA', len: 7, img: null, ts: now - 3600e3, pinned: false },
+  ];
+  const realDeck = deckState;
+  let qr = ''; try { qr = await require('qrcode').toDataURL('http://192.168.1.24:47901/d/aura', { margin: 1, width: 240 }); } catch {}
+
+  // 1. spoczynek → muzyka → widżety → półka → schowek → telefon: wyspa cały czas otwarta, karty przechodzą jedna w drugą
+  mark('spoczynek'); await wait(2500);
+  mark('muzyka'); await openTab('music'); await wait(6500);
+  mark('widzety'); await tab('widgets'); await wait(3500);
+  store.data.files = []; send('files', []);
+  mark('polka'); await tab('shelf'); await wait(500);
+  for (let i = 1; i <= demo.length; i++) { store.data.files = demo.slice(0, i).reverse(); const l = await filesOut(); store.data.files = realFiles.slice(); send('files', l); await wait(750); }
+  await wait(1200);
+  send('clips', clips);
+  mark('schowek'); await tab('clips'); await wait(3000);
+  deckState = { running: true, qr, url: 'http://192.168.1.24:47901', devices: [{ id: 'p1', name: 'Mój telefon', connected: true }] }; send('deck', deckState);
+  mark('deck'); await tab('deck'); await wait(3200);
+  deckState = realDeck;
+  // 2. wyspa się zwija, a komunikaty płyną jeden po drugim
+  mark('zwin'); close(); await wait(1300);
+  mark('glosnosc'); for (let i = 0; i <= 12; i++) { send('hud', { kind: 'volume', level: 0.3 + i * 0.04, mute: false }); await wait(110); } await wait(1600);
+  mark('baterie'); send('devbat', [{ name: 'Myszka', kind: 'mouse', level: 82 }, { name: 'Słuchawki', kind: 'headset', level: 45 }]); await wait(1800);
+  mark('pobieranie'); for (let p = 64; p <= 100; p += 2) { send('download', { name: 'Neon Drift', size: p * 4e8, speed: 9e7, pct: p, count: 1 }); await wait(130); }
+  send('download', null); send('banner', { id: 'r1', ts: Date.now(), kind: 'download', title: 'Pobrano grę', body: 'Neon Drift' }); await wait(3000);
+  send('devbat', []);
+  mark('wiadomosc'); send('banner', { id: 'r2', ts: Date.now(), kind: 'app', title: 'Kuba', body: 'wbijasz dziś na mecz? ⚽' }); await wait(4000);
+
+  // 3. ustawienia: kształt Wyspa / Notch na żywo, potem pasek zadań Aury
+  const d = screen.getPrimaryDisplay().bounds;
+  mark('ustawienia'); openSettings('look');
+  for (let i = 0; i < 40 && !(settingsWin && settingsWin.isVisible()); i++) await wait(100);
+  settingsWin.setBounds({ x: Math.round(d.width / 2 - 430), y: 330, width: 860, height: 760 });
+  await wait(2200);
+  const sjs = c => settingsWin.webContents.executeJavaScript(c);
+  const pointAt = async (sel, text) => { // przewiń do przycisku i podaj jego środek w punktach ekranu
+    const find = `[...document.querySelectorAll(${JSON.stringify(sel)})].find(x => ${text == null ? 'true' : `x.textContent.trim() === ${JSON.stringify(text)}`})`;
+    await sjs(`(() => { const b = ${find}; if (b) b.scrollIntoView({ behavior: 'smooth', block: 'center' }); })()`); await wait(900);
+    const r = await sjs(`(() => { const b = ${find}; if (!b) return null; const q = b.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
+    const cb = settingsWin.getContentBounds();
+    return { r, x: r ? cb.x + r.x : 0, y: r ? cb.y + r.y : 0, find };
+  };
+  const click = async (sel, text, n) => { const p = await pointAt(sel, text); mark('kursor-' + n, { x: p.x, y: p.y }); await wait(650); mark('klik-' + n, { x: p.x, y: p.y }); if (p.r) await sjs(`(() => { const b = ${p.find}; if (b) b.click(); })()`); };
+  const cur = S().shape === 'notch' ? 'notch' : 'island', other = cur === 'notch' ? 'island' : 'notch';
+  const name = { island: 'Wyspa', notch: 'Notch' };
+  await click('.seg button', name[other], 'ksztalt1'); await wait(2400);
+  await click('.seg button', name[cur], 'ksztalt2'); await wait(1800);
+  // pasek zadań: przykładowe aplikacje zamiast prawdziwych okien
+  const { Taskbar: TB } = require('./lib/taskbar');
+  const icon = async p => { try { return fs.existsSync(p) ? (await app.getFileIcon(p, { size: 'large' })).toDataURL() : null; } catch { return null; } };
+  const apps = [['Eksplorator', 'C:\\Windows\\explorer.exe'], ['Edge', 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'], ['Spotify', path.join(process.env.APPDATA || '', 'Spotify', 'Spotify.exe')], ['Notatnik', 'C:\\Windows\\System32\\notepad.exe'], ['Kalkulator', 'C:\\Windows\\System32\\calc.exe'], ['Paint', 'C:\\Windows\\System32\\mspaint.exe']];
+  const fakeItems = [];
+  for (const [n, p] of apps) { const ic = await icon(p); if (ic) fakeItems.push({ id: 'p:' + n, name: n, icon: ic, pinned: true, open: n === 'Spotify' || n === 'Edge' ? 1 : 0, active: n === 'Edge' }); }
+  const origState = TB.prototype.state;
+  TB.prototype.state = function () { const s = origState.call(this); s.items = fakeItems; s.tray = []; s.hidden = false; return s; };
+  mark('pasek-strona'); send('goto', 'taskbar', settingsWin); await wait(1500);
+  const dockLabel = 'Pasek zadań Aury';
+  const pt = await sjs(`(() => { const row = [...document.querySelectorAll('.row')].find(r => r.querySelector('.lbl b') && r.querySelector('.lbl b').textContent.trim() === ${JSON.stringify(dockLabel)}); const b = row && row.querySelector('.sw'); if (!b) return null; const q = b.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; })()`);
+  const cb = settingsWin.getContentBounds();
+  const was = !!S().dock;
+  if (pt) { mark('kursor-pasek', { x: cb.x + pt.x, y: cb.y + pt.y }); await wait(650); mark('klik-pasek', { x: cb.x + pt.x, y: cb.y + pt.y }); }
+  if (!was) applySettings({ dock: true });
+  await wait(1500); if (taskbar) taskbar.push();
+  mark('pasek'); await wait(4500);
+  mark('koniec'); await wait(1500);
+  if (!was) applySettings({ dock: false });
+  TB.prototype.state = origState;
+  try { settingsWin.close(); } catch {}
+  store.data.files = realFiles;
+  await finish();
+}
+
+// Mac (WYSPA_REEL=mac, razem z WYSPA_FAKE_NOTCH): ten sam utwór, układ przy notchu (czerń, skrzydełka po bokach wycięcia)
+async function reelRecordMac(dir, wait) {
+  const { mark, finish, js } = await reelSetup(dir, wait, { surface: 'pure', shape: 'notch' });
+  mark('spoczynek'); await wait(3500);
+  pin = true; pinEntered = false; open = true; send('open', true); await wait(150); await js(`setTab('music')`);
+  mark('muzyka'); await wait(4000);
+  pin = false; open = false; send('open', false);
+  mark('zwin'); await wait(2500);
+  await finish();
+}
