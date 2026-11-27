@@ -2,6 +2,17 @@
    Nowa wersja = nowy wpis NA GÓRZE, po polsku i po angielsku. */
 window.AURA_CHANGES = [
   {
+    v: '2.2.14', date: '2026-11-27',
+    pl: [
+      'Okno „Co nowego” pokazuje się po każdej aktualizacji, na wierzchu innych okien (wcześniej czasem w ogóle się nie otwierało).',
+      'Karta muzyki: pasek postępu i suwaki głośności niżej, z równymi odstępami.',
+    ],
+    en: [
+      'The “What’s new” window shows after every update, on top of other windows (before, it sometimes didn’t open at all).',
+      'Music card: the progress bar and volume sliders sit lower, with even spacing.',
+    ],
+  },
+  {
     v: '2.2.13', date: '2026-11-27',
     pl: [
       'Drugi suwak w karcie muzyki: głośność samej aplikacji, z której gra muzyka (np. Spotify, przeglądarka) — bez zmiany głośności całego komputera.',
