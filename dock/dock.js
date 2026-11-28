@@ -14,6 +14,22 @@ $('#clock').onclick = () => W.send('dock-key', 'notif');
 $('#npPlay').onclick = e => { e.stopPropagation(); W.send('media', 'toggle'); };
 $('#np').onclick = () => W.send('dock-np'); // otwórz program, z którego gra muzyka
 
+// Windows potrafi „zjadać” naciśnięcie przycisku w nieaktywowalnym oknie paska (sprawdzone na żywo: dochodziło
+// WM_MOUSEACTIVATE i samo puszczenie, bez WM_LBUTTONDOWN) — np. po menu prawego przycisku albo po wybudzeniu.
+// Wtedy klik i menu wywołujemy sami z puszczenia przycisku; gdy naciśnięcie doszło, działa zwykły „click”.
+{
+  let downAt = 0, downBtn = -1, lastCtx = 0, lastEaten = 0;
+  addEventListener('mousedown', e => { downAt = performance.now(); downBtn = e.button; }, true);
+  addEventListener('contextmenu', () => { lastCtx = performance.now(); }, true);
+  addEventListener('mouseup', e => {
+    const had = downBtn === e.button && performance.now() - downAt < 3000; downBtn = -1;
+    if (had) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY); if (!el || !dock.contains(el)) return;
+    if (performance.now() - lastEaten > 60000) { lastEaten = performance.now(); W.send('dock-eaten'); } // do dziennika paska, najwyżej raz na minutę
+    if (e.button === 0) el.click();
+    else if (e.button === 2) setTimeout(() => { if (performance.now() - lastCtx > 80) el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY, button: 2 })); }, 40);
+  }, true);
+}
 // klikalny jest tylko sam pasek — reszta okna przepuszcza mysz do okien pod spodem
 dock.addEventListener('mouseenter', () => W.send('dock-hover', true));
 dock.addEventListener('mouseleave', () => { W.send('dock-hover', false); unmagnify(); });

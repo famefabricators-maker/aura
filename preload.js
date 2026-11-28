@@ -5,7 +5,7 @@ const INVOKE = ['init', 'clip-text', 'mem-top', 'settings-get', 'settings-set', 
   'notices', 'agents', 'reminders', 'reminder-add', 'reminder-remove', 'rec-start', 'launch-pick', 'launch-info',
   'weather-city', 'notes', 'claude-status', 'claude-connect', 'hotkey-errors', 'sys', 'win-accent', 'calendar', 'obs-local', 'obs-state', 'app-icon', 'settings-pos',
   'chat-recent', 'chat-state', 'wallpaper-state', 'wallpaper-pick', 'deck-state', 'deck-start', 'update-state', 'update-check', 'dock-state', 'codex-status', 'codex-connect'];
-const SEND = ['whatsnew-seen', 'media-app', 'appvol-get', 'app-volume', 'open-settings', 'welcome-done', 'preview-rect', 'preview-open', 'settings-titlebar', 'hotkeys-pause', 'media', 'seek', 'volume', 'mute', 'mic-toggle',
+const SEND = ['dock-eaten', 'whatsnew-seen', 'media-app', 'appvol-get', 'app-volume', 'open-settings', 'welcome-done', 'preview-rect', 'preview-open', 'settings-titlebar', 'hotkeys-pause', 'media', 'seek', 'volume', 'mute', 'mic-toggle',
   'brightness', 'power-mode', 'radio', 'audio-devices', 'audio-set','controls-refresh', 'open-uri', 'clip-copy', 'clip-drag', 'clip-pin', 'clip-remove', 'clips-clear',
   'file-open', 'file-show', 'file-drag', 'airdrop', 'phone-stop', 'notice-remove', 'notices-clear', 'notice-open', 'reminder-answer',
   'screenshot', 'snip', 'rec-chunk', 'rec-stop', 'launch', 'stats-on', 'weather-refresh', 'notes-set', 'rects', 'hold',
