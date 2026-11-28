@@ -12,8 +12,9 @@ const isl = $('#isl');
 const TAB_H = { music: 162, web: 214, deck: 206, notices: 238, agents: 268, shelf: 178, clips: 210, widgets: 262, reminders: 268, controls: 244, launcher: 168, call: 176, airdrop: 176 };
 // widżety: własny układ (Ustawienia albo prawy przycisk na widżecie); karta rośnie o kolejne rzędy
 const WIDGETS_DEFAULT = ['today', 'focus', 'weather', 'stats'];
+const WIDE_W = new Set(['brief', 'agenda']); // widżety na całą szerokość karty
 const widgetList = () => (Array.isArray(st.S.widgets) && st.S.widgets.length ? st.S.widgets : WIDGETS_DEFAULT);
-const tabH = tab => { if (tab === 'music') return (lyricsPanel() ? 196 : TAB_H.music) + (window.appVolShown && window.appVolShown() ? 24 : 0); if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().length / 2)); return 46 + rows * 104 + (rows - 1) * 8; };
+const tabH = tab => { if (tab === 'music') return (lyricsPanel() ? 196 : TAB_H.music) + (window.appVolShown && window.appVolShown() ? 24 : 0); if (tab !== 'widgets') return TAB_H[tab]; const rows = Math.max(1, Math.ceil(widgetList().reduce((n, k) => n + (WIDE_W.has(k) ? 2 : 1), 0) / 2)); /* szerokie = cały rząd */ return 46 + rows * 104 + (rows - 1) * 8; };
 // tekst piosenki na żywo: karta muzyki poszerza się o kolumnę tekstu (gdy teksty włączone i utwór ma tekst z czasami)
 // kolumna tekstu także w trakcie szukania tekstu nowego utworu i przez 2,5 s przerwy między utworami
 // (bez tego karta zwężała się i rozszerzała przy każdej zmianie utworu)

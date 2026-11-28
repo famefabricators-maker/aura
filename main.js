@@ -47,7 +47,7 @@ const WIN_W = 780, WIN_H = 500;
 // Rozmiar okna wyspy rośnie razem z kartą: karta muzyki z tekstem ma 722 px, a „Rozmiar po otwarciu” do 150% —
 // przy stałym oknie 780×500 większa karta była ucinana po bokach (okładka, tekst piosenki) i od dołu (widżety)
 function winSize() {
-  const o = (Number(S().openSize) || 100) / 100, rows = Math.max(1, Math.ceil(((S().widgets || []).length || 1) / 2));
+  const o = (Number(S().openSize) || 100) / 100, rows = Math.max(1, Math.ceil(((S().widgets || []).reduce((n, k) => n + (k === 'brief' || k === 'agenda' ? 2 : 1), 0) || 1) / 2)); // szerokie widżety = 2 miejsca
   const maxH = Math.max(268, 46 + rows * 104 + (rows - 1) * 8); // najwyższa karta (widżety albo przypomnienia)
   return { width: Math.max(WIN_W, Math.ceil((722 + 32) * o) + 26), height: Math.max(WIN_H, Math.ceil(maxH * o) + 90) };
 }
@@ -1349,10 +1349,21 @@ async function refreshWeather(force) {
       store.set({ weatherLat: lat, weatherLon: lon, weatherName: g.results[0].name });
     }
     const unit = S().fahrenheit ? '&temperature_unit=fahrenheit' : '';
-    const w = await (await net.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_hours=7&timezone=auto&forecast_days=1${unit}`)).json();
-    weather = { temp: Math.round(w.current.temperature_2m), code: w.current.weather_code, day: !!w.current.is_day, text: WMO[w.current.weather_code] || '', max: Math.round(w.daily.temperature_2m_max[0]), min: Math.round(w.daily.temperature_2m_min[0]), place: S().weatherName,
+    // wczoraj + dziś + jutro co godzinę: prognoza na najbliższe godziny oraz „Pogoda w skrócie” (dziś w porównaniu z wczoraj)
+    const w = await (await net.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code&hourly=temperature_2m,weather_code&past_days=1&forecast_days=2&timezone=auto${unit}`)).json();
+    const today = String(w.current.time || '').slice(0, 10), di = Math.max(0, (w.daily.time || []).indexOf(today));
+    const ht = (w.hourly && w.hourly.time) || [], at = (day, h) => ht.indexOf(`${day}T${String(h).padStart(2, '0')}:00`);
+    const yesterday = (w.daily.time || [])[di - 1];
+    const now = ht.indexOf(String(w.current.time || '').slice(0, 13) + ':00');
+    // pory dnia: rano 8, południe 13, wieczór 18, noc 22 — dziś i wczoraj o tej samej godzinie
+    const parts = [8, 13, 18, 22].map(h => { const i = at(today, h), j = yesterday ? at(yesterday, h) : -1;
+      return i < 0 ? null : { h, temp: Math.round(w.hourly.temperature_2m[i]), code: w.hourly.weather_code[i], was: j < 0 ? null : Math.round(w.hourly.temperature_2m[j]) }; }).filter(Boolean);
+    const both = parts.filter(p => p.was != null), diff = both.length ? both.reduce((a, p) => a + p.temp - p.was, 0) / both.length : null;
+    weather = { temp: Math.round(w.current.temperature_2m), code: w.current.weather_code, day: !!w.current.is_day, text: WMO[w.current.weather_code] || '', max: Math.round(w.daily.temperature_2m_max[di]), min: Math.round(w.daily.temperature_2m_min[di]), place: S().weatherName,
       // prognoza na najbliższe godziny (widżet Prognoza godzinowa)
-      hours: w.hourly && Array.isArray(w.hourly.time) ? w.hourly.time.map((t, i) => ({ h: String(t).slice(11, 13), temp: Math.round(w.hourly.temperature_2m[i]), code: w.hourly.weather_code[i] })).slice(1, 7) : [] };
+      hours: now >= 0 ? ht.slice(now + 1, now + 7).map((t, k) => ({ h: String(t).slice(11, 13), temp: Math.round(w.hourly.temperature_2m[now + 1 + k]), code: w.hourly.weather_code[now + 1 + k] })) : [],
+      // „Pogoda w skrócie”: dziś cieplej / zimniej niż wczoraj (średnio o te same pory dnia) i co będzie
+      brief: { parts, diff: diff == null ? null : Math.round(diff * 10) / 10, code: (w.daily.weather_code || [])[di] } };
     weatherAt = Date.now();
     send('weather', weather);
   } catch (e) { send('weather', { error: e.message }); }
@@ -1529,7 +1540,7 @@ ipcMain.on('web-notify', (e, n) => {
 ipcMain.on('web-pins', (_, pins) => { if (Array.isArray(pins)) applySettings({ webPins: pins.filter(p => p && /^https?:\/\//i.test(p.url)).slice(0, 12) }); });
 
 // ---------- widżety: wybór i kolejność (prawy przycisk na widżecie) ----------
-const WIDGET_NAMES = { today: L('Dzisiaj', 'Today'), focus: L('Skupienie', 'Focus'), weather: L('Pogoda', 'Weather'), stats: L('Statystyki komputera', 'Computer stats'), todo: L('Zadania', 'Tasks'), notes: L('Notatka', 'Note'), timers: L('Minutniki', 'Timers'), forecast: L('Prognoza godzinowa', 'Hourly forecast') };
+const WIDGET_NAMES = { brief: L('Pogoda w skrócie', 'Weather at a glance'), agenda: L('Dzień w skrócie', 'Day at a glance'), today: L('Dzisiaj', 'Today'), focus: L('Skupienie', 'Focus'), weather: L('Pogoda', 'Weather'), stats: L('Statystyki komputera', 'Computer stats'), todo: L('Zadania', 'Tasks'), notes: L('Notatka', 'Note'), timers: L('Minutniki', 'Timers'), forecast: L('Prognoza godzinowa', 'Hourly forecast') };
 ipcMain.on('widgets-menu', (e, id) => {
   const cur = (Array.isArray(S().widgets) && S().widgets.length ? S().widgets : ['today', 'focus', 'weather', 'stats']).filter(k => WIDGET_NAMES[k]);
   const tpl = [];
@@ -1538,7 +1549,7 @@ ipcMain.on('widgets-menu', (e, id) => {
     const move = d => () => { const a = [...cur]; [a[i], a[i + d]] = [a[i + d], a[i]]; applySettings({ widgets: a }); };
     tpl.push({ label: L(`${WIDGET_NAMES[id]}: przesuń wcześniej`, `${WIDGET_NAMES[id]}: move earlier`), enabled: i > 0, click: move(-1) },
       { label: L(`${WIDGET_NAMES[id]}: przesuń dalej`, `${WIDGET_NAMES[id]}: move later`), enabled: i < cur.length - 1, click: move(1) },
-      { label: `Ukryj: ${WIDGET_NAMES[id]}`, enabled: cur.length > 1, click: () => applySettings({ widgets: cur.filter(x => x !== id) }) },
+      { label: L(`Ukryj: ${WIDGET_NAMES[id]}`, `Hide: ${WIDGET_NAMES[id]}`), enabled: cur.length > 1, click: () => applySettings({ widgets: cur.filter(x => x !== id) }) },
       { type: 'separator' });
   }
   tpl.push({ label: L('Widżety na karcie', 'Widgets on the card'), enabled: false });

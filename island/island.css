@@ -255,9 +255,32 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px;
 .cl-cards.list .ccard .cf { display: none; }
 
 /* widżety */
-.wgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 8px; position: relative; }
+.wgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; grid-auto-flow: row dense; gap: 8px; position: relative; }
+/* minimalistyczne widżety na całą szerokość: sam tekst czcionką o stałej szerokości */
+.wgrid .w.wide { grid-column: 1 / -1; font-family: var(--mono); letter-spacing: -.01em; display: flex; flex-direction: column; justify-content: space-between; padding: 11px 14px; }
+.brief .bf-head { font-size: 13px; line-height: 1.4; color: var(--dim); }
+.brief .bf-head > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brief .bf-head b { font-weight: 700; letter-spacing: .02em; }
+.brief .bf-head b.cold { color: #5ab4ff; } .brief .bf-head b.warm { color: #ff9f43; } .brief .bf-head b.same { color: var(--fg); }
+.brief .bf-sky { color: var(--faint, var(--dim)); opacity: .85; font-size: 12px; }
+.brief .bf-parts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.brief .bf-p { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brief .bf-p small { font-size: 10.5px; color: var(--dim); }
+.brief .bf-p b { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.brief .bf-p b .ico { width: 13px; height: 13px; color: var(--dim); }
+.brief .bf-p b i { font-style: normal; font-size: 10.5px; font-weight: 500; color: var(--dim); opacity: .8; margin-left: 2px; }
+.wgrid .w.agenda { justify-content: flex-start; gap: 8px; }
+.agenda .ag-date { font-size: 12px; color: var(--dim); }
+.agenda .ag-list { display: flex; flex-direction: column; gap: 3px; }
+.agenda .ag-ev { display: flex; gap: 12px; font-size: 13px; white-space: nowrap; overflow: hidden; }
+.agenda .ag-ev b { color: var(--accent); font-weight: 600; flex: none; min-width: 42px; font-variant-numeric: tabular-nums; }
+.agenda .ag-ev span { overflow: hidden; text-overflow: ellipsis; }
+.agenda .ag-ev.now b { color: var(--fg); }
+.agenda .ag-none { font-size: 13px; color: var(--dim); }
 .wgrid .w.off { display: none; }
 .wgrid.many .w-rem { top: 108px; }
+/* bez siatki 2×2 (szerokie widżety): przycisk przypomnień w prawym dolnym rogu, a nie na środku kafelka */
+.wgrid .w-rem.corner { left: auto; right: 10px; margin: 0; width: 36px; height: 36px; box-shadow: none; }
 .w { background: var(--row); border-radius: 14px; padding: 10px 12px; position: relative; overflow: hidden; }
 .today { display: flex; gap: 10px; }
 .today .big { font-size: 34px; font-weight: 800; line-height: .95; letter-spacing: -.03em; }
