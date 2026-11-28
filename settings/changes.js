@@ -2,6 +2,11 @@
    Nowa wersja = nowy wpis NA GÓRZE, po polsku i po angielsku. */
 window.AURA_CHANGES = [
   {
+    v: '2.2.16', date: '2026-11-28',
+    pl: ['Pasek zadań klika także po hibernacji: gdy Windows „zgubi” naciśnięcie przycisku, pasek i tak wykona kliknięcie albo otworzy menu.'],
+    en: ['The taskbar clicks after hibernation too: when Windows “loses” the button press, the bar still performs the click or opens the menu.'],
+  },
+  {
     v: '2.2.15', date: '2026-11-27',
     pl: ['Mac z notchem: zwierzak, godzina, data, pogoda albo wydarzenie w spoczynku wychodzą w skrzydełkach po bokach notcha, zamiast chować się pod wycięciem.'],
     en: ['Mac with a notch: the pet, time, date, weather or event at rest shows in wings beside the notch instead of hiding under the cut-out.'],
